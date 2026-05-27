@@ -2,10 +2,10 @@ package runtime
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 
-	cfdtlsconfig "github.com/cloudflare/cloudflared/tlsconfig"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
 )
 
@@ -60,12 +60,20 @@ func buildEdgeTLSConfigs(selected string) (map[string]*tls.Config, error) {
 }
 
 func newEdgeTLSConfig(serverName string, nextProtos []string) (*tls.Config, error) {
-	cfg, err := cfdtlsconfig.CreateTunnelConfig("", serverName)
+	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load system root CAs: %w", err)
 	}
-	cfg.MinVersion = tls.VersionTLS12
-	cfg.CurvePreferences = []tls.CurveID{tls.CurveP256}
+	if !rootCAs.AppendCertsFromPEM([]byte(cloudflareRootCAPEM)) {
+		return nil, fmt.Errorf("load cloudflare root CAs")
+	}
+
+	cfg := &tls.Config{
+		ServerName:       serverName,
+		RootCAs:          rootCAs,
+		MinVersion:       tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{tls.CurveP256},
+	}
 	if len(nextProtos) > 0 {
 		cfg.NextProtos = append([]string(nil), nextProtos...)
 	}

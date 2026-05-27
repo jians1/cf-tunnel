@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"testing"
 
@@ -31,6 +32,7 @@ func TestPrepareRuntimeForQUIC(t *testing.T) {
 	if len(cfg.NextProtos) != 1 || cfg.NextProtos[0] != edgeALPNQUIC {
 		t.Fatalf("unexpected alpn: %v", cfg.NextProtos)
 	}
+	assertEdgeTLSDefaults(t, cfg)
 }
 
 func TestPrepareRuntimeForHTTP2(t *testing.T) {
@@ -47,6 +49,30 @@ func TestPrepareRuntimeForHTTP2(t *testing.T) {
 	}
 	if len(cfg.NextProtos) != 0 {
 		t.Fatalf("unexpected alpn: %v", cfg.NextProtos)
+	}
+	assertEdgeTLSDefaults(t, cfg)
+}
+
+func assertEdgeTLSDefaults(t *testing.T, cfg *tls.Config) {
+	t.Helper()
+
+	if cfg.RootCAs == nil {
+		t.Fatal("expected root CAs")
+	}
+	if cfg.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("unexpected min tls version: %x", cfg.MinVersion)
+	}
+	if len(cfg.CurvePreferences) != 1 || cfg.CurvePreferences[0] != tls.CurveP256 {
+		t.Fatalf("unexpected curve preferences: %v", cfg.CurvePreferences)
+	}
+}
+
+func TestCloudflareRootCAPEMIsParseable(t *testing.T) {
+	t.Parallel()
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(cloudflareRootCAPEM)) {
+		t.Fatal("expected cloudflare root CA PEM to parse")
 	}
 }
 
