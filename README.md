@@ -1,0 +1,177 @@
+# cf-quicktunnel-ipv6pool
+
+Single-binary Go project with two independent feature areas:
+
+1. Cloudflare `TryCloudflare / Quick Tunnel`
+2. IPv6 pool outbound proxy
+
+The tunnel path is intentionally kept small for personal use: startup requests a real Quick Tunnel, connects to Cloudflare edge with `quic`, `http2`, or `auto`, and proxies traffic to the configured local origin.
+
+## Status
+
+### Working Today
+
+- unified CLI and config validation
+- IPv6 pool HTTP proxy
+- IPv6 pool SOCKS5 proxy
+- Quick Tunnel request client
+- local origin target parsing
+- local reverse proxy for HTTP/HTTPS and WebSocket upgrade
+- full Quick Tunnel main path using `quic` or `http2`
+- VLESS over WebSocket origin compatibility through the WebSocket proxy path
+
+### Verified Externally
+
+- explicit `http2`: public `trycloudflare.com` URL returned the local origin response
+- explicit `quic`: public `trycloudflare.com` URL returned the local origin response
+- `auto`: selected `quic`, public `trycloudflare.com` URL returned the local origin response
+- `http2` and `quic`: `1GiB` downloads through a VLESS-over-WebSocket origin completed with matching SHA256
+- large download RSS stayed in the tens of MiB range and did not grow with response size
+
+### Known Limits
+
+- Quick Tunnel creation can be rate-limited by `api.trycloudflare.com`.
+- Newly-created `trycloudflare.com` hostnames can have a short DNS or edge convergence window; warm up with small requests before large transfers.
+- This project targets Quick Tunnel and does not implement named tunnels or account login flows.
+- Quick Tunnel currently runs with one HA connection in this implementation.
+
+## Build
+
+```bash
+go build -buildvcs=false ./cmd/app
+```
+
+Current prototype version:
+
+```text
+0.1.0-prototype
+```
+
+## Release Build
+
+```bash
+./scripts/build-release.sh
+```
+
+Release builds use the tested compact settings:
+
+```text
+CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w"
+```
+
+Default output:
+
+```text
+dist/cf-quicktunnel-ipv6pool-0.1.0-prototype-linux-amd64
+dist/cf-quicktunnel-ipv6pool-0.1.0-prototype-linux-amd64.sha256
+dist/cf-quicktunnel-ipv6pool-0.1.0-prototype-linux-amd64.manifest.txt
+```
+
+## Container Build
+
+```bash
+docker build -t cf-quicktunnel-ipv6pool:0.1.0-prototype .
+```
+
+Example run:
+
+```bash
+docker run --rm \
+  cf-quicktunnel-ipv6pool:0.1.0-prototype \
+  --enable-cf-tunnel \
+  --cf-edge-protocol=auto \
+  --cf-tunnel-target=127.0.0.1:8080 \
+  --cf-origin-protocol=http \
+  --health-listen=
+```
+
+## CI / Local Acceptance
+
+Run the local pipeline:
+
+```bash
+./scripts/ci.sh
+```
+
+This currently performs:
+
+1. `go test ./...`
+2. compact release binary build into `dist/`
+3. Docker image build
+
+## Quick Tunnel
+
+Run a local HTTP origin through Quick Tunnel:
+
+```bash
+go run ./cmd/app \
+  --enable-cf-tunnel \
+  --cf-edge-protocol=auto \
+  --cf-tunnel-target=127.0.0.1:8080 \
+  --cf-origin-protocol=http
+```
+
+Force a specific Cloudflare edge transport:
+
+```bash
+go run ./cmd/app \
+  --enable-cf-tunnel \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=127.0.0.1:8080 \
+  --cf-origin-protocol=http
+```
+
+For a WebSocket origin such as VLESS over WS:
+
+```bash
+go run ./cmd/app \
+  --enable-cf-tunnel \
+  --cf-edge-protocol=auto \
+  --cf-tunnel-target=127.0.0.1:10000 \
+  --cf-origin-protocol=ws
+```
+
+## Important Flags
+
+### Global Controls
+
+- `--log-level=debug|info|warn|error`
+- `--log-format=text|json`
+- `--health-listen=:9090`
+- `--shutdown-timeout=10s`
+
+### Tunnel Controls
+
+- `--enable-cf-tunnel`
+- `--cf-quick-service=https://api.trycloudflare.com`
+- `--cf-quick-service-timeout=15s`
+- `--cf-quick-service-retry-backoff=500ms,1500ms`
+- `--cf-edge-protocol=auto|quic|http2`
+- `--cf-ha-connections=1`
+- `--cf-tunnel-target=host:port|url`
+- `--cf-origin-protocol=auto|http|https|ws|wss`
+- `--cf-origin-server-name=...`
+- `--cf-origin-insecure-skip-verify`
+
+### IPv6 Pool Controls
+
+- `--enable-ipv6-pool`
+- `--ipv6-pool-http=:3128`
+- `--ipv6-pool-socks5=:3129`
+- `--ipv6-pool-bind-interface=eth0`
+- `--ipv6-pool-cidr=2001:db8::/64`
+- `--ipv6-pool-strategy=random`
+
+## Current Runtime Behavior
+
+- Normal startup creates a real Quick Tunnel through `api.trycloudflare.com`.
+- `auto` currently normalizes to `quic`.
+- Runtime edge address discovery is internal and automatic.
+- Quick Tunnel currently supports `--cf-ha-connections=1` only; larger values are rejected.
+
+If `api.trycloudflare.com` returns Cloudflare rate limiting such as `429` / `1015`, retry later. That failure is at Quick Tunnel API creation time, not necessarily at the local origin proxy path.
+
+## Release
+
+- Version file: [VERSION](/root/cf-quicktunnel-ipv6pool/VERSION)
+- Release notes: [RELEASE_NOTES.md](/root/cf-quicktunnel-ipv6pool/RELEASE_NOTES.md)

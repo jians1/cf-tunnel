@@ -1,0 +1,24 @@
+# Build outputs
+/app
+/dist/
+/bin/
+
+# Test and coverage outputs
+*.test
+*.out
+/coverage.*
+
+# Local runtime artifacts
+*.log
+*.pid
+
+# Editor and OS files
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Local environment files
+.env
+.env.*

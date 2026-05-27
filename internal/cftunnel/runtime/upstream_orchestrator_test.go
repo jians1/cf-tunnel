@@ -1,0 +1,53 @@
+package runtime
+
+import (
+	"net/http"
+	"strings"
+	"testing"
+)
+
+func TestNewUpstreamOrchestrator(t *testing.T) {
+	t.Parallel()
+
+	prepared, err := PrepareRuntime(testSession(t, "quic"))
+	if err != nil {
+		t.Fatalf("prepare runtime: %v", err)
+	}
+	originProxy := NewUpstreamOriginProxy(prepared.OriginProxy)
+
+	orchestrator, err := NewUpstreamOrchestrator(originProxy, prepared.Session)
+	if err != nil {
+		t.Fatalf("new upstream orchestrator: %v", err)
+	}
+
+	cfg, err := orchestrator.GetConfigJSON()
+	if err != nil {
+		t.Fatalf("get config json: %v", err)
+	}
+	if !strings.Contains(string(cfg), `"protocol":"quic"`) {
+		t.Fatalf("unexpected config json: %s", string(cfg))
+	}
+
+	gotProxy, err := orchestrator.GetOriginProxy()
+	if err != nil {
+		t.Fatalf("get origin proxy: %v", err)
+	}
+	if gotProxy == nil {
+		t.Fatal("expected origin proxy")
+	}
+
+	resp := orchestrator.UpdateConfig(7, nil)
+	if resp.LastAppliedVersion != 7 {
+		t.Fatalf("unexpected applied version: %d", resp.LastAppliedVersion)
+	}
+}
+
+func TestNewUpstreamOrchestratorRejectsNilProxy(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewUpstreamOrchestrator(nil, testSession(t, "http2")); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+var _ http.Handler = http.Handler(nil)

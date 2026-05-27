@@ -1,0 +1,8 @@
+dist
+app
+README.md
+PROJECT_PLAN.md
+CFTUNNEL_ANALYSIS.md
+RELEASE_NOTES.md
+VERSION
+**/*_test.go
