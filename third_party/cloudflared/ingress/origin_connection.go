@@ -8,8 +8,6 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/cloudflare/cloudflared/ipaccess"
-	"github.com/cloudflare/cloudflared/socks"
 	"github.com/cloudflare/cloudflared/stream"
 	"github.com/cloudflare/cloudflared/websocket"
 )
@@ -68,24 +66,4 @@ func (wc *tcpOverWSConnection) Stream(ctx context.Context, tunnelConn io.ReadWri
 
 func (wc *tcpOverWSConnection) Close() error {
 	return wc.conn.Close()
-}
-
-// socksProxyOverWSConnection is an OriginConnection that streams SOCKS connections over WS.
-// The connection to the origin happens inside the SOCKS code as the client specifies the origin
-// details in the packet.
-type socksProxyOverWSConnection struct {
-	accessPolicy *ipaccess.Policy
-}
-
-func (sp *socksProxyOverWSConnection) Stream(ctx context.Context, tunnelConn io.ReadWriter, log *zerolog.Logger) {
-	wsCtx, cancel := context.WithCancel(ctx)
-	wsConn := websocket.NewConn(wsCtx, tunnelConn, log)
-	socks.StreamNetHandler(wsConn, sp.accessPolicy, log)
-	cancel()
-	// Makes sure wsConn stops sending ping before terminating the stream
-	wsConn.Close()
-}
-
-func (sp *socksProxyOverWSConnection) Close() error {
-	return nil
 }

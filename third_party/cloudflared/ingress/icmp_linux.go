@@ -19,7 +19,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/cloudflare/cloudflared/packet"
 	"github.com/cloudflare/cloudflared/tracing"
@@ -122,7 +121,7 @@ func (ip *icmpProxy) Request(ctx context.Context, pk *packet.ICMP, responder ICM
 		if !ok {
 			return nil, fmt.Errorf("ICMP listener address %s is not net.UDPAddr", conn.LocalAddr())
 		}
-		span.SetAttributes(attribute.Int("port", localUDPAddr.Port))
+		span.SetAttributes(tracing.IntAttr("port", localUDPAddr.Port))
 
 		echoID := localUDPAddr.Port
 		icmpFlow := newICMPEchoFlow(pk.Src, closeCallback, conn, responder, echoID, originalEcho.ID)
@@ -144,7 +143,7 @@ func (ip *icmpProxy) Request(ctx context.Context, pk *packet.ICMP, responder ICM
 		return err
 	}
 	if isNew {
-		span.SetAttributes(attribute.Bool("newFlow", true))
+		span.SetAttributes(tracing.BoolAttr("newFlow", true))
 		ip.logger.Debug().
 			Str("src", pk.Src.String()).
 			Str("dst", pk.Dst.String()).
@@ -183,7 +182,7 @@ func (ip *icmpProxy) handleResponse(ctx context.Context, flow *icmpEchoFlow, buf
 	defer flow.responder.ExportSpan()
 
 	span.SetAttributes(
-		attribute.Int("originalEchoID", flow.originalEchoID),
+		tracing.IntAttr("originalEchoID", flow.originalEchoID),
 	)
 
 	n, from, err := flow.originConn.ReadFrom(buf)

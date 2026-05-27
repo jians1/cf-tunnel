@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/cloudflare/cloudflared/ingress"
 	"github.com/cloudflare/cloudflared/packet"
@@ -37,12 +36,12 @@ func (pr *packetResponder) AddTraceContext(tracedCtx *tracing.TracedContext, ser
 	// datagram v3 does not support tracing ICMP packets
 }
 
-func (pr *packetResponder) RequestSpan(ctx context.Context, pk *packet.ICMP) (context.Context, trace.Span) {
+func (pr *packetResponder) RequestSpan(ctx context.Context, pk *packet.ICMP) (context.Context, tracing.Span) {
 	// datagram v3 does not support tracing ICMP packets
 	return ctx, tracing.NewNoopSpan()
 }
 
-func (pr *packetResponder) ReplySpan(ctx context.Context, logger *zerolog.Logger) (context.Context, trace.Span) {
+func (pr *packetResponder) ReplySpan(ctx context.Context, logger *zerolog.Logger) (context.Context, tracing.Span) {
 	// datagram v3 does not support tracing ICMP packets
 	return ctx, tracing.NewNoopSpan()
 }

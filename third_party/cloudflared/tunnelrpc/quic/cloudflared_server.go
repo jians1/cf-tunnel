@@ -6,7 +6,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudflare/cloudflared/tunnelrpc"
 	"github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
@@ -52,11 +51,11 @@ func (s *CloudflaredServer) Serve(ctx context.Context, stream io.ReadWriteCloser
 func (s *CloudflaredServer) handleRPC(ctx context.Context, stream io.ReadWriteCloser) error {
 	ctx, cancel := context.WithTimeout(ctx, s.responseTimeout)
 	defer cancel()
-	transport := tunnelrpc.SafeTransport(stream)
+	transport := safeTransport(stream)
 	defer transport.Close()
 
 	main := pogs.CloudflaredServer_ServerToClient(s.sessionManager, s.configManager)
-	rpcConn := tunnelrpc.NewServerConn(transport, main.Client)
+	rpcConn := newServerConn(transport, main.Client)
 	defer rpcConn.Close()
 
 	// We ignore the errors here because if cloudflared fails to handle a request, we will just move on.

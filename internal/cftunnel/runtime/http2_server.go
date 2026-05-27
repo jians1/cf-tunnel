@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	cfdtunnelrpc "github.com/cloudflare/cloudflared/tunnelrpc"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
@@ -68,7 +67,7 @@ func NewHTTP2ServerWithHandler(prepared *PreparedRuntime, logger *slog.Logger, h
 				options.TunnelProperties,
 				options.ConnIndex,
 				options.EdgeAddress,
-				func(ctx context.Context, rw io.ReadWriteCloser, timeout time.Duration) cfdtunnelrpc.RegistrationClient {
+				func(ctx context.Context, rw io.ReadWriteCloser, timeout time.Duration) registrationClient {
 					return options.RegistrationClientFunc(ctx, rw, timeout)
 				},
 				options.RegisterTimeout,

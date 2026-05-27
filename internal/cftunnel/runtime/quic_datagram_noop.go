@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/cloudflare/cloudflared/connection"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/google/uuid"
 )
@@ -15,7 +14,13 @@ var errDatagramSessionsDisabled = fmt.Errorf("datagram sessions are disabled")
 
 type noopDatagramSessionHandler struct{}
 
-func newNoopDatagramSessionHandler() connection.DatagramSessionHandler {
+type datagramSessionHandler interface {
+	Serve(context.Context) error
+	RegisterUdpSession(context.Context, uuid.UUID, net.IP, uint16, time.Duration, string) (*tunnelpogs.RegisterUdpSessionResponse, error)
+	UnregisterUdpSession(context.Context, uuid.UUID, string) error
+}
+
+func newNoopDatagramSessionHandler() datagramSessionHandler {
 	return noopDatagramSessionHandler{}
 }
 

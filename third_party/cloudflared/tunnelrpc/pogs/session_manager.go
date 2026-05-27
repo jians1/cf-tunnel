@@ -11,7 +11,6 @@ import (
 	"zombiezen.com/go/capnproto2/rpc"
 	"zombiezen.com/go/capnproto2/server"
 
-	"github.com/cloudflare/cloudflared/tunnelrpc/metrics"
 	"github.com/cloudflare/cloudflared/tunnelrpc/proto"
 )
 
@@ -33,7 +32,7 @@ func SessionManager_ServerToClient(s SessionManager) proto.SessionManager {
 }
 
 func (i SessionManager_PogsImpl) RegisterUdpSession(p proto.SessionManager_registerUdpSession) error {
-	return metrics.ObserveServerHandler(func() error { return i.registerUdpSession(p) }, metrics.SessionManager, metrics.OperationRegisterUdpSession)
+	return i.registerUdpSession(p)
 }
 
 func (i SessionManager_PogsImpl) registerUdpSession(p proto.SessionManager_registerUdpSession) error {
@@ -83,7 +82,7 @@ func (i SessionManager_PogsImpl) registerUdpSession(p proto.SessionManager_regis
 }
 
 func (i SessionManager_PogsImpl) UnregisterUdpSession(p proto.SessionManager_unregisterUdpSession) error {
-	return metrics.ObserveServerHandler(func() error { return i.unregisterUdpSession(p) }, metrics.SessionManager, metrics.OperationUnregisterUdpSession)
+	return i.unregisterUdpSession(p)
 }
 
 func (i SessionManager_PogsImpl) unregisterUdpSession(p proto.SessionManager_unregisterUdpSession) error {

@@ -10,8 +10,6 @@ import (
 	"github.com/google/uuid"
 	"zombiezen.com/go/capnproto2/rpc"
 
-	"github.com/cloudflare/cloudflared/tunnelrpc"
-	"github.com/cloudflare/cloudflared/tunnelrpc/metrics"
 	"github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
@@ -30,8 +28,8 @@ func NewSessionClient(ctx context.Context, stream io.ReadWriteCloser, requestTim
 	if n != len(rpcStreamProtocolSignature) {
 		return nil, fmt.Errorf("expect to write %d bytes for RPC stream protocol signature, wrote %d", len(rpcStreamProtocolSignature), n)
 	}
-	transport := tunnelrpc.SafeTransport(stream)
-	conn := tunnelrpc.NewClientConn(transport)
+	transport := safeTransport(stream)
+	conn := newClientConn(transport)
 	return &SessionClient{
 		client:         pogs.NewSessionManager_PogsClient(conn.Bootstrap(ctx), conn),
 		transport:      transport,
@@ -42,29 +40,13 @@ func NewSessionClient(ctx context.Context, stream io.ReadWriteCloser, requestTim
 func (c *SessionClient) RegisterUdpSession(ctx context.Context, sessionID uuid.UUID, dstIP net.IP, dstPort uint16, closeIdleAfterHint time.Duration, traceContext string) (*pogs.RegisterUdpSessionResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
-	defer metrics.CapnpMetrics.ClientOperations.WithLabelValues(metrics.SessionManager, metrics.OperationRegisterUdpSession).Inc()
-	timer := metrics.NewClientOperationLatencyObserver(metrics.SessionManager, metrics.OperationRegisterUdpSession)
-	defer timer.ObserveDuration()
-
-	resp, err := c.client.RegisterUdpSession(ctx, sessionID, dstIP, dstPort, closeIdleAfterHint, traceContext)
-	if err != nil {
-		metrics.CapnpMetrics.ClientFailures.WithLabelValues(metrics.SessionManager, metrics.OperationRegisterUdpSession).Inc()
-	}
-	return resp, err
+	return c.client.RegisterUdpSession(ctx, sessionID, dstIP, dstPort, closeIdleAfterHint, traceContext)
 }
 
 func (c *SessionClient) UnregisterUdpSession(ctx context.Context, sessionID uuid.UUID, message string) error {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
-	defer metrics.CapnpMetrics.ClientOperations.WithLabelValues(metrics.SessionManager, metrics.OperationUnregisterUdpSession).Inc()
-	timer := metrics.NewClientOperationLatencyObserver(metrics.SessionManager, metrics.OperationUnregisterUdpSession)
-	defer timer.ObserveDuration()
-
-	err := c.client.UnregisterUdpSession(ctx, sessionID, message)
-	if err != nil {
-		metrics.CapnpMetrics.ClientFailures.WithLabelValues(metrics.SessionManager, metrics.OperationUnregisterUdpSession).Inc()
-	}
-	return err
+	return c.client.UnregisterUdpSession(ctx, sessionID, message)
 }
 
 func (c *SessionClient) Close() {

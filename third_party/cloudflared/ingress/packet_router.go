@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/cloudflare/cloudflared/packet"
 	quicpogs "github.com/cloudflare/cloudflared/quic"
@@ -155,17 +153,17 @@ func (pr *packetResponder) AddTraceContext(tracedCtx *tracing.TracedContext, ser
 	pr.serializedIdentity = serializedIdentity
 }
 
-func (pr *packetResponder) RequestSpan(ctx context.Context, pk *packet.ICMP) (context.Context, trace.Span) {
+func (pr *packetResponder) RequestSpan(ctx context.Context, pk *packet.ICMP) (context.Context, tracing.Span) {
 	if !pr.tracingEnabled() {
 		return ctx, tracing.NewNoopSpan()
 	}
-	return pr.tracedCtx.Tracer().Start(pr.tracedCtx, "icmp-echo-request", trace.WithAttributes(
-		attribute.String("src", pk.Src.String()),
-		attribute.String("dst", pk.Dst.String()),
-	))
+	return pr.tracedCtx.Tracer().Start(pr.tracedCtx, "icmp-echo-request",
+		tracing.StringAttr("src", pk.Src.String()),
+		tracing.StringAttr("dst", pk.Dst.String()),
+	)
 }
 
-func (pr *packetResponder) ReplySpan(ctx context.Context, logger *zerolog.Logger) (context.Context, trace.Span) {
+func (pr *packetResponder) ReplySpan(ctx context.Context, logger *zerolog.Logger) (context.Context, tracing.Span) {
 	if !pr.tracingEnabled() || pr.hadReply {
 		return ctx, tracing.NewNoopSpan()
 	}

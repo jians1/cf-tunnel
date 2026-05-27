@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/cloudflare/cloudflared/management"
 	"github.com/cloudflare/cloudflared/tunnelrpc"
 	"github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
@@ -139,7 +138,7 @@ func (c *controlStream) waitForUnregister(ctx context.Context, registrationClien
 		return errors.Wrap(err, "Error shutting down control stream")
 	}
 	c.observer.log.Info().
-		Int(management.EventTypeKey, int(management.Cloudflared)).
+		Int(logEventTypeKey, logEventTypeCloudflared).
 		Uint8(LogFieldConnIndex, c.connIndex).
 		IPAddr(LogFieldIPAddress, c.edgeAddress).
 		Msg("Unregistered tunnel connection")

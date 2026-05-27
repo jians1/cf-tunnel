@@ -1,4 +1,4 @@
-package config
+package configmanager
 
 import (
 	"os"
@@ -7,14 +7,15 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/cloudflare/cloudflared/config"
 	"github.com/cloudflare/cloudflared/watcher"
 )
 
 type mockNotifier struct {
-	configs []Root
+	configs []config.Root
 }
 
-func (n *mockNotifier) ConfigDidUpdate(c Root) {
+func (n *mockNotifier) ConfigDidUpdate(c config.Root) {
 	n.configs = append(n.configs, c)
 }
 
@@ -49,15 +50,15 @@ func TestConfigChanged(t *testing.T) {
 		_ = f.Close()
 		_ = os.Remove(filePath)
 	}()
-	c := &Root{
-		Forwarders: []Forwarder{
+	c := &config.Root{
+		Forwarders: []config.Forwarder{
 			{
 				URL:      "test.daltoniam.com",
 				Listener: "127.0.0.1:8080",
 			},
 		},
 	}
-	configRead := func(configPath string, log *zerolog.Logger) (Root, error) {
+	configRead := func(configPath string, log *zerolog.Logger) (config.Root, error) {
 		return *c, nil
 	}
 	wait := make(chan struct{})
@@ -73,7 +74,7 @@ func TestConfigChanged(t *testing.T) {
 	go service.Start(n)
 
 	<-wait
-	c.Forwarders = append(c.Forwarders, Forwarder{URL: "add.daltoniam.com", Listener: "127.0.0.1:8081"})
+	c.Forwarders = append(c.Forwarders, config.Forwarder{URL: "add.daltoniam.com", Listener: "127.0.0.1:8081"})
 	w.TriggerChange()
 
 	service.Shutdown()

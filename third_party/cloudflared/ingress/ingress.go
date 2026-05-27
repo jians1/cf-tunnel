@@ -10,12 +10,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/urfave/cli/v2"
 	"golang.org/x/net/idna"
 
 	"github.com/cloudflare/cloudflared/config"
 	"github.com/cloudflare/cloudflared/ingress/middleware"
-	"github.com/cloudflare/cloudflared/ipaccess"
 )
 
 var (
@@ -95,7 +93,7 @@ func ParseIngress(conf *config.Configuration) (Ingress, error) {
 // rules and then attempt to parse CLI for ingress rules.
 // Will always return at least one valid ingress rule. If none are provided by the user, the default
 // will be to return 503 status code for all incoming requests.
-func ParseIngressFromConfigAndCLI(conf *config.Configuration, c *cli.Context, log *zerolog.Logger) (Ingress, error) {
+func ParseIngressFromConfigAndCLI(conf *config.Configuration, c cliContext, log *zerolog.Logger) (Ingress, error) {
 	// Attempt to parse ingress rules from configuration
 	ingressRules, err := ParseIngress(conf)
 	if err == nil && !ingressRules.IsEmpty() {
@@ -127,7 +125,7 @@ func ParseIngressFromConfigAndCLI(conf *config.Configuration, c *cli.Context, lo
 
 // parseCLIIngress constructs an Ingress set with only one rule constructed from
 // CLI parameters: --url, --hello-world, --bastion, or --unix-socket
-func parseCLIIngress(c *cli.Context, allowURLFromArgs bool) (Ingress, error) {
+func parseCLIIngress(c cliContext, allowURLFromArgs bool) (Ingress, error) {
 	service, err := parseSingleOriginService(c, allowURLFromArgs)
 	if err != nil {
 		return Ingress{}, err
@@ -149,7 +147,7 @@ func parseCLIIngress(c *cli.Context, allowURLFromArgs bool) (Ingress, error) {
 
 // newDefaultOrigin always returns a 503 response code to help indicate that there are no ingress
 // rules setup, but the tunnel is reachable.
-func newDefaultOrigin(c *cli.Context, log *zerolog.Logger) Ingress {
+func newDefaultOrigin(c cliContext, log *zerolog.Logger) Ingress {
 	defaultRule := GetDefaultIngressRules(log)
 	defaults := originRequestFromSingleRule(c)
 	ingress := Ingress{
@@ -160,9 +158,9 @@ func newDefaultOrigin(c *cli.Context, log *zerolog.Logger) Ingress {
 }
 
 // Get a single origin service from the CLI/config.
-func parseSingleOriginService(c *cli.Context, allowURLFromArgs bool) (OriginService, error) {
+func parseSingleOriginService(c cliContext, allowURLFromArgs bool) (OriginService, error) {
 	if c.IsSet(HelloWorldFlag) {
-		return new(helloWorld), nil
+		return NewNamedOriginService(HelloWorldService)
 	}
 	if c.IsSet(config.BastionFlag) {
 		return newBastionService(), nil
@@ -247,6 +245,7 @@ func validateIngress(ingress []config.UnvalidatedIngressRule, defaults OriginReq
 	for i, r := range ingress {
 		cfg := setConfig(defaults, r.OriginRequest)
 		var service OriginService
+		var err error
 
 		if prefix := "unix:"; strings.HasPrefix(r.Service, prefix) {
 			// No validation necessary for unix socket filepath services
@@ -266,24 +265,15 @@ func validateIngress(ingress []config.UnvalidatedIngressRule, defaults OriginReq
 			srv := newStatusCode(statusCode)
 			service = &srv
 		} else if r.Service == HelloWorldFlag || r.Service == HelloWorldService {
-			service = new(helloWorld)
-		} else if r.Service == ServiceSocksProxy {
-			rules := make([]ipaccess.Rule, len(r.OriginRequest.IPRules))
-
-			for i, ipRule := range r.OriginRequest.IPRules {
-				rule, err := ipaccess.NewRuleByCIDR(ipRule.Prefix, ipRule.Ports, ipRule.Allow)
-				if err != nil {
-					return Ingress{}, fmt.Errorf("unable to create ip rule for %s: %s", r.Service, err)
-				}
-				rules[i] = rule
-			}
-
-			accessPolicy, err := ipaccess.NewPolicy(false, rules)
+			service, err = NewNamedOriginService(HelloWorldService)
 			if err != nil {
-				return Ingress{}, fmt.Errorf("unable to create ip access policy for %s: %s", r.Service, err)
+				return Ingress{}, err
 			}
-
-			service = newSocksProxyOverWSService(accessPolicy)
+		} else if r.Service == ServiceSocksProxy {
+			service, err = NewNamedOriginService(ServiceSocksProxy)
+			if err != nil {
+				return Ingress{}, err
+			}
 		} else if r.Service == ServiceBastion || cfg.BastionMode {
 			// Bastion mode will always start a Websocket proxy server, which will
 			// overwrite the localService.URL field when `start` is called. So,

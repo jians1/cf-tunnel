@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/net/icmp"
 
 	"github.com/cloudflare/cloudflared/packet"
@@ -149,7 +148,7 @@ func (ip *icmpProxy) Request(ctx context.Context, pk *packet.ICMP, responder ICM
 		tracing.EndWithErrorStatus(span, err)
 		return err
 	}
-	span.SetAttributes(attribute.Int("assignedEchoID", int(assignedEchoID)))
+	span.SetAttributes(tracing.IntAttr("assignedEchoID", int(assignedEchoID)))
 
 	shouldReplaceFunnelFunc := createShouldReplaceFunnelFunc(ip.logger, responder, pk, originalEcho.ID)
 	newFunnelFunc := func() (packet.Funnel, error) {
@@ -171,7 +170,7 @@ func (ip *icmpProxy) Request(ctx context.Context, pk *packet.ICMP, responder ICM
 		return err
 	}
 	if isNew {
-		span.SetAttributes(attribute.Bool("newFlow", true))
+		span.SetAttributes(tracing.BoolAttr("newFlow", true))
 		ip.logger.Debug().
 			Str("src", pk.Src.String()).
 			Str("dst", pk.Dst.String()).
@@ -270,7 +269,7 @@ func (ip *icmpProxy) sendReply(ctx context.Context, reply *echoReply) error {
 		return err
 	}
 	observeICMPReply(ip.logger, span, reply.from.String(), reply.echo.ID, reply.echo.Seq)
-	span.SetAttributes(attribute.Int("originalEchoID", icmpFlow.originalEchoID))
+	span.SetAttributes(tracing.IntAttr("originalEchoID", icmpFlow.originalEchoID))
 	tracing.End(span)
 	return nil
 }

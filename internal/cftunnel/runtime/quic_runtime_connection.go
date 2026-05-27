@@ -14,7 +14,6 @@ import (
 	cfdflow "github.com/cloudflare/cloudflared/flow"
 	cfdquic "github.com/cloudflare/cloudflared/quic"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
-	rpcquic "github.com/cloudflare/cloudflared/tunnelrpc/quic"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -131,13 +130,13 @@ func (q *RuntimeQUICConnection) runStream(quicStream quic.Stream) {
 	stream := cfdquic.NewSafeStreamCloser(quicStream, q.streamWriteTimeout, q.logger)
 	defer stream.Close()
 	noCloseStream := &nopCloserReadWriter{ReadWriteCloser: stream}
-	ss := rpcquic.NewCloudflaredServer(q.handleDataStream, q.datagramHandler, q, q.rpcTimeout)
+	ss := newRuntimeCloudflaredServer(q.handleDataStream, q.datagramHandler, q, q.rpcTimeout)
 	if err := ss.Serve(ctx, noCloseStream); err != nil {
 		quicStream.CancelWrite(0)
 	}
 }
 
-func (q *RuntimeQUICConnection) handleDataStream(ctx context.Context, stream *rpcquic.RequestServerStream) error {
+func (q *RuntimeQUICConnection) handleDataStream(ctx context.Context, stream *runtimeRequestServerStream) error {
 	request, err := stream.ReadConnectRequestData()
 	if err != nil {
 		return err
@@ -157,7 +156,7 @@ func (q *RuntimeQUICConnection) handleDataStream(ctx context.Context, stream *rp
 	return nil
 }
 
-func (q *RuntimeQUICConnection) dispatchRequest(ctx context.Context, stream *rpcquic.RequestServerStream, request *tunnelpogs.ConnectRequest) (err error, connectResponseSent bool) {
+func (q *RuntimeQUICConnection) dispatchRequest(ctx context.Context, stream *runtimeRequestServerStream, request *tunnelpogs.ConnectRequest) (err error, connectResponseSent bool) {
 	originProxy, err := q.orchestrator.GetOriginProxy()
 	if err != nil {
 		return err, false
@@ -172,7 +171,7 @@ func (q *RuntimeQUICConnection) dispatchRequest(ctx context.Context, stream *rpc
 		w := newRuntimeHTTPResponseAdapter(stream)
 		return originProxy.ProxyHTTP(&w, tracedReq, request.Type == tunnelpogs.ConnectionTypeWebsocket), w.connectResponseSent
 	case tunnelpogs.ConnectionTypeTCP:
-		rwa := &runtimeStreamReadWriteAcker{RequestServerStream: stream}
+		rwa := &runtimeStreamReadWriteAcker{runtimeRequestServerStream: stream}
 		metadata := request.MetadataMap()
 		return originProxy.ProxyTCP(ctx, rwa, &TCPRequest{
 			Dest:      request.Dest,
@@ -189,7 +188,7 @@ func (q *RuntimeQUICConnection) UpdateConfiguration(ctx context.Context, version
 }
 
 type runtimeStreamReadWriteAcker struct {
-	*rpcquic.RequestServerStream
+	*runtimeRequestServerStream
 	connectResponseSent bool
 }
 
@@ -199,13 +198,13 @@ func (s *runtimeStreamReadWriteAcker) AckConnection(string) error {
 }
 
 type runtimeHTTPResponseAdapter struct {
-	*rpcquic.RequestServerStream
+	*runtimeRequestServerStream
 	headers             http.Header
 	connectResponseSent bool
 }
 
-func newRuntimeHTTPResponseAdapter(s *rpcquic.RequestServerStream) runtimeHTTPResponseAdapter {
-	return runtimeHTTPResponseAdapter{RequestServerStream: s, headers: make(http.Header)}
+func newRuntimeHTTPResponseAdapter(s *runtimeRequestServerStream) runtimeHTTPResponseAdapter {
+	return runtimeHTTPResponseAdapter{runtimeRequestServerStream: s, headers: make(http.Header)}
 }
 
 func (hrw *runtimeHTTPResponseAdapter) AddTrailer(string, string) {}
@@ -226,7 +225,7 @@ func (hrw *runtimeHTTPResponseAdapter) Write(p []byte) (int, error) {
 	if !hrw.connectResponseSent {
 		_ = hrw.WriteRespHeaders(http.StatusOK, hrw.headers)
 	}
-	return hrw.RequestServerStream.Write(p)
+	return hrw.runtimeRequestServerStream.Write(p)
 }
 
 func (hrw *runtimeHTTPResponseAdapter) Header() http.Header { return hrw.headers }
@@ -242,10 +241,10 @@ func (hrw *runtimeHTTPResponseAdapter) Hijack() (net.Conn, *bufio.ReadWriter, er
 
 func (hrw *runtimeHTTPResponseAdapter) WriteConnectResponseData(respErr error, metadata ...tunnelpogs.Metadata) error {
 	hrw.connectResponseSent = true
-	return hrw.RequestServerStream.WriteConnectResponseData(respErr, metadata...)
+	return hrw.runtimeRequestServerStream.WriteConnectResponseData(respErr, metadata...)
 }
 
-func buildRuntimeHTTPRequest(ctx context.Context, request *tunnelpogs.ConnectRequest, stream *rpcquic.RequestServerStream) (*TracedRequest, error) {
+func buildRuntimeHTTPRequest(ctx context.Context, request *tunnelpogs.ConnectRequest, stream *runtimeRequestServerStream) (*TracedRequest, error) {
 	req, err := http.NewRequestWithContext(ctx, request.MetadataMap()["HttpMethod"], request.Dest, stream)
 	if err != nil {
 		return nil, err

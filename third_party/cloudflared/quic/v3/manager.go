@@ -7,7 +7,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/cloudflare/cloudflared/ingress"
-	"github.com/cloudflare/cloudflared/management"
 
 	cfdflow "github.com/cloudflare/cloudflared/flow"
 )
@@ -68,7 +67,7 @@ func (s *sessionManager) RegisterSession(request *UDPSessionRegistrationDatagram
 	}
 
 	// Try to start a new session
-	if err := s.limiter.Acquire(management.UDP.String()); err != nil {
+	if err := s.limiter.Acquire(logEventNameUDP); err != nil {
 		return nil, ErrSessionRegistrationRateLimited
 	}
 

@@ -11,6 +11,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/cloudflare/cloudflared/cmd/cloudflared/access"
+	"github.com/cloudflare/cloudflared/cmd/cloudflared/configmanager"
 	"github.com/cloudflare/cloudflared/cmd/cloudflared/cliutil"
 	cfdflags "github.com/cloudflare/cloudflared/cmd/cloudflared/flags"
 	"github.com/cloudflare/cloudflared/cmd/cloudflared/management"
@@ -19,9 +20,11 @@ import (
 	"github.com/cloudflare/cloudflared/cmd/cloudflared/tunnel"
 	"github.com/cloudflare/cloudflared/cmd/cloudflared/updater"
 	"github.com/cloudflare/cloudflared/config"
+	_ "github.com/cloudflare/cloudflared/hello"
 	"github.com/cloudflare/cloudflared/logger"
 	"github.com/cloudflare/cloudflared/metrics"
 	"github.com/cloudflare/cloudflared/overwatch"
+	_ "github.com/cloudflare/cloudflared/socksproxy"
 	"github.com/cloudflare/cloudflared/token"
 	"github.com/cloudflare/cloudflared/tracing"
 	"github.com/cloudflare/cloudflared/watcher"
@@ -206,7 +209,7 @@ func handleServiceMode(c *cli.Context, shutdownC chan struct{}) error {
 	}
 
 	configPath := config.FindOrCreateConfigPath()
-	configManager, err := config.NewFileManager(f, configPath, log)
+	configManager, err := configmanager.NewFileManager(f, configPath, log)
 	if err != nil {
 		log.Err(err).Msg("Cannot setup config file for monitoring")
 		return err

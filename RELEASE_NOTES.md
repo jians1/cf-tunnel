@@ -23,6 +23,31 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 - local WebSocket origin response through the tunnel path
 - sing-box VLESS-over-WebSocket origin through both `http2` and `quic`
 - `1GiB` file downloads through both `http2` and `quic` with matching SHA256
+- dependency-trimmed runtime still passes real `http2` and `quic` end-to-end regression checks
+- release binary size reduced to `11,309,218 bytes` for `linux/amd64`
+
+### Dependency Trimming Included
+
+- removed management-path production dependencies including `go-jose`
+- removed command-only production dependencies including `urfave/cli` and `fsnotify`
+- removed production-path dependencies on:
+  - `hello`
+  - `ipaccess`
+  - `socks`
+  - `otel`
+  - `gorilla/websocket`
+  - `cloudflared/connection`
+  - `cloudflared/tunnelrpc`
+  - `cloudflared/tunnelrpc/quic`
+  - `cloudflared/tunnelrpc/metrics`
+
+### Remaining Large Runtime Surface
+
+The main remaining protocol/runtime weight is concentrated in:
+
+- `third_party/cloudflared/tunnelrpc/pogs`
+- `third_party/cloudflared/tunnelrpc/proto`
+- `zombiezen.com/go/capnproto2`
 
 ### Known Limits
 

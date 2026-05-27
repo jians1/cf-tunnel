@@ -453,7 +453,7 @@ func StartServer(
 		logger.ManagementLogger.Log,
 		logger.ManagementLogger,
 	)
-	internalRules := []ingress.Rule{ingress.NewManagementRule(mgmt)}
+	internalRules := []ingress.Rule{mgmt.NewIngressRule()}
 	orchestrator, err := orchestration.NewOrchestrator(ctx, orchestratorConfig, tunnelConfig.Tags, internalRules, tunnelConfig.Log)
 	if err != nil {
 		return err

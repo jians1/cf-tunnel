@@ -4,10 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/urfave/cli/v2"
-
 	"github.com/cloudflare/cloudflared/config"
-	"github.com/cloudflare/cloudflared/ipaccess"
 	"github.com/cloudflare/cloudflared/tlsconfig"
 )
 
@@ -49,6 +46,13 @@ type WarpRoutingConfig struct {
 	ConnectTimeout config.CustomDuration `yaml:"connectTimeout" json:"connectTimeout,omitempty"`
 	MaxActiveFlows uint64                `yaml:"maxActiveFlows" json:"MaxActiveFlows,omitempty"`
 	TCPKeepAlive   config.CustomDuration `yaml:"tcpKeepAlive" json:"tcpKeepAlive,omitempty"`
+}
+
+type cliContext interface {
+	config.CLIContext
+	Duration(string) time.Duration
+	Bool(string) bool
+	Int(string) int
 }
 
 func NewWarpRoutingConfig(raw *config.WarpRoutingConfig) WarpRoutingConfig {
@@ -119,7 +123,7 @@ func (rc *RemoteConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func originRequestFromSingleRule(c *cli.Context) OriginRequestConfig {
+func originRequestFromSingleRule(c cliContext) OriginRequestConfig {
 	var connectTimeout = defaultHTTPConnectTimeout
 	var tlsTimeout = defaultTLSTimeout
 	var tcpKeepAlive = defaultTCPKeepAlive
@@ -270,12 +274,7 @@ func originRequestFromConfig(c config.OriginRequestConfig) OriginRequestConfig {
 		out.ProxyType = *c.ProxyType
 	}
 	if len(c.IPRules) > 0 {
-		for _, r := range c.IPRules {
-			rule, err := ipaccess.NewRuleByCIDR(r.Prefix, r.Ports, r.Allow)
-			if err == nil {
-				out.IPRules = append(out.IPRules, rule)
-			}
-		}
+		out.IPRules = append([]config.IngressIPRule(nil), c.IPRules...)
 	}
 	if c.Http2Origin != nil {
 		out.Http2Origin = *c.Http2Origin
@@ -327,7 +326,7 @@ type OriginRequestConfig struct {
 	// What sort of proxy should be started
 	ProxyType string `yaml:"proxyType" json:"proxyType"`
 	// IP rules for the proxy service
-	IPRules []ipaccess.Rule `yaml:"ipRules" json:"ipRules"`
+	IPRules []config.IngressIPRule `yaml:"ipRules" json:"ipRules"`
 	// Attempt to connect to origin with HTTP/2
 	Http2Origin bool `yaml:"http2Origin" json:"http2Origin"`
 
@@ -433,14 +432,7 @@ func (defaults *OriginRequestConfig) setProxyType(overrides config.OriginRequest
 
 func (defaults *OriginRequestConfig) setIPRules(overrides config.OriginRequestConfig) {
 	if val := overrides.IPRules; len(val) > 0 {
-		ipAccessRule := make([]ipaccess.Rule, len(overrides.IPRules))
-		for i, r := range overrides.IPRules {
-			rule, err := ipaccess.NewRuleByCIDR(r.Prefix, r.Ports, r.Allow)
-			if err == nil {
-				ipAccessRule[i] = rule
-			}
-		}
-		defaults.IPRules = ipAccessRule
+		defaults.IPRules = append([]config.IngressIPRule(nil), val...)
 	}
 }
 
@@ -537,27 +529,10 @@ func ConvertToRawOriginConfig(c OriginRequestConfig) config.OriginRequestConfig 
 		ProxyAddress:           proxyAddress,
 		ProxyPort:              zeroUIntToNil(c.ProxyPort),
 		ProxyType:              emptyStringToNil(c.ProxyType),
-		IPRules:                convertToRawIPRules(c.IPRules),
+		IPRules:                append([]config.IngressIPRule(nil), c.IPRules...),
 		Http2Origin:            defaultBoolToNil(c.Http2Origin),
 		Access:                 access,
 	}
-}
-
-func convertToRawIPRules(ipRules []ipaccess.Rule) []config.IngressIPRule {
-	result := make([]config.IngressIPRule, 0)
-	for _, r := range ipRules {
-		cidr := r.StringCIDR()
-
-		newRule := config.IngressIPRule{
-			Prefix: &cidr,
-			Ports:  r.Ports(),
-			Allow:  r.RulePolicy(),
-		}
-
-		result = append(result, newRule)
-	}
-
-	return result
 }
 
 func defaultBoolToNil(b bool) *bool {

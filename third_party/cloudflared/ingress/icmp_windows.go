@@ -20,7 +20,6 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
@@ -293,8 +292,8 @@ func (ip *icmpProxy) Request(ctx context.Context, pk *packet.ICMP, responder ICM
 	}
 	observeICMPReply(ip.logger, replySpan, pk.Dst.String(), echo.ID, echo.Seq)
 	replySpan.SetAttributes(
-		attribute.Int64("rtt", int64(resp.rtt())),
-		attribute.String("status", resp.status().String()),
+		tracing.Int64Attr("rtt", int64(resp.rtt())),
+		tracing.StringAttr("status", resp.status().String()),
 	)
 	tracing.End(replySpan)
 	return nil

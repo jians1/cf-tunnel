@@ -6,7 +6,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cloudflare/cloudflared/tunnelrpc"
 	"github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
@@ -42,11 +41,11 @@ func (s *SessionManagerServer) Serve(ctx context.Context, stream io.ReadWriteClo
 	ctx, cancel := context.WithTimeout(ctx, s.responseTimeout)
 	defer cancel()
 
-	transport := tunnelrpc.SafeTransport(stream)
+	transport := safeTransport(stream)
 	defer transport.Close()
 
 	main := pogs.SessionManager_ServerToClient(s.sessionManager)
-	rpcConn := tunnelrpc.NewServerConn(transport, main.Client)
+	rpcConn := newServerConn(transport, main.Client)
 	defer rpcConn.Close()
 
 	select {

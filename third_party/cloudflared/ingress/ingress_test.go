@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"flag"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,7 +18,22 @@ import (
 	"github.com/cloudflare/cloudflared/config"
 	"github.com/cloudflare/cloudflared/ipaccess"
 	"github.com/cloudflare/cloudflared/tlsconfig"
+	"github.com/rs/zerolog"
 )
+
+type testHelloWorldService struct{}
+
+func (s *testHelloWorldService) String() string { return HelloWorldService }
+func (s *testHelloWorldService) MarshalJSON() ([]byte, error) { return json.Marshal(s.String()) }
+func (s *testHelloWorldService) start(*zerolog.Logger, <-chan struct{}, OriginRequestConfig) error {
+	return nil
+}
+
+func init() {
+	RegisterNamedOriginService(HelloWorldService, func() OriginService {
+		return &testHelloWorldService{}
+	})
+}
 
 func TestParseUnixSocket(t *testing.T) {
 	rawYAML := `

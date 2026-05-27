@@ -1,4 +1,4 @@
-package config
+package configmanager
 
 import (
 	"io"
@@ -8,12 +8,13 @@ import (
 	"github.com/rs/zerolog"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/cloudflare/cloudflared/config"
 	"github.com/cloudflare/cloudflared/watcher"
 )
 
 // Notifier sends out config updates
 type Notifier interface {
-	ConfigDidUpdate(Root)
+	ConfigDidUpdate(config.Root)
 }
 
 // Manager is the base functions of the config manager
@@ -29,7 +30,7 @@ type FileManager struct {
 	notifier   Notifier
 	configPath string
 	log        *zerolog.Logger
-	ReadConfig func(string, *zerolog.Logger) (Root, error)
+	ReadConfig func(string, *zerolog.Logger) (config.Root, error)
 }
 
 // NewFileManager creates a config manager
@@ -60,7 +61,7 @@ func (m *FileManager) Start(notifier Notifier) error {
 }
 
 // GetConfig reads the yaml file from the disk
-func (m *FileManager) GetConfig() (Root, error) {
+func (m *FileManager) GetConfig() (config.Root, error) {
 	return m.ReadConfig(m.configPath, m.log)
 }
 
@@ -69,27 +70,27 @@ func (m *FileManager) Shutdown() {
 	m.watcher.Shutdown()
 }
 
-func readConfigFromPath(configPath string, log *zerolog.Logger) (Root, error) {
+func readConfigFromPath(configPath string, log *zerolog.Logger) (config.Root, error) {
 	if configPath == "" {
-		return Root{}, errors.New("unable to find config file")
+		return config.Root{}, errors.New("unable to find config file")
 	}
 
 	file, err := os.Open(configPath)
 	if err != nil {
-		return Root{}, err
+		return config.Root{}, err
 	}
 	defer file.Close()
 
-	var config Root
-	if err := yaml.NewDecoder(file).Decode(&config); err != nil {
+	var cfg config.Root
+	if err := yaml.NewDecoder(file).Decode(&cfg); err != nil {
 		if err == io.EOF {
 			log.Error().Msgf("Configuration file %s was empty", configPath)
-			return Root{}, nil
+			return config.Root{}, nil
 		}
-		return Root{}, errors.Wrap(err, "error parsing YAML in config file at "+configPath)
+		return config.Root{}, errors.Wrap(err, "error parsing YAML in config file at "+configPath)
 	}
 
-	return config, nil
+	return cfg, nil
 }
 
 // File change notifications from the watcher

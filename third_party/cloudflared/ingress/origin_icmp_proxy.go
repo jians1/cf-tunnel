@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
@@ -49,8 +47,8 @@ type ICMPResponder interface {
 	ConnectionIndex() uint8
 	ReturnPacket(pk *packet.ICMP) error
 	AddTraceContext(tracedCtx *tracing.TracedContext, serializedIdentity []byte)
-	RequestSpan(ctx context.Context, pk *packet.ICMP) (context.Context, trace.Span)
-	ReplySpan(ctx context.Context, logger *zerolog.Logger) (context.Context, trace.Span)
+	RequestSpan(ctx context.Context, pk *packet.ICMP) (context.Context, tracing.Span)
+	ReplySpan(ctx context.Context, logger *zerolog.Logger) (context.Context, tracing.Span)
 	ExportSpan()
 }
 
@@ -146,7 +144,7 @@ func isEchoReply(msg *icmp.Message) bool {
 	return msg.Type == ipv4.ICMPTypeEchoReply || msg.Type == ipv6.ICMPTypeEchoReply
 }
 
-func observeICMPRequest(logger *zerolog.Logger, span trace.Span, src string, dst string, echoID int, seq int) {
+func observeICMPRequest(logger *zerolog.Logger, span tracing.Span, src string, dst string, echoID int, seq int) {
 	incrementICMPRequest()
 	logger.Debug().
 		Str("src", src).
@@ -155,17 +153,17 @@ func observeICMPRequest(logger *zerolog.Logger, span trace.Span, src string, dst
 		Int("originalEchoSeq", seq).
 		Msg("Received ICMP request")
 	span.SetAttributes(
-		attribute.Int("originalEchoID", echoID),
-		attribute.Int("seq", seq),
+		tracing.IntAttr("originalEchoID", echoID),
+		tracing.IntAttr("seq", seq),
 	)
 }
 
-func observeICMPReply(logger *zerolog.Logger, span trace.Span, dst string, echoID int, seq int) {
+func observeICMPReply(logger *zerolog.Logger, span tracing.Span, dst string, echoID int, seq int) {
 	incrementICMPReply()
 	logger.Debug().Str("dst", dst).Int("echoID", echoID).Int("seq", seq).Msg("Sent ICMP reply to edge")
 	span.SetAttributes(
-		attribute.String("dst", dst),
-		attribute.Int("echoID", echoID),
-		attribute.Int("seq", seq),
+		tracing.StringAttr("dst", dst),
+		tracing.IntAttr("echoID", echoID),
+		tracing.IntAttr("seq", seq),
 	)
 }

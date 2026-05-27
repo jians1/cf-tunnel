@@ -12,15 +12,12 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	cfdflow "github.com/cloudflare/cloudflared/flow"
 
 	"github.com/cloudflare/cloudflared/datagramsession"
 	"github.com/cloudflare/cloudflared/ingress"
-	"github.com/cloudflare/cloudflared/management"
 	"github.com/cloudflare/cloudflared/packet"
 	cfdquic "github.com/cloudflare/cloudflared/quic"
 	"github.com/cloudflare/cloudflared/tracing"
@@ -118,14 +115,14 @@ func (d *datagramV2Connection) Serve(ctx context.Context) error {
 // RegisterUdpSession is the RPC method invoked by edge to register and run a session
 func (q *datagramV2Connection) RegisterUdpSession(ctx context.Context, sessionID uuid.UUID, dstIP net.IP, dstPort uint16, closeAfterIdleHint time.Duration, traceContext string) (*tunnelpogs.RegisterUdpSessionResponse, error) {
 	traceCtx := tracing.NewTracedContext(ctx, traceContext, q.logger)
-	ctx, registerSpan := traceCtx.Tracer().Start(traceCtx, "register-session", trace.WithAttributes(
-		attribute.String("session-id", sessionID.String()),
-		attribute.String("dst", fmt.Sprintf("%s:%d", dstIP, dstPort)),
-	))
-	log := q.logger.With().Int(management.EventTypeKey, int(management.UDP)).Logger()
+	ctx, registerSpan := traceCtx.Tracer().Start(traceCtx, "register-session",
+		tracing.StringAttr("session-id", sessionID.String()),
+		tracing.StringAttr("dst", fmt.Sprintf("%s:%d", dstIP, dstPort)),
+	)
+	log := q.logger.With().Int(logEventTypeKey, logEventTypeUDP).Logger()
 
 	// Try to start a new session
-	if err := q.flowLimiter.Acquire(management.UDP.String()); err != nil {
+	if err := q.flowLimiter.Acquire(logEventNameUDP); err != nil {
 		log.Warn().Msgf("Too many concurrent sessions being handled, rejecting udp proxy to %s:%d", dstIP, dstPort)
 
 		err := pkgerrors.Wrap(err, "failed to start udp session due to rate limiting")
@@ -160,8 +157,8 @@ func (q *datagramV2Connection) RegisterUdpSession(ctx context.Context, sessionID
 		return nil, err
 	}
 	registerSpan.SetAttributes(
-		attribute.Bool("socket-bind-success", true),
-		attribute.String("src", originProxy.LocalAddr().String()),
+		tracing.BoolAttr("socket-bind-success", true),
+		tracing.StringAttr("src", originProxy.LocalAddr().String()),
 	)
 
 	session, err := q.sessionManager.RegisterSession(ctx, sessionID, originProxy)
@@ -209,7 +206,7 @@ func (q *datagramV2Connection) serveUDPSession(session *datagramsession.Session,
 		}
 	}
 	q.logger.Debug().Err(err).
-		Int(management.EventTypeKey, int(management.UDP)).
+		Int(logEventTypeKey, logEventTypeUDP).
 		Str(datagramsession.LogFieldSessionID, datagramsession.FormatSessionID(session.ID)).
 		Msg("Session terminated")
 }
@@ -222,7 +219,7 @@ func (q *datagramV2Connection) closeUDPSession(ctx context.Context, sessionID uu
 		// Log this at debug because this is not an error if session was closed due to lost connection
 		// with edge
 		q.logger.Debug().Err(err).
-			Int(management.EventTypeKey, int(management.UDP)).
+			Int(logEventTypeKey, logEventTypeUDP).
 			Str(datagramsession.LogFieldSessionID, datagramsession.FormatSessionID(sessionID)).
 			Msgf("Failed to open quic stream to unregister udp session with edge")
 		return

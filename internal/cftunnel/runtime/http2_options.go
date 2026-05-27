@@ -6,16 +6,13 @@ import (
 	"net"
 	"time"
 
-	cfdtunnelrpc "github.com/cloudflare/cloudflared/tunnelrpc"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/google/uuid"
 )
 
-type RegistrationClientFactory func(context.Context, io.ReadWriteCloser, time.Duration) cfdtunnelrpc.RegistrationClient
-
 type HTTP2ServerOptions struct {
 	ControlStreamHandler   ControlStreamHandler
-	RegistrationClientFunc RegistrationClientFactory
+	RegistrationClientFunc registrationClientFactory
 	LocalEdgeDriver        bool
 	DialAddress            string
 	EdgeAddressProvider    EdgeAddressProvider
@@ -42,7 +39,7 @@ func (o HTTP2ServerOptions) withDefaults() HTTP2ServerOptions {
 		o.ConnectedFuse = noopConnectedFuse{}
 	}
 	if o.RegistrationClientFunc == nil {
-		o.RegistrationClientFunc = cfdtunnelrpc.NewRegistrationClient
+		o.RegistrationClientFunc = newRegistrationClient
 	}
 	if o.TransportFactory == nil {
 		if o.DialConfig != nil {
@@ -76,7 +73,7 @@ func (mc mockNamedTunnelRPCClient) SendLocalConfiguration(context.Context, []byt
 func (mc mockNamedTunnelRPCClient) RegisterConnection(
 	context.Context,
 	tunnelpogs.TunnelAuth,
-	uuid.UUID,
+	[16]byte,
 	*tunnelpogs.ConnectionOptions,
 	uint8,
 	net.IP,
@@ -105,7 +102,7 @@ type mockRPCClientFactory struct {
 	unregistered chan struct{}
 }
 
-func (mf *mockRPCClientFactory) newMockRPCClient(context.Context, io.ReadWriteCloser, time.Duration) cfdtunnelrpc.RegistrationClient {
+func (mf *mockRPCClientFactory) newMockRPCClient(context.Context, io.ReadWriteCloser, time.Duration) registrationClient {
 	return &mockNamedTunnelRPCClient{
 		shouldFail:   mf.shouldFail,
 		registered:   mf.registered,

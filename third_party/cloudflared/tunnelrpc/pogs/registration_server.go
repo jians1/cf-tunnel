@@ -12,7 +12,6 @@ import (
 	"zombiezen.com/go/capnproto2/rpc"
 	"zombiezen.com/go/capnproto2/server"
 
-	"github.com/cloudflare/cloudflared/tunnelrpc/metrics"
 	"github.com/cloudflare/cloudflared/tunnelrpc/proto"
 )
 
@@ -36,7 +35,7 @@ func RegistrationServer_ServerToClient(s RegistrationServer) proto.RegistrationS
 }
 
 func (i RegistrationServer_PogsImpl) RegisterConnection(p proto.RegistrationServer_registerConnection) error {
-	return metrics.ObserveServerHandler(func() error { return i.registerConnection(p) }, metrics.Registration, metrics.OperationRegisterConnection)
+	return i.registerConnection(p)
 }
 
 func (i RegistrationServer_PogsImpl) registerConnection(p proto.RegistrationServer_registerConnection) error {
@@ -93,15 +92,13 @@ func (i RegistrationServer_PogsImpl) registerConnection(p proto.RegistrationServ
 }
 
 func (i RegistrationServer_PogsImpl) UnregisterConnection(p proto.RegistrationServer_unregisterConnection) error {
-	return metrics.ObserveServerHandler(func() error {
-		server.Ack(p.Options)
-		i.impl.UnregisterConnection(p.Ctx)
-		return nil // No metrics will be reported for failure as this method has no return value
-	}, metrics.Registration, metrics.OperationUnregisterConnection)
+	server.Ack(p.Options)
+	i.impl.UnregisterConnection(p.Ctx)
+	return nil
 }
 
 func (i RegistrationServer_PogsImpl) UpdateLocalConfiguration(p proto.RegistrationServer_updateLocalConfiguration) error {
-	return metrics.ObserveServerHandler(func() error { return i.updateLocalConfiguration(p) }, metrics.Registration, metrics.OperationUpdateLocalConfiguration)
+	return i.updateLocalConfiguration(p)
 }
 
 func (i RegistrationServer_PogsImpl) updateLocalConfiguration(c proto.RegistrationServer_updateLocalConfiguration) error {

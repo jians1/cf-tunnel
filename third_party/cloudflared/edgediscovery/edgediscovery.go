@@ -6,7 +6,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/cloudflare/cloudflared/edgediscovery/allregions"
-	"github.com/cloudflare/cloudflared/management"
 )
 
 const (
@@ -77,7 +76,7 @@ func (ed *Edge) GetAddrForRPC() (*allregions.EdgeAddr, error) {
 func (ed *Edge) GetAddr(connIndex int) (*allregions.EdgeAddr, error) {
 	log := ed.log.With().
 		Int(LogFieldConnIndex, connIndex).
-		Int(management.EventTypeKey, int(management.Cloudflared)).
+		Int(logEventTypeKey, logEventTypeCloudflared).
 		Logger()
 	ed.Lock()
 	defer ed.Unlock()
@@ -102,7 +101,7 @@ func (ed *Edge) GetAddr(connIndex int) (*allregions.EdgeAddr, error) {
 func (ed *Edge) GetDifferentAddr(connIndex int, hasConnectivityError bool) (*allregions.EdgeAddr, error) {
 	log := ed.log.With().
 		Int(LogFieldConnIndex, connIndex).
-		Int(management.EventTypeKey, int(management.Cloudflared)).
+		Int(logEventTypeKey, logEventTypeCloudflared).
 		Logger()
 	ed.Lock()
 	defer ed.Unlock()
@@ -137,7 +136,7 @@ func (ed *Edge) GiveBack(addr *allregions.EdgeAddr, hasConnectivityError bool) b
 	ed.Lock()
 	defer ed.Unlock()
 	ed.log.Debug().
-		Int(management.EventTypeKey, int(management.Cloudflared)).
+		Int(logEventTypeKey, logEventTypeCloudflared).
 		IPAddr(LogFieldIPAddress, addr.UDP.IP).
 		Msg("edge discovery: gave back address to the pool")
 	return ed.regions.GiveBack(addr, hasConnectivityError)

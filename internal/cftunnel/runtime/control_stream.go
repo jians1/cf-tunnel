@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	cfdtunnelrpc "github.com/cloudflare/cloudflared/tunnelrpc"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
@@ -15,7 +14,7 @@ type runtimeControlStreamOptions struct {
 	TunnelProperties   *RuntimeTunnelProperties
 	ConnIndex          uint8
 	EdgeAddress        net.IP
-	RegisterClientFunc RegistrationClientFactory
+	RegisterClientFunc registrationClientFactory
 	RegisterTimeout    time.Duration
 	GracefulShutdownC  <-chan struct{}
 	GracePeriod        time.Duration
@@ -26,7 +25,7 @@ type runtimeControlStream struct {
 	tunnelProperties   *RuntimeTunnelProperties
 	connIndex          uint8
 	edgeAddress        net.IP
-	registerClientFunc RegistrationClientFactory
+	registerClientFunc registrationClientFactory
 	registerTimeout    time.Duration
 	gracefulShutdownC  <-chan struct{}
 	gracePeriod        time.Duration
@@ -38,7 +37,7 @@ func NewControlStream(opts runtimeControlStreamOptions) ControlStreamHandler {
 		opts.ConnectedFuse = noopConnectedFuse{}
 	}
 	if opts.RegisterClientFunc == nil {
-		opts.RegisterClientFunc = cfdtunnelrpc.NewRegistrationClient
+		opts.RegisterClientFunc = newRegistrationClient
 	}
 	return &runtimeControlStream{
 		connectedFuse:      opts.ConnectedFuse,
@@ -81,7 +80,7 @@ func (c *runtimeControlStream) ServeControlStream(
 	return c.waitForUnregister(ctx, registrationClient)
 }
 
-func (c *runtimeControlStream) waitForUnregister(ctx context.Context, registrationClient cfdtunnelrpc.RegistrationClient) error {
+func (c *runtimeControlStream) waitForUnregister(ctx context.Context, registrationClient registrationClient) error {
 	defer registrationClient.Close()
 	var shutdownError error
 	select {

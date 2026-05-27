@@ -7,9 +7,15 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog"
-
-	"github.com/cloudflare/cloudflared/ipaccess"
 )
+
+type AccessRule interface {
+	String() string
+}
+
+type AccessPolicy interface {
+	Allowed(net.IP, int) (bool, string)
+}
 
 // RequestHandler is the functions needed to handle a SOCKS5 command
 type RequestHandler interface {
@@ -19,12 +25,12 @@ type RequestHandler interface {
 // StandardRequestHandler implements the base socks5 command processing
 type StandardRequestHandler struct {
 	dialer       Dialer
-	accessPolicy *ipaccess.Policy
+	accessPolicy AccessPolicy
 }
 
 // NewRequestHandler creates a standard SOCKS5 request handler
 // This handles the SOCKS5 commands and proxies them to their destination
-func NewRequestHandler(dialer Dialer, accessPolicy *ipaccess.Policy) RequestHandler {
+func NewRequestHandler(dialer Dialer, accessPolicy AccessPolicy) RequestHandler {
 	return &StandardRequestHandler{
 		dialer:       dialer,
 		accessPolicy: accessPolicy,
@@ -62,8 +68,8 @@ func (h *StandardRequestHandler) handleConnect(conn io.ReadWriter, req *Request)
 		}
 		if allowed, rule := h.accessPolicy.Allowed(req.DestAddr.IP, req.DestAddr.Port); !allowed {
 			_ = sendReply(conn, ruleFailure, req.DestAddr)
-			if rule != nil {
-				return fmt.Errorf("Connect to %v denied due to iprule: %s", req.DestAddr, rule.String())
+			if rule != "" {
+				return fmt.Errorf("Connect to %v denied due to iprule: %s", req.DestAddr, rule)
 			}
 			return fmt.Errorf("Connect to %v denied", req.DestAddr)
 		}
@@ -141,7 +147,7 @@ func StreamHandler(tunnelConn io.ReadWriter, originConn net.Conn, log *zerolog.L
 	}
 }
 
-func StreamNetHandler(tunnelConn io.ReadWriter, accessPolicy *ipaccess.Policy, log *zerolog.Logger) {
+func StreamNetHandler(tunnelConn io.ReadWriter, accessPolicy AccessPolicy, log *zerolog.Logger) {
 	dialer := NewNetDialer()
 	requestHandler := NewRequestHandler(dialer, accessPolicy)
 	socksServer := NewConnectionHandler(requestHandler)

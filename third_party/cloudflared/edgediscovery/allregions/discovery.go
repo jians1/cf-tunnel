@@ -9,8 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-
-	"github.com/cloudflare/cloudflared/management"
 )
 
 const (
@@ -110,9 +108,9 @@ var friendlyDNSErrorLines = []string{
 
 // EdgeDiscovery implements HA service discovery lookup.
 func EdgeDiscovery(log *zerolog.Logger, srvService string) ([][]*EdgeAddr, error) {
-	logger := log.With().Int(management.EventTypeKey, int(management.Cloudflared)).Logger()
+	logger := log.With().Int(logEventTypeKey, logEventTypeCloudflared).Logger()
 	logger.Debug().
-		Int(management.EventTypeKey, int(management.Cloudflared)).
+		Int(logEventTypeKey, logEventTypeCloudflared).
 		Str("domain", "_"+srvService+"._"+srvProto+"."+srvName).
 		Msg("edge discovery: looking up edge SRV record")
 
@@ -198,14 +196,14 @@ func ResolveAddrs(addrs []string, log *zerolog.Logger) (resolved []*EdgeAddr) {
 	for _, addr := range addrs {
 		tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 		if err != nil {
-			log.Error().Int(management.EventTypeKey, int(management.Cloudflared)).
+			log.Error().Int(logEventTypeKey, logEventTypeCloudflared).
 				Str(logFieldAddress, addr).Err(err).Msg("edge discovery: failed to resolve to TCP address")
 			continue
 		}
 
 		udpAddr, err := net.ResolveUDPAddr("udp", addr)
 		if err != nil {
-			log.Error().Int(management.EventTypeKey, int(management.Cloudflared)).
+			log.Error().Int(logEventTypeKey, logEventTypeCloudflared).
 				Str(logFieldAddress, addr).Err(err).Msg("edge discovery: failed to resolve to UDP address")
 			continue
 		}

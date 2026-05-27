@@ -17,7 +17,7 @@ import (
 
 	"github.com/cloudflare/cloudflared/hello"
 	"github.com/cloudflare/cloudflared/tlsconfig"
-	cfwebsocket "github.com/cloudflare/cloudflared/websocket"
+	cfwebsocket "github.com/cloudflare/cloudflared/websocket/gorilla"
 )
 
 func websocketClientTLSConfig(t *testing.T) *tls.Config {
@@ -100,7 +100,7 @@ func TestWebsocketWrapper(t *testing.T) {
 	assert.Equal(t, "websocket", resp.Header.Get("Upgrade"))
 
 	// Websocket now connected to test server so lets check our wrapper
-	wrapper := cfwebsocket.GorillaConn{Conn: conn}
+	wrapper := cfwebsocket.Conn{Conn: conn}
 	buf := make([]byte, 100)
 	wrapper.Write([]byte("abc"))
 	n, err := wrapper.Read(buf)

@@ -15,10 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
-	"github.com/cloudflare/cloudflared/hello"
-	"github.com/cloudflare/cloudflared/ipaccess"
-	"github.com/cloudflare/cloudflared/management"
-	"github.com/cloudflare/cloudflared/socks"
 	"github.com/cloudflare/cloudflared/tlsconfig"
 )
 
@@ -124,10 +120,6 @@ type tcpOverWSService struct {
 	dialer        net.Dialer
 }
 
-type socksProxyOverWSService struct {
-	conn *socksProxyOverWSConnection
-}
-
 func newTCPOverWSService(url *url.URL) *tcpOverWSService {
 	switch url.Scheme {
 	case "ssh":
@@ -149,16 +141,6 @@ func newBastionService() *tcpOverWSService {
 	return &tcpOverWSService{
 		isBastion: true,
 	}
-}
-
-func newSocksProxyOverWSService(accessPolicy *ipaccess.Policy) *socksProxyOverWSService {
-	proxy := socksProxyOverWSService{
-		conn: &socksProxyOverWSConnection{
-			accessPolicy: accessPolicy,
-		},
-	}
-
-	return &proxy
 }
 
 func addPortIfMissing(uri *url.URL, port int) {
@@ -183,7 +165,11 @@ func (o *tcpOverWSService) String() string {
 
 func (o *tcpOverWSService) start(log *zerolog.Logger, _ <-chan struct{}, cfg OriginRequestConfig) error {
 	if cfg.ProxyType == socksProxy {
-		o.streamHandler = socks.StreamHandler
+		handler, err := NewStreamHandler(socksProxy)
+		if err != nil {
+			return err
+		}
+		o.streamHandler = streamHandlerFunc(handler)
 	} else {
 		o.streamHandler = DefaultStreamHandler
 	}
@@ -193,58 +179,6 @@ func (o *tcpOverWSService) start(log *zerolog.Logger, _ <-chan struct{}, cfg Ori
 }
 
 func (o tcpOverWSService) MarshalJSON() ([]byte, error) {
-	return json.Marshal(o.String())
-}
-
-func (o *socksProxyOverWSService) start(log *zerolog.Logger, _ <-chan struct{}, cfg OriginRequestConfig) error {
-	return nil
-}
-
-func (o *socksProxyOverWSService) String() string {
-	return ServiceSocksProxy
-}
-
-func (o socksProxyOverWSService) MarshalJSON() ([]byte, error) {
-	return json.Marshal(o.String())
-}
-
-// HelloWorld is an OriginService for the built-in Hello World server.
-// Users only use this for testing and experimenting with cloudflared.
-type helloWorld struct {
-	httpService
-	server net.Listener
-}
-
-func (o *helloWorld) String() string {
-	return HelloWorldService
-}
-
-// Start starts a HelloWorld server and stores its address in the Service receiver.
-func (o *helloWorld) start(
-	log *zerolog.Logger,
-	shutdownC <-chan struct{},
-	cfg OriginRequestConfig,
-) error {
-	if err := o.httpService.start(log, shutdownC, cfg); err != nil {
-		return err
-	}
-
-	helloListener, err := hello.CreateTLSListener("127.0.0.1:")
-	if err != nil {
-		return errors.Wrap(err, "Cannot start Hello World Server")
-	}
-	go hello.StartHelloWorldServer(log, helloListener, shutdownC)
-	o.server = helloListener
-
-	o.httpService.url = &url.URL{
-		Scheme: "https",
-		Host:   o.server.Addr().String(),
-	}
-
-	return nil
-}
-
-func (o helloWorld) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o.String())
 }
 
@@ -325,13 +259,6 @@ func (o ManagementService) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o.String())
 }
 
-func NewManagementRule(management *management.ManagementService) Rule {
-	return Rule{
-		Hostname: management.Hostname,
-		Service:  newManagementService(management),
-	}
-}
-
 type NopReadCloser struct{}
 
 // Read always returns EOF to signal end of input
@@ -359,8 +286,10 @@ func newHTTPTransport(service OriginService, cfg OriginRequestConfig, log *zerol
 		TLSClientConfig:       &tls.Config{RootCAs: originCertPool, InsecureSkipVerify: cfg.NoTLSVerify},
 		ForceAttemptHTTP2:     cfg.Http2Origin,
 	}
-	if _, isHelloWorld := service.(*helloWorld); !isHelloWorld && cfg.OriginServerName != "" {
-		httpTransport.TLSClientConfig.ServerName = cfg.OriginServerName
+	if cfg.OriginServerName != "" {
+		if managed, ok := service.(*managedHTTPOriginService); !ok || managed.matchOriginServerName() {
+			httpTransport.TLSClientConfig.ServerName = cfg.OriginServerName
+		}
 	}
 
 	dialer := &net.Dialer{

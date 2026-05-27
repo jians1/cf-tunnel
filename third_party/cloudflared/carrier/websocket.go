@@ -11,7 +11,7 @@ import (
 
 	"github.com/cloudflare/cloudflared/stream"
 	"github.com/cloudflare/cloudflared/token"
-	cfwebsocket "github.com/cloudflare/cloudflared/websocket"
+	cfwebsocket "github.com/cloudflare/cloudflared/websocket/gorilla"
 )
 
 // Websocket is used to carry data via WS binary frames over the tunnel from client to the origin
@@ -45,7 +45,7 @@ func (ws *Websocket) ServeStream(options *StartOptions, conn io.ReadWriter) erro
 // createWebsocketStream will create a WebSocket connection to stream data over
 // It also handles redirects from Access and will present that flow if
 // the token is not present on the request
-func createWebsocketStream(options *StartOptions, log *zerolog.Logger) (*cfwebsocket.GorillaConn, error) {
+func createWebsocketStream(options *StartOptions, log *zerolog.Logger) (*cfwebsocket.Conn, error) {
 	req, err := http.NewRequest(http.MethodGet, options.OriginURL, nil)
 	if err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func createWebsocketStream(options *StartOptions, log *zerolog.Logger) (*cfwebso
 		return nil, err
 	}
 
-	return &cfwebsocket.GorillaConn{Conn: wsConn}, nil
+	return &cfwebsocket.Conn{Conn: wsConn}, nil
 }
 
 var stripWebsocketHeaders = []string{

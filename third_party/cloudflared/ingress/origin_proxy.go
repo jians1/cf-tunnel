@@ -115,7 +115,3 @@ func (o *tcpOverWSService) EstablishConnection(ctx context.Context, dest string,
 	}
 	return originConn, nil
 }
-
-func (o *socksProxyOverWSService) EstablishConnection(_ context.Context, _ string, _ *zerolog.Logger) (OriginConnection, error) {
-	return o.conn, nil
-}

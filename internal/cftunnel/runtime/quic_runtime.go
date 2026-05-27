@@ -16,8 +16,6 @@ import (
 	"net/netip"
 	"time"
 
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	"github.com/cloudflare/cloudflared/connection/dialopts"
 	cfdquic "github.com/cloudflare/cloudflared/quic"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	quicgo "github.com/quic-go/quic-go"
@@ -88,7 +86,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dial
 	}
 	defer cancel()
 
-	conn, err := cfdconnection.DialQuic(
+	conn, err := dialQUIC(
 		dialCtx,
 		quicConfig,
 		dialConfig.TLSConfig.Clone(),
@@ -96,7 +94,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dial
 		nil,
 		0,
 		&log,
-		dialopts.DialOpts{},
+		quicDialOpts{},
 	)
 	if err != nil {
 		return nil, err
@@ -239,9 +237,7 @@ func generateQUICServerTLSConfigWithReader(random io.Reader) (*tls.Config, error
 	}, nil
 }
 
-type fakeQUICControlStream struct {
-	cfdconnection.ControlStreamHandler
-}
+type fakeQUICControlStream struct{}
 
 func (fakeQUICControlStream) ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *tunnelpogs.ConnectionOptions, tunnelConfigGetter TunnelConfigJSONGetter) error {
 	<-ctx.Done()

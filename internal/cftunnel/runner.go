@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/cloudflare/cloudflared/edgediscovery/allregions"
 	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
 	tunnelruntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
@@ -47,14 +46,14 @@ func buildUserAgent() string {
 
 func buildHTTP2ServerOptions(_ tunnelconfig.RuntimeConfig, logger *slog.Logger) tunnelruntime.HTTP2ServerOptions {
 	return tunnelruntime.HTTP2ServerOptions{
-		EdgeAddressProvider: tunnelruntime.NewCloudflareEdgeAddressProvider("", allregions.Auto, logger),
+		EdgeAddressProvider: tunnelruntime.NewCloudflareEdgeAddressProvider("", tunnelruntime.EdgeIPAuto, logger),
 		DialTimeout:         10 * time.Second,
 	}
 }
 
 func buildQUICRuntimeOptions(_ config.CFTunnelConfig, logger *slog.Logger) tunnelruntime.QUICRuntimeOptions {
 	return tunnelruntime.QUICRuntimeOptions{
-		EdgeAddressProvider: tunnelruntime.NewCloudflareEdgeAddressProvider("", allregions.Auto, logger),
+		EdgeAddressProvider: tunnelruntime.NewCloudflareEdgeAddressProvider("", tunnelruntime.EdgeIPAuto, logger),
 		DialTimeout:         10 * time.Second,
 	}
 }

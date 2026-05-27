@@ -63,7 +63,7 @@ func TestUpdateConfiguration(t *testing.T) {
 		Ingress:             &ingress.Ingress{},
 		OriginDialerService: originDialer,
 	}
-	orchestrator, err := NewOrchestrator(t.Context(), initConfig, testTags, []ingress.Rule{ingress.NewManagementRule(management.New("management.argotunnel.com", false, "1.1.1.1:80", uuid.Nil, "", &testLogger, nil))}, &testLogger)
+	orchestrator, err := NewOrchestrator(t.Context(), initConfig, testTags, []ingress.Rule{management.New("management.argotunnel.com", false, "1.1.1.1:80", uuid.Nil, "", &testLogger, nil).NewIngressRule()}, &testLogger)
 	require.NoError(t, err)
 	initOriginProxy, err := orchestrator.GetOriginProxy()
 	require.NoError(t, err)

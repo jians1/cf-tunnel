@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"nhooyr.io/websocket"
+
+	"github.com/cloudflare/cloudflared/ingress"
 )
 
 const (
@@ -103,6 +105,10 @@ func New(managementHostname string,
 
 func (m *ManagementService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.router.ServeHTTP(w, r)
+}
+
+func (m *ManagementService) NewIngressRule() ingress.Rule {
+	return ingress.NewManagementRule(m.Hostname, m)
 }
 
 func emptyMetrics(w http.ResponseWriter, r *http.Request) {
