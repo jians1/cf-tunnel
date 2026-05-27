@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"net"
 	goruntime "runtime"
-
-	"github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 const runtimeClientVersion = "cf-quicktunnel-ipv6pool/0.1.0-prototype"
 
 type runtimeConnectionOptionsSnapshot struct {
-	client              pogs.ClientInfo
+	client              runtimeClientInfo
 	originLocalIP       net.IP
 	numPreviousAttempts uint8
 }
@@ -24,7 +22,7 @@ func newRuntimeConnectionOptions() (*runtimeConnectionOptionsSnapshot, error) {
 	}
 
 	return &runtimeConnectionOptionsSnapshot{
-		client: pogs.ClientInfo{
+		client: runtimeClientInfo{
 			ClientID: clientID,
 			Version:  runtimeClientVersion,
 			Arch:     goruntime.GOOS + "_" + goruntime.GOARCH,
@@ -39,8 +37,8 @@ func newRuntimeConnectionOptions() (*runtimeConnectionOptionsSnapshot, error) {
 	}, nil
 }
 
-func (c *runtimeConnectionOptionsSnapshot) ConnectionOptions() *pogs.ConnectionOptions {
-	return &pogs.ConnectionOptions{
+func (c *runtimeConnectionOptionsSnapshot) ConnectionOptions() *runtimeConnectionOptions {
+	return &runtimeConnectionOptions{
 		Client:              c.client,
 		OriginLocalIP:       c.originLocalIP,
 		ReplaceExisting:     false,

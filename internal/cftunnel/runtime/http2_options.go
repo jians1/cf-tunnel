@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/google/uuid"
 )
 
@@ -72,17 +71,17 @@ func (mc mockNamedTunnelRPCClient) SendLocalConfiguration(context.Context, []byt
 
 func (mc mockNamedTunnelRPCClient) RegisterConnection(
 	context.Context,
-	tunnelpogs.TunnelAuth,
+	runtimeTunnelAuth,
 	[16]byte,
-	*tunnelpogs.ConnectionOptions,
+	*runtimeConnectionOptions,
 	uint8,
 	net.IP,
-) (*tunnelpogs.ConnectionDetails, error) {
+) (*runtimeConnectionDetails, error) {
 	if mc.shouldFail != nil {
 		return nil, mc.shouldFail
 	}
 	close(mc.registered)
-	return &tunnelpogs.ConnectionDetails{
+	return &runtimeConnectionDetails{
 		Location:                "LIS",
 		UUID:                    uuid.New(),
 		TunnelIsRemotelyManaged: false,

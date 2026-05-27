@@ -3,8 +3,6 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
-
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type UpstreamOrchestrator struct {
@@ -43,8 +41,8 @@ func NewUpstreamOrchestrator(originProxy OriginProxy, session Session) (*Upstrea
 	}, nil
 }
 
-func (o *UpstreamOrchestrator) UpdateConfig(version int32, _ []byte) *tunnelpogs.UpdateConfigurationResponse {
-	return &tunnelpogs.UpdateConfigurationResponse{
+func (o *UpstreamOrchestrator) UpdateConfig(version int32, _ []byte) *runtimeUpdateConfigurationResponse {
+	return &runtimeUpdateConfigurationResponse{
 		LastAppliedVersion: version,
 	}
 }

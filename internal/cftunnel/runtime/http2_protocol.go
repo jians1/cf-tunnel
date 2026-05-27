@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/protocol"
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 const (
@@ -52,7 +51,7 @@ type TunnelConfigJSONGetter interface {
 }
 
 type ControlStreamHandler interface {
-	ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *tunnelpogs.ConnectionOptions, tunnelConfigGetter TunnelConfigJSONGetter) error
+	ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *runtimeConnectionOptions, tunnelConfigGetter TunnelConfigJSONGetter) error
 	IsStopped() bool
 }
 

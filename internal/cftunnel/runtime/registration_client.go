@@ -13,12 +13,12 @@ import (
 type registrationClient interface {
 	RegisterConnection(
 		ctx context.Context,
-		auth tunnelpogs.TunnelAuth,
+		auth runtimeTunnelAuth,
 		tunnelID [16]byte,
-		options *tunnelpogs.ConnectionOptions,
+		options *runtimeConnectionOptions,
 		connIndex uint8,
 		edgeAddress net.IP,
-	) (*tunnelpogs.ConnectionDetails, error)
+	) (*runtimeConnectionDetails, error)
 	SendLocalConfiguration(ctx context.Context, config []byte) error
 	GracefulShutdown(ctx context.Context, gracePeriod time.Duration) error
 	Close()
@@ -45,12 +45,12 @@ func newRegistrationClient(ctx context.Context, stream io.ReadWriteCloser, reque
 
 func (r *runtimeRegistrationClient) RegisterConnection(
 	ctx context.Context,
-	auth tunnelpogs.TunnelAuth,
+	auth runtimeTunnelAuth,
 	tunnelID [16]byte,
-	options *tunnelpogs.ConnectionOptions,
+	options *runtimeConnectionOptions,
 	connIndex uint8,
 	edgeAddress net.IP,
-) (*tunnelpogs.ConnectionDetails, error) {
+) (*runtimeConnectionDetails, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.requestTimeout)
 	defer cancel()
 	return r.client.RegisterConnection(ctx, auth, tunnelID, connIndex, options)

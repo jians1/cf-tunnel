@@ -181,7 +181,7 @@ func (q *RuntimeQUICConnection) dispatchRequest(ctx context.Context, stream *run
 	}
 }
 
-func (q *RuntimeQUICConnection) UpdateConfiguration(ctx context.Context, version int32, config []byte) *tunnelpogs.UpdateConfigurationResponse {
+func (q *RuntimeQUICConnection) UpdateConfiguration(ctx context.Context, version int32, config []byte) *runtimeUpdateConfigurationResponse {
 	return q.orchestrator.UpdateConfig(version, config)
 }
 

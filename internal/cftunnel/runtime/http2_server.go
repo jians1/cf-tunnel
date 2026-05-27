@@ -8,16 +8,14 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type HTTP2Server struct {
 	connection interface {
 		Serve(context.Context) error
 	}
-	edgeConn   net.Conn
-	closeFn    func() error
+	edgeConn net.Conn
+	closeFn  func() error
 }
 
 func NewHTTP2Server(prepared *PreparedRuntime, logger *slog.Logger) (*HTTP2Server, error) {
@@ -111,7 +109,7 @@ func (s *HTTP2Server) EdgeConn() net.Conn {
 
 type fakeControlStreamHandler struct{}
 
-func (fakeControlStreamHandler) ServeControlStream(_ context.Context, _ io.ReadWriteCloser, _ *tunnelpogs.ConnectionOptions, _ TunnelConfigJSONGetter) error {
+func (fakeControlStreamHandler) ServeControlStream(_ context.Context, _ io.ReadWriteCloser, _ *runtimeConnectionOptions, _ TunnelConfigJSONGetter) error {
 	return nil
 }
 

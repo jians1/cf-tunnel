@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/google/uuid"
 )
 
@@ -16,7 +15,7 @@ type noopDatagramSessionHandler struct{}
 
 type datagramSessionHandler interface {
 	Serve(context.Context) error
-	RegisterUdpSession(context.Context, uuid.UUID, net.IP, uint16, time.Duration, string) (*tunnelpogs.RegisterUdpSessionResponse, error)
+	RegisterUdpSession(context.Context, uuid.UUID, net.IP, uint16, time.Duration, string) (*runtimeRegisterUDPSessionResponse, error)
 	UnregisterUdpSession(context.Context, uuid.UUID, string) error
 }
 
@@ -29,7 +28,7 @@ func (noopDatagramSessionHandler) Serve(ctx context.Context) error {
 	return nil
 }
 
-func (noopDatagramSessionHandler) RegisterUdpSession(context.Context, uuid.UUID, net.IP, uint16, time.Duration, string) (*tunnelpogs.RegisterUdpSessionResponse, error) {
+func (noopDatagramSessionHandler) RegisterUdpSession(context.Context, uuid.UUID, net.IP, uint16, time.Duration, string) (*runtimeRegisterUDPSessionResponse, error) {
 	return nil, errDatagramSessionsDisabled
 }
 

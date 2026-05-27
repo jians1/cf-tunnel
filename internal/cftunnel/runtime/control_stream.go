@@ -5,8 +5,6 @@ import (
 	"io"
 	"net"
 	"time"
-
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type runtimeControlStreamOptions struct {
@@ -54,7 +52,7 @@ func NewControlStream(opts runtimeControlStreamOptions) ControlStreamHandler {
 func (c *runtimeControlStream) ServeControlStream(
 	ctx context.Context,
 	rw io.ReadWriteCloser,
-	connOptions *tunnelpogs.ConnectionOptions,
+	connOptions *runtimeConnectionOptions,
 	tunnelConfigGetter TunnelConfigJSONGetter,
 ) error {
 	registrationClient := c.registerClientFunc(ctx, rw, c.registerTimeout)

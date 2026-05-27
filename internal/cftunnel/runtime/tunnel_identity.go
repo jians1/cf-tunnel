@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/google/uuid"
 )
 
@@ -12,8 +11,8 @@ type RuntimeCredentials struct {
 	Endpoint     string
 }
 
-func (c *RuntimeCredentials) Auth() pogs.TunnelAuth {
-	return pogs.TunnelAuth{
+func (c *RuntimeCredentials) Auth() runtimeTunnelAuth {
+	return runtimeTunnelAuth{
 		AccountTag:   c.AccountTag,
 		TunnelSecret: c.TunnelSecret,
 	}

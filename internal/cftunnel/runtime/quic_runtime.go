@@ -16,7 +16,6 @@ import (
 	"net/netip"
 	"time"
 
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	quicgo "github.com/quic-go/quic-go"
 )
 
@@ -242,7 +241,7 @@ func generateQUICServerTLSConfigWithReader(random io.Reader) (*tls.Config, error
 
 type fakeQUICControlStream struct{}
 
-func (fakeQUICControlStream) ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *tunnelpogs.ConnectionOptions, tunnelConfigGetter TunnelConfigJSONGetter) error {
+func (fakeQUICControlStream) ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *runtimeConnectionOptions, tunnelConfigGetter TunnelConfigJSONGetter) error {
 	<-ctx.Done()
 	return nil
 }
