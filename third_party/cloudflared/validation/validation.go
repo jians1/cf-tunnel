@@ -2,6 +2,7 @@ package validation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,15 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/pkg/errors"
 	"golang.org/x/net/idna"
 )
 
 const (
 	defaultScheme   = "http"
-	accessDomain    = "cloudflareaccess.com"
-	accessCertPath  = "/cdn-cgi/access/certs"
 	accessJwtHeader = "Cf-access-jwt-assertion"
 )
 
@@ -169,46 +166,25 @@ func validateIP(scheme, host, port string) (string, error) {
 }
 
 // Access checks if a JWT from Cloudflare Access is valid.
-type Access struct {
-	verifier *oidc.IDTokenVerifier
-}
+type Access struct{}
 
 func NewAccessValidator(ctx context.Context, domain, issuer, applicationAUD string) (*Access, error) {
-	domainURL, err := validateUrlString(domain)
-	if err != nil {
+	_ = ctx
+	_ = applicationAUD
+
+	if _, err := validateUrlString(domain); err != nil {
 		return nil, err
 	}
-
-	issuerURL, err := validateUrlString(issuer)
-	if err != nil {
+	if _, err := validateUrlString(issuer); err != nil {
 		return nil, err
 	}
-
-	// An issuerURL from Cloudflare Access will always use HTTPS.
-	issuerURL = strings.Replace(issuerURL, "http:", "https:", 1)
-
-	keySet := oidc.NewRemoteKeySet(ctx, domainURL+accessCertPath)
-	return &Access{oidc.NewVerifier(issuerURL, keySet, &oidc.Config{ClientID: applicationAUD})}, nil
+	return &Access{}, nil
 }
 
 func (a *Access) Validate(ctx context.Context, jwt string) error {
-	token, err := a.verifier.Verify(ctx, jwt)
-
-	if err != nil {
-		return errors.Wrapf(err, "token is invalid: %s", jwt)
-	}
-
-	// Perform extra sanity checks, just to be safe.
-
-	if token == nil {
-		return fmt.Errorf("token is nil: %s", jwt)
-	}
-
-	if !strings.HasSuffix(token.Issuer, accessDomain) {
-		return fmt.Errorf("token has non-cloudflare issuer of %s: %s", token.Issuer, jwt)
-	}
-
-	return nil
+	_ = ctx
+	_ = jwt
+	return errors.New("Cloudflare Access JWT validation is not supported in this minimal build")
 }
 
 func (a *Access) ValidateRequest(ctx context.Context, r *http.Request) error {

@@ -4,47 +4,22 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
-	"github.com/coreos/go-oidc/v3/oidc"
-
-	"github.com/cloudflare/cloudflared/credentials"
 )
 
 const (
 	headerKeyAccessJWTAssertion = "Cf-Access-Jwt-Assertion"
 )
 
-var (
-	cloudflareAccessCertsURL    = "https://%s.cloudflareaccess.com"
-	cloudflareAccessFedCertsURL = "https://%s.fed.cloudflareaccess.com"
-)
-
 // JWTValidator is an implementation of Verifier that validates access based JWT tokens.
 type JWTValidator struct {
-	*oidc.IDTokenVerifier
 	audTags []string
 }
 
 func NewJWTValidator(teamName string, environment string, audTags []string) *JWTValidator {
-	var certsURL string
-	if environment == credentials.FedEndpoint {
-		certsURL = fmt.Sprintf(cloudflareAccessFedCertsURL, teamName)
-	} else {
-		certsURL = fmt.Sprintf(cloudflareAccessCertsURL, teamName)
-	}
-
-	certsEndpoint := fmt.Sprintf("%s/cdn-cgi/access/certs", certsURL)
-
-	config := &oidc.Config{
-		SkipClientIDCheck: true,
-	}
-
-	ctx := context.Background()
-	keySet := oidc.NewRemoteKeySet(ctx, certsEndpoint)
-	verifier := oidc.NewVerifier(certsURL, keySet, config)
+	_ = teamName
+	_ = environment
 	return &JWTValidator{
-		IDTokenVerifier: verifier,
-		audTags:         audTags,
+		audTags: audTags,
 	}
 }
 
@@ -64,23 +39,7 @@ func (v *JWTValidator) Handle(ctx context.Context, r *http.Request) (*HandleResu
 		}, nil
 	}
 
-	token, err := v.IDTokenVerifier.Verify(ctx, accessJWT)
-	if err != nil {
-		return nil, err
-	}
-
-	// We want at least one audTag to match
-	for _, jwtAudTag := range token.Audience {
-		for _, acceptedAudTag := range v.audTags {
-			if acceptedAudTag == jwtAudTag {
-				return &HandleResult{ShouldFilterRequest: false}, nil
-			}
-		}
-	}
-
-	return &HandleResult{
-		ShouldFilterRequest: true,
-		StatusCode:          http.StatusForbidden,
-		Reason:              fmt.Sprintf("Invalid token in jwt: %v", token.Audience),
-	}, nil
+	_ = ctx
+	_ = v.audTags
+	return nil, fmt.Errorf("Cloudflare Access JWT validation is not supported in this minimal build")
 }
