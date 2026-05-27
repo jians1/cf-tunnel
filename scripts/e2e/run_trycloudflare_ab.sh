@@ -34,7 +34,7 @@ if [[ ! -x "$SING_BIN" ]]; then
 fi
 
 if [[ ! -x "$CFQT_BIN" ]]; then
-  (cd "$ROOT_DIR" && go build -buildvcs=false -o "$CFQT_BIN" ./cmd/app)
+  (cd "$ROOT_DIR" && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$CFQT_BIN" ./cmd/app)
 fi
 
 truncate -s 1G "$ORIGIN_DIR/blob.bin"
