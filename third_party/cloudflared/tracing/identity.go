@@ -3,6 +3,7 @@ package tracing
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,6 +13,8 @@ const (
 	// 16 bytes for tracing ID, 8 bytes for span ID and 1 byte for flags
 	IdentityLength = 16 + 8 + 1
 )
+
+var errMissingTracingID = errors.New("missing tracing ID")
 
 type Identity struct {
 	// Based on https://www.jaegertracing.io/docs/1.36/client-libraries/#value
@@ -98,7 +101,10 @@ func NewIdentity(trace string) (*Identity, error) {
 
 func padTracingID(tracingID string) (string, error) {
 	if len(tracingID) == 0 {
-		return "", fmt.Errorf("missing tracing ID")
+		return "", errMissingTracingID
+	}
+	if len(tracingID) > traceID128bitsWidth {
+		return "", errors.New("tracing ID is longer than 128 bits")
 	}
 	if len(tracingID) == traceID128bitsWidth {
 		return tracingID, nil

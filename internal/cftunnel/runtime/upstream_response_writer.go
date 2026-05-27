@@ -14,6 +14,7 @@ type responseWriterAdapter struct {
 	header       http.Header
 	status       int
 	wroteHeader  bool
+	sentHeader   bool
 	websocket    bool
 	hijackedConn net.Conn
 }
@@ -42,11 +43,12 @@ func (w *responseWriterAdapter) Write(p []byte) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
-	if err := w.upstream.WriteRespHeaders(w.status, cloneHeader(w.header)); err != nil {
-		return 0, err
+	if !w.sentHeader {
+		if err := w.upstream.WriteRespHeaders(w.status, cloneHeader(w.header)); err != nil {
+			return 0, err
+		}
+		w.sentHeader = true
 	}
-	w.wroteHeader = false
-	w.header = make(http.Header)
 	return w.upstream.Write(p)
 }
 
@@ -54,12 +56,11 @@ func (w *responseWriterAdapter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if !w.wroteHeader && w.websocket {
 		w.WriteHeader(http.StatusSwitchingProtocols)
 	}
-	if w.wroteHeader {
+	if w.wroteHeader && !w.sentHeader {
 		if err := w.upstream.WriteRespHeaders(w.status, cloneHeader(w.header)); err != nil {
 			return nil, nil, err
 		}
-		w.wroteHeader = false
-		w.header = make(http.Header)
+		w.sentHeader = true
 	}
 	conn, rw, err := w.upstream.Hijack()
 	if err != nil {
@@ -73,11 +74,11 @@ func (w *responseWriterAdapter) finalize() error {
 	if w.hijackedConn != nil {
 		return nil
 	}
-	if w.wroteHeader {
+	if w.wroteHeader && !w.sentHeader {
 		if err := w.upstream.WriteRespHeaders(w.status, cloneHeader(w.header)); err != nil {
 			return err
 		}
-		w.wroteHeader = false
+		w.sentHeader = true
 	}
 	return nil
 }

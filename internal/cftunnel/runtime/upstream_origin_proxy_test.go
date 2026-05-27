@@ -46,6 +46,35 @@ func TestUpstreamOriginProxyProxyHTTP(t *testing.T) {
 	}
 }
 
+func TestUpstreamOriginProxyWritesHeadersOnceForMultipleBodyWrites(t *testing.T) {
+	t.Parallel()
+
+	proxy := NewUpstreamOriginProxy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "6")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("abc"))
+		_, _ = w.Write([]byte("def"))
+	}))
+
+	req, err := http.NewRequest(http.MethodGet, "http://example.test/demo", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	logger := newTestZeroLogger()
+	tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+
+	resp := newMockResponseWriter()
+	if err := proxy.ProxyHTTP(resp, tr, false); err != nil {
+		t.Fatalf("proxy http: %v", err)
+	}
+	if resp.headerWrites != 1 {
+		t.Fatalf("unexpected response header writes: %d", resp.headerWrites)
+	}
+	if got := string(resp.body.String()); got != "abcdef" {
+		t.Fatalf("unexpected body: %q", got)
+	}
+}
+
 func TestUpstreamOriginProxyRestoresWebsocketUpgradeHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -200,9 +229,10 @@ func TestUpstreamOriginProxyProxyTCPForwardsBytes(t *testing.T) {
 }
 
 type mockResponseWriter struct {
-	header http.Header
-	status int
-	body   strings.Builder
+	header       http.Header
+	status       int
+	body         strings.Builder
+	headerWrites int
 }
 
 func newMockResponseWriter() *mockResponseWriter {
@@ -222,6 +252,7 @@ func (m *mockResponseWriter) WriteHeader(statusCode int) {
 }
 
 func (m *mockResponseWriter) WriteRespHeaders(status int, header http.Header) error {
+	m.headerWrites++
 	m.status = status
 	m.header = cloneHeader(header)
 	return nil

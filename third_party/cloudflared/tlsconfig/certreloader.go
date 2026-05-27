@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
@@ -63,7 +62,6 @@ func (cr *CertReloader) LoadCert() error {
 
 	// Keep the old certificate if there's a problem reading the new one.
 	if err != nil {
-		sentry.CaptureException(fmt.Errorf("error parsing X509 key pair: %v", err))
 		return err
 	}
 	cr.certificate = &cert

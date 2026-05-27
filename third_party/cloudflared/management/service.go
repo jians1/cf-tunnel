@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"nhooyr.io/websocket"
 )
@@ -79,7 +78,7 @@ func New(managementHostname string,
 		serviceIP:      serviceIP,
 		clientID:       clientID,
 		label:          label,
-		metricsHandler: promhttp.Handler(),
+		metricsHandler: http.HandlerFunc(emptyMetrics),
 	}
 	r := chi.NewRouter()
 	r.Use(ValidateAccessTokenQueryMiddleware)
@@ -104,6 +103,10 @@ func New(managementHostname string,
 
 func (m *ManagementService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.router.ServeHTTP(w, r)
+}
+
+func emptyMetrics(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Management Ping handler

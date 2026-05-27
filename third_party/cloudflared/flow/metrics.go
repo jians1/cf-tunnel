@@ -1,23 +1,13 @@
 package flow
 
-import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-)
+type noopMetric struct{}
 
-const (
-	namespace = "flow"
-)
+func (noopMetric) Inc() {}
 
-var (
-	labels = []string{"flow_type"}
+type noopMetricVec struct{}
 
-	flowRegistrationsDropped = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: namespace,
-		Subsystem: "client",
-		Name:      "registrations_rate_limited_total",
-		Help:      "Count registrations dropped due to high number of concurrent flows being handled",
-	},
-		labels,
-	)
-)
+func (noopMetricVec) WithLabelValues(labels ...string) noopMetric {
+	return noopMetric{}
+}
+
+var flowRegistrationsDropped noopMetricVec

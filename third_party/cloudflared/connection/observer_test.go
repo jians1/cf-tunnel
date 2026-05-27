@@ -6,26 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSendUrl(t *testing.T) {
-	observer := NewObserver(&log, &log)
+	observer := &Observer{
+		log:             &log,
+		metrics:         newTunnelMetrics(),
+		tunnelEventChan: make(chan Event, observerChannelBufferSize),
+	}
 
 	observer.SendURL("my-url.com")
-	assert.Equal(t, 1.0, getCounterValue(t, observer.metrics.userHostnamesCounts, "https://my-url.com"))
+	assert.Equal(t, Event{EventType: SetURL, URL: "my-url.com"}, <-observer.tunnelEventChan)
 
 	observer.SendURL("https://another-long-one.com")
-	assert.Equal(t, 1.0, getCounterValue(t, observer.metrics.userHostnamesCounts, "https://another-long-one.com"))
-}
-
-func getCounterValue(t *testing.T, metric *prometheus.CounterVec, val string) float64 {
-	var m = &dto.Metric{}
-	err := metric.WithLabelValues(val).Write(m)
-	assert.NoError(t, err)
-	return m.Counter.GetValue()
+	assert.Equal(t, Event{EventType: SetURL, URL: "https://another-long-one.com"}, <-observer.tunnelEventChan)
 }
 
 func TestRegisterServerLocation(t *testing.T) {
