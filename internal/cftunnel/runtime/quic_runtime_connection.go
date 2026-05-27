@@ -143,9 +143,9 @@ func (q *RuntimeQUICConnection) handleDataStream(ctx context.Context, stream *ru
 		if connectResponseSent {
 			return err
 		}
-		var metadata []tunnelpogs.Metadata
+		var metadata []runtimeMetadata
 		if errors.Is(err, errTooManyActiveFlows) {
-			metadata = append(metadata, tunnelpogs.ErrorFlowConnectRateLimitedMetadata)
+			metadata = append(metadata, runtimeErrorFlowConnectRateLimitedMetadata)
 		}
 		if writeRespErr := stream.WriteConnectResponseData(err, metadata...); writeRespErr != nil {
 			return writeRespErr
@@ -154,21 +154,21 @@ func (q *RuntimeQUICConnection) handleDataStream(ctx context.Context, stream *ru
 	return nil
 }
 
-func (q *RuntimeQUICConnection) dispatchRequest(ctx context.Context, stream *runtimeRequestServerStream, request *tunnelpogs.ConnectRequest) (err error, connectResponseSent bool) {
+func (q *RuntimeQUICConnection) dispatchRequest(ctx context.Context, stream *runtimeRequestServerStream, request *runtimeConnectRequest) (err error, connectResponseSent bool) {
 	originProxy, err := q.orchestrator.GetOriginProxy()
 	if err != nil {
 		return err, false
 	}
 
 	switch request.Type {
-	case tunnelpogs.ConnectionTypeHTTP, tunnelpogs.ConnectionTypeWebsocket:
+	case runtimeConnectionTypeHTTP, runtimeConnectionTypeWebsocket:
 		tracedReq, err := buildRuntimeHTTPRequest(ctx, request, stream)
 		if err != nil {
 			return err, false
 		}
 		w := newRuntimeHTTPResponseAdapter(stream)
-		return originProxy.ProxyHTTP(&w, tracedReq, request.Type == tunnelpogs.ConnectionTypeWebsocket), w.connectResponseSent
-	case tunnelpogs.ConnectionTypeTCP:
+		return originProxy.ProxyHTTP(&w, tracedReq, request.Type == runtimeConnectionTypeWebsocket), w.connectResponseSent
+	case runtimeConnectionTypeTCP:
 		rwa := &runtimeStreamReadWriteAcker{runtimeRequestServerStream: stream}
 		metadata := request.MetadataMap()
 		return originProxy.ProxyTCP(ctx, rwa, &TCPRequest{
@@ -208,12 +208,12 @@ func newRuntimeHTTPResponseAdapter(s *runtimeRequestServerStream) runtimeHTTPRes
 func (hrw *runtimeHTTPResponseAdapter) AddTrailer(string, string) {}
 
 func (hrw *runtimeHTTPResponseAdapter) WriteRespHeaders(status int, header http.Header) error {
-	metadata := make([]tunnelpogs.Metadata, 0)
-	metadata = append(metadata, tunnelpogs.Metadata{Key: quicHTTPStatusKey, Val: strconv.Itoa(status)})
+	metadata := make([]runtimeMetadata, 0)
+	metadata = append(metadata, runtimeMetadata{Key: quicHTTPStatusKey, Val: strconv.Itoa(status)})
 	for k, vv := range header {
 		for _, v := range vv {
 			httpHeaderKey := fmt.Sprintf("%s:%s", quicHTTPHeaderKey, k)
-			metadata = append(metadata, tunnelpogs.Metadata{Key: httpHeaderKey, Val: v})
+			metadata = append(metadata, runtimeMetadata{Key: httpHeaderKey, Val: v})
 		}
 	}
 	return hrw.WriteConnectResponseData(nil, metadata...)
@@ -237,12 +237,12 @@ func (hrw *runtimeHTTPResponseAdapter) Hijack() (net.Conn, *bufio.ReadWriter, er
 	return conn, newHijackedReadWriter(hrw.ReadWriteCloser), nil
 }
 
-func (hrw *runtimeHTTPResponseAdapter) WriteConnectResponseData(respErr error, metadata ...tunnelpogs.Metadata) error {
+func (hrw *runtimeHTTPResponseAdapter) WriteConnectResponseData(respErr error, metadata ...runtimeMetadata) error {
 	hrw.connectResponseSent = true
 	return hrw.runtimeRequestServerStream.WriteConnectResponseData(respErr, metadata...)
 }
 
-func buildRuntimeHTTPRequest(ctx context.Context, request *tunnelpogs.ConnectRequest, stream *runtimeRequestServerStream) (*TracedRequest, error) {
+func buildRuntimeHTTPRequest(ctx context.Context, request *runtimeConnectRequest, stream *runtimeRequestServerStream) (*TracedRequest, error) {
 	req, err := http.NewRequestWithContext(ctx, request.MetadataMap()["HttpMethod"], request.Dest, stream)
 	if err != nil {
 		return nil, err

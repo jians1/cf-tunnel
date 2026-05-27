@@ -27,7 +27,7 @@ type runtimeRequestServerStream struct {
 	io.ReadWriteCloser
 }
 
-func (rss *runtimeRequestServerStream) ReadConnectRequestData() (*tunnelpogs.ConnectRequest, error) {
+func (rss *runtimeRequestServerStream) ReadConnectRequestData() (*runtimeConnectRequest, error) {
 	if _, err := readVersion(rss); err != nil {
 		return nil, err
 	}
@@ -37,15 +37,15 @@ func (rss *runtimeRequestServerStream) ReadConnectRequestData() (*tunnelpogs.Con
 		return nil, err
 	}
 
-	req := &tunnelpogs.ConnectRequest{}
+	req := &runtimeConnectRequest{}
 	if err := req.FromPogs(msg); err != nil {
 		return nil, err
 	}
 	return req, nil
 }
 
-func (rss *runtimeRequestServerStream) WriteConnectResponseData(respErr error, metadata ...tunnelpogs.Metadata) error {
-	resp := &tunnelpogs.ConnectResponse{Metadata: metadata}
+func (rss *runtimeRequestServerStream) WriteConnectResponseData(respErr error, metadata ...runtimeMetadata) error {
+	resp := &runtimeConnectResponse{Metadata: metadata}
 	if respErr != nil {
 		resp.Error = respErr.Error()
 	}
