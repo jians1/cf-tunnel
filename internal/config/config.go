@@ -17,7 +17,6 @@ const (
 	ProtocolWS    = "ws"
 	ProtocolWSS   = "wss"
 
-	EdgeProtocolAuto  = "auto"
 	EdgeProtocolQUIC  = "quic"
 	EdgeProtocolHTTP2 = "http2"
 
@@ -68,7 +67,7 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.QuickService, "cf-quick-service", "https://api.trycloudflare.com", "Quick Tunnel service base URL")
 	fs.DurationVar(&cfg.CFTunnel.QuickServiceTimeout, "cf-quick-service-timeout", 15*time.Second, "Quick Tunnel service request timeout")
 	fs.StringVar(&cfg.CFTunnel.QuickServiceRetryBackoff, "cf-quick-service-retry-backoff", "500ms,1500ms", "comma-separated retry backoffs for Quick Tunnel service rate limits")
-	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolAuto, "Cloudflare edge protocol")
+	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolQUIC, "Cloudflare edge protocol")
 	fs.IntVar(&cfg.CFTunnel.HAConnections, "cf-ha-connections", 1, "Cloudflare Quick Tunnel edge connections; current Quick Tunnel runtime supports 1")
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginProtocol, "cf-origin-protocol", ProtocolAuto, "origin protocol")
@@ -184,7 +183,7 @@ func validateLogFormat(v string) error {
 
 func validateEdgeProtocol(v string) error {
 	switch v {
-	case EdgeProtocolAuto, EdgeProtocolQUIC, EdgeProtocolHTTP2:
+	case EdgeProtocolQUIC, EdgeProtocolHTTP2:
 		return nil
 	default:
 		return fmt.Errorf("unsupported cf-edge-protocol: %s", v)

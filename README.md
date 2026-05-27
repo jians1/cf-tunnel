@@ -5,7 +5,7 @@ Single-binary Go project with two independent feature areas:
 1. Cloudflare `TryCloudflare / Quick Tunnel`
 2. IPv6 pool outbound proxy
 
-The tunnel path is intentionally kept small for personal use: startup requests a real Quick Tunnel, connects to Cloudflare edge with `quic`, `http2`, or `auto`, and proxies traffic to the configured local origin.
+The tunnel path is intentionally kept small for personal use: startup requests a real Quick Tunnel, connects to Cloudflare edge with `quic` or `http2`, and proxies traffic to the configured local origin.
 
 ## Status
 
@@ -24,7 +24,6 @@ The tunnel path is intentionally kept small for personal use: startup requests a
 
 - explicit `http2`: public `trycloudflare.com` URL returned the local origin response
 - explicit `quic`: public `trycloudflare.com` URL returned the local origin response
-- `auto`: selected `quic`, public `trycloudflare.com` URL returned the local origin response
 - `http2` and `quic`: `1GiB` downloads through a VLESS-over-WebSocket origin completed with matching SHA256
 - large download RSS stayed in the tens of MiB range and did not grow with response size
 
@@ -79,7 +78,7 @@ Example run:
 docker run --rm \
   cf-quicktunnel-ipv6pool:0.1.0-prototype \
   --enable-cf-tunnel \
-  --cf-edge-protocol=auto \
+  --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:8080 \
   --cf-origin-protocol=http \
   --health-listen=
@@ -99,6 +98,30 @@ This currently performs:
 2. compact release binary build into `dist/`
 3. Docker image build
 
+## E2E A/B Test
+
+The repository includes real end-to-end Quick Tunnel throughput scripts for `http2` and `quic` against a local `sing-box` VLESS-over-WebSocket origin.
+
+Single round:
+
+```bash
+./scripts/e2e/run_trycloudflare_ab.sh http2 1
+./scripts/e2e/run_trycloudflare_ab.sh quic 1
+```
+
+Three-round A/B run:
+
+```bash
+./scripts/e2e/run_trycloudflare_ab_3rounds.sh
+```
+
+Environment notes:
+
+- requires `sing-box` in `SING_BOX_BIN` or `/root/.local/bin/sing-box`
+- uses `${TMPDIR:-/tmp}/cfqt-e2e/` for temporary files and logs
+- each round uses dedicated ports and cleans child processes on exit
+- the script includes Quick Tunnel DNS/edge warmup retries before the `1GiB` download starts
+
 ## Quick Tunnel
 
 Run a local HTTP origin through Quick Tunnel:
@@ -106,7 +129,7 @@ Run a local HTTP origin through Quick Tunnel:
 ```bash
 go run ./cmd/app \
   --enable-cf-tunnel \
-  --cf-edge-protocol=auto \
+  --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:8080 \
   --cf-origin-protocol=http
 ```
@@ -126,7 +149,7 @@ For a WebSocket origin such as VLESS over WS:
 ```bash
 go run ./cmd/app \
   --enable-cf-tunnel \
-  --cf-edge-protocol=auto \
+  --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:10000 \
   --cf-origin-protocol=ws
 ```
@@ -146,7 +169,7 @@ go run ./cmd/app \
 - `--cf-quick-service=https://api.trycloudflare.com`
 - `--cf-quick-service-timeout=15s`
 - `--cf-quick-service-retry-backoff=500ms,1500ms`
-- `--cf-edge-protocol=auto|quic|http2`
+- `--cf-edge-protocol=quic|http2`
 - `--cf-ha-connections=1`
 - `--cf-tunnel-target=host:port|url`
 - `--cf-origin-protocol=auto|http|https|ws|wss`
@@ -165,7 +188,6 @@ go run ./cmd/app \
 ## Current Runtime Behavior
 
 - Normal startup creates a real Quick Tunnel through `api.trycloudflare.com`.
-- `auto` currently normalizes to `quic`.
 - Runtime edge address discovery is internal and automatic.
 - Quick Tunnel currently supports `--cf-ha-connections=1` only; larger values are rejected.
 

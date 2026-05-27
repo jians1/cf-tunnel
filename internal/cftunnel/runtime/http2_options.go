@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
 	cfdtunnelrpc "github.com/cloudflare/cloudflared/tunnelrpc"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/google/uuid"
@@ -15,7 +14,7 @@ import (
 type RegistrationClientFactory func(context.Context, io.ReadWriteCloser, time.Duration) cfdtunnelrpc.RegistrationClient
 
 type HTTP2ServerOptions struct {
-	ControlStreamHandler   cfdconnection.ControlStreamHandler
+	ControlStreamHandler   ControlStreamHandler
 	RegistrationClientFunc RegistrationClientFactory
 	LocalEdgeDriver        bool
 	DialAddress            string
@@ -23,11 +22,11 @@ type HTTP2ServerOptions struct {
 	DialTimeout            time.Duration
 	DialConfig             *HTTP2DialConfig
 	TransportFactory       HTTP2TransportFactory
-	TunnelProperties       *cfdconnection.TunnelProperties
+	TunnelProperties       *RuntimeTunnelProperties
 	GracefulShutdownC      <-chan struct{}
 	GracePeriod            time.Duration
 	RegisterTimeout        time.Duration
-	ConnectedFuse          cfdconnection.ConnectedFuse
+	ConnectedFuse          ConnectedFuse
 	ConnIndex              uint8
 	EdgeAddress            net.IP
 }

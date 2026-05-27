@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
+	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/protocol"
 )
 
 const websocketCopyBufferSize = 32 * 1024
@@ -90,7 +90,7 @@ func (p *Proxy) proxyWebsocket(w http.ResponseWriter, req *http.Request) {
 	_ = proxyWebsocketStreams(clientConn, backConn, clientConn)
 }
 
-func (p *Proxy) ProxyWebsocket(w cfdconnection.ResponseWriter, req *http.Request) error {
+func (p *Proxy) ProxyWebsocket(w protocol.ResponseWriter, req *http.Request) error {
 	outReq := req.Clone(req.Context())
 	outReq.Body = nil
 	outReq.ContentLength = 0

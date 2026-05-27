@@ -54,21 +54,6 @@ func buildEdgeTLSConfigs(selected string) (map[string]*tls.Config, error) {
 			return nil, err
 		}
 		return map[string]*tls.Config{"http2": cfg}, nil
-	case "auto":
-		fallthrough
-	case "":
-		quicCfg, err := newEdgeTLSConfig(edgeServerNameQUIC, []string{edgeALPNQUIC})
-		if err != nil {
-			return nil, err
-		}
-		http2Cfg, err := newEdgeTLSConfig(edgeServerNameHTTP2, nil)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]*tls.Config{
-			"quic":  quicCfg,
-			"http2": http2Cfg,
-		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported edge protocol: %s", selected)
 	}

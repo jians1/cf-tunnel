@@ -6,9 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	cfdtracing "github.com/cloudflare/cloudflared/tracing"
 )
 
 type UpstreamOriginProxy struct {
@@ -16,14 +13,14 @@ type UpstreamOriginProxy struct {
 }
 
 type websocketOriginProxy interface {
-	ProxyWebsocket(cfdconnection.ResponseWriter, *http.Request) error
+	ProxyWebsocket(ResponseWriter, *http.Request) error
 }
 
 func NewUpstreamOriginProxy(handler http.Handler) *UpstreamOriginProxy {
 	return &UpstreamOriginProxy{handler: handler}
 }
 
-func (p *UpstreamOriginProxy) ProxyHTTP(w cfdconnection.ResponseWriter, tr *cfdtracing.TracedHTTPRequest, isWebsocket bool) error {
+func (p *UpstreamOriginProxy) ProxyHTTP(w ResponseWriter, tr *TracedRequest, isWebsocket bool) error {
 	if p.handler == nil {
 		return fmt.Errorf("nil origin handler")
 	}
@@ -40,19 +37,19 @@ func (p *UpstreamOriginProxy) ProxyHTTP(w cfdconnection.ResponseWriter, tr *cfdt
 	return recorder.finalize()
 }
 
-func restoreWebsocketUpgradeHeaders(tr *cfdtracing.TracedHTTPRequest, isWebsocket bool) {
+func restoreWebsocketUpgradeHeaders(tr *TracedRequest, isWebsocket bool) {
 	if tr == nil || tr.Request == nil {
 		return
 	}
-	if !isWebsocket && tr.Request.Header.Get(cfdconnection.InternalUpgradeHeader) != cfdconnection.WebsocketUpgrade {
+	if !isWebsocket && tr.Request.Header.Get(InternalUpgradeHeader) != WebsocketUpgrade {
 		return
 	}
 	tr.Request.Header.Set("Connection", "Upgrade")
 	tr.Request.Header.Set("Upgrade", "websocket")
-	tr.Request.Header.Del(cfdconnection.InternalUpgradeHeader)
+	tr.Request.Header.Del(InternalUpgradeHeader)
 }
 
-func (p *UpstreamOriginProxy) ProxyTCP(ctx context.Context, rwa cfdconnection.ReadWriteAcker, req *cfdconnection.TCPRequest) error {
+func (p *UpstreamOriginProxy) ProxyTCP(ctx context.Context, rwa ReadWriteAcker, req *TCPRequest) error {
 	if req == nil {
 		return fmt.Errorf("tcp request is nil")
 	}

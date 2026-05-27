@@ -1,6 +1,8 @@
 package runtime
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestNewRuntimeConnectionOptionsIncludesConnectorClientID(t *testing.T) {
 	t.Parallel()
@@ -19,5 +21,17 @@ func TestNewRuntimeConnectionOptionsIncludesConnectorClientID(t *testing.T) {
 	}
 	if options.Client.Arch == "" {
 		t.Fatal("expected client arch")
+	}
+}
+
+func TestNewRuntimeConnectionOptionsUsesRuntimeSnapshotType(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := newRuntimeConnectionOptions()
+	if err != nil {
+		t.Fatalf("new runtime connection options: %v", err)
+	}
+	if _, ok := any(snapshot).(*runtimeConnectionOptionsSnapshot); !ok {
+		t.Fatalf("expected runtime snapshot type, got %T", snapshot)
 	}
 }

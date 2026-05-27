@@ -10,9 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	cfdtracing "github.com/cloudflare/cloudflared/tracing"
 )
 
 func TestUpstreamOriginProxyProxyHTTP(t *testing.T) {
@@ -28,8 +25,7 @@ func TestUpstreamOriginProxyProxyHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	logger := newTestZeroLogger()
-	tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+	tr := NewTracedRequest(req)
 
 	resp := newMockResponseWriter()
 	if err := proxy.ProxyHTTP(resp, tr, false); err != nil {
@@ -60,8 +56,7 @@ func TestUpstreamOriginProxyWritesHeadersOnceForMultipleBodyWrites(t *testing.T)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	logger := newTestZeroLogger()
-	tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+	tr := NewTracedRequest(req)
 
 	resp := newMockResponseWriter()
 	if err := proxy.ProxyHTTP(resp, tr, false); err != nil {
@@ -103,10 +98,9 @@ func TestUpstreamOriginProxyRestoresWebsocketUpgradeHeaders(t *testing.T) {
 				t.Fatalf("new request: %v", err)
 			}
 			if tc.internal {
-				req.Header.Set(cfdconnection.InternalUpgradeHeader, cfdconnection.WebsocketUpgrade)
+				req.Header.Set(InternalUpgradeHeader, WebsocketUpgrade)
 			}
-			logger := newTestZeroLogger()
-			tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+			tr := NewTracedRequest(req)
 
 			resp := newMockResponseWriter()
 			if err := proxy.ProxyHTTP(resp, tr, tc.websocket); err != nil {
@@ -134,8 +128,7 @@ func TestUpstreamOriginProxyWritesSwitchingProtocolsBeforeWebsocketHijack(t *tes
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	logger := newTestZeroLogger()
-	tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+	tr := NewTracedRequest(req)
 
 	resp := newMockResponseWriter()
 	if err := proxy.ProxyHTTP(resp, tr, true); err != nil {
@@ -187,7 +180,7 @@ func TestUpstreamOriginProxyProxyTCPForwardsBytes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		proxyDone <- proxy.ProxyTCP(ctx, rwa, &cfdconnection.TCPRequest{Dest: listener.Addr().String()})
+		proxyDone <- proxy.ProxyTCP(ctx, rwa, &TCPRequest{Dest: listener.Addr().String()})
 	}()
 
 	select {

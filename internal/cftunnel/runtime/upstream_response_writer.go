@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
 )
 
 type responseWriterAdapter struct {
-	upstream     cfdconnection.ResponseWriter
+	upstream     ResponseWriter
 	header       http.Header
 	status       int
 	wroteHeader  bool
@@ -19,7 +17,7 @@ type responseWriterAdapter struct {
 	hijackedConn net.Conn
 }
 
-func newResponseWriterAdapter(upstream cfdconnection.ResponseWriter, websocket bool) *responseWriterAdapter {
+func newResponseWriterAdapter(upstream ResponseWriter, websocket bool) *responseWriterAdapter {
 	return &responseWriterAdapter{
 		upstream:  upstream,
 		header:    make(http.Header),

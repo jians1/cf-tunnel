@@ -4,16 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type UpstreamOrchestrator struct {
-	originProxy cfdconnection.OriginProxy
+	originProxy OriginProxy
 	configJSON  []byte
 }
 
-func NewUpstreamOrchestrator(originProxy cfdconnection.OriginProxy, session Session) (*UpstreamOrchestrator, error) {
+func NewUpstreamOrchestrator(originProxy OriginProxy, session Session) (*UpstreamOrchestrator, error) {
 	if originProxy == nil {
 		return nil, fmt.Errorf("nil upstream origin proxy")
 	}
@@ -54,6 +53,6 @@ func (o *UpstreamOrchestrator) GetConfigJSON() ([]byte, error) {
 	return append([]byte(nil), o.configJSON...), nil
 }
 
-func (o *UpstreamOrchestrator) GetOriginProxy() (cfdconnection.OriginProxy, error) {
+func (o *UpstreamOrchestrator) GetOriginProxy() (OriginProxy, error) {
 	return o.originProxy, nil
 }

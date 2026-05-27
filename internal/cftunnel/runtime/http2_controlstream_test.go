@@ -6,8 +6,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
 )
 
 func TestHTTP2ServerControlStreamRegistrationLifecycle(t *testing.T) {
@@ -28,20 +26,16 @@ func TestHTTP2ServerControlStreamRegistrationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bind upstream runtime: %v", err)
 	}
-	log := newTestZeroLogger()
-	observer := cfdconnection.NewObserver(&log, &log)
-	controlStream := cfdconnection.NewControlStream(
-		observer,
-		mockConnectedFuse{},
-		binding.TunnelProperties,
-		0,
-		nil,
-		rpcClientFactory.newMockRPCClient,
-		1*time.Second,
-		nil,
-		1*time.Second,
-		cfdconnection.HTTP2,
-	)
+	controlStream := NewControlStream(runtimeControlStreamOptions{
+		ConnectedFuse:      mockConnectedFuse{},
+		TunnelProperties:   binding.TunnelProperties,
+		ConnIndex:          0,
+		EdgeAddress:        nil,
+		RegisterClientFunc: rpcClientFactory.newMockRPCClient,
+		RegisterTimeout:    1 * time.Second,
+		GracefulShutdownC:  nil,
+		GracePeriod:        1 * time.Second,
+	})
 
 	server, err := NewHTTP2ServerWithHandler(prepared, nil, http.NotFoundHandler(), HTTP2ServerOptions{
 		ControlStreamHandler: controlStream,
@@ -69,7 +63,7 @@ func TestHTTP2ServerControlStreamRegistrationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	req.Header.Set(cfdconnection.InternalUpgradeHeader, cfdconnection.ControlStreamUpgrade)
+	req.Header.Set(InternalUpgradeHeader, ControlStreamUpgrade)
 
 	wg.Add(1)
 	go func() {

@@ -26,18 +26,13 @@ func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 		return RuntimeConfig{}, fmt.Errorf("parse origin target: %w", err)
 	}
 
-	edgeProtocol := cfg.EdgeProtocol
-	if edgeProtocol == appconfig.EdgeProtocolAuto {
-		edgeProtocol = appconfig.EdgeProtocolQUIC
-	}
-
 	haConnections := cfg.HAConnections
 	if haConnections == 0 {
 		haConnections = 1
 	}
 
 	return RuntimeConfig{
-		EdgeProtocol:       edgeProtocol,
+		EdgeProtocol:       cfg.EdgeProtocol,
 		QuickService:       cfg.QuickService,
 		HAConnections:      haConnections,
 		Origin:             target,

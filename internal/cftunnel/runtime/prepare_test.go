@@ -53,9 +53,11 @@ func TestPrepareRuntimeForHTTP2(t *testing.T) {
 func TestPrepareRuntimeRejectsUnsupportedProtocol(t *testing.T) {
 	t.Parallel()
 
-	session := testSession(t, "bogus")
-	if _, err := PrepareRuntime(session); err == nil {
-		t.Fatal("expected error")
+	for _, proto := range []string{"bogus", "auto"} {
+		session := testSession(t, proto)
+		if _, err := PrepareRuntime(session); err == nil {
+			t.Fatalf("expected error for protocol %q", proto)
+		}
 	}
 }
 

@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	quicgo "github.com/quic-go/quic-go"
 )
 
@@ -93,6 +95,47 @@ func TestQUICRuntimeCloseClosesClientQUICConnection(t *testing.T) {
 	}
 	if !conn.closed {
 		t.Fatal("expected client quic connection to be closed")
+	}
+}
+
+func TestNoopDatagramSessionHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := newNoopDatagramSessionHandler()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- handler.Serve(ctx)
+	}()
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serve: %v", err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("serve did not return after context cancellation")
+	}
+
+	if _, err := handler.RegisterUdpSession(context.Background(), uuid.New(), net.IPv4(127, 0, 0, 1), 53, time.Second, ""); err == nil {
+		t.Fatal("expected register udp session to fail")
+	}
+	if err := handler.UnregisterUdpSession(context.Background(), uuid.New(), "done"); err == nil {
+		t.Fatal("expected unregister udp session to fail")
+	}
+}
+
+func TestQUICRuntimeUsesRuntimeTunnelConnection(t *testing.T) {
+	t.Parallel()
+
+	runtime := &QUICRuntime{
+		tunnelConn: &RuntimeQUICConnection{},
+	}
+
+	if _, ok := runtime.tunnelConn.(*RuntimeQUICConnection); !ok {
+		t.Fatalf("expected runtime quic connection, got %T", runtime.tunnelConn)
 	}
 }
 

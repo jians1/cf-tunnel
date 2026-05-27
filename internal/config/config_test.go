@@ -202,6 +202,21 @@ func TestParseRejectsQuickTunnelHAConnectionsAboveOne(t *testing.T) {
 	}
 }
 
+func TestParseRejectsAutoEdgeProtocol(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--enable-cf-tunnel",
+		"--cf-edge-protocol=auto",
+		"--cf-tunnel-target=127.0.0.1:8080",
+		"--cf-origin-protocol=http",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestParseRejectsInvalidQuickServiceRetryBackoff(t *testing.T) {
 	t.Parallel()
 

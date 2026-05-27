@@ -2,29 +2,20 @@ package runtime
 
 import (
 	"fmt"
-	"time"
 
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	cfdedgediscovery "github.com/cloudflare/cloudflared/edgediscovery"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 )
 
 type UpstreamAdapter struct {
-	logger zerolog.Logger
 }
 
 type UpstreamBinding struct {
-	Credentials      cfdconnection.Credentials
-	TunnelProperties *cfdconnection.TunnelProperties
-	ProtocolSelector cfdconnection.ProtocolSelector
+	Credentials      RuntimeCredentials
+	TunnelProperties *RuntimeTunnelProperties
+	ProtocolSelector ProtocolSelector
 }
 
-func NewUpstreamAdapter() *UpstreamAdapter {
-	return &UpstreamAdapter{
-		logger: zerolog.Nop(),
-	}
-}
+func NewUpstreamAdapter() *UpstreamAdapter { return &UpstreamAdapter{} }
 
 func (a *UpstreamAdapter) Bind(session Session) (*UpstreamBinding, error) {
 	tunnelID, err := uuid.Parse(session.TunnelID)
@@ -41,24 +32,17 @@ func (a *UpstreamAdapter) Bind(session Session) (*UpstreamBinding, error) {
 		return nil, fmt.Errorf("missing quick tunnel hostname")
 	}
 
-	credentials := cfdconnection.Credentials{
+	credentials := RuntimeCredentials{
 		AccountTag:   session.AccountTag,
 		TunnelSecret: append([]byte(nil), session.Secret...),
 		TunnelID:     tunnelID,
 	}
-	tunnelProperties := &cfdconnection.TunnelProperties{
+	tunnelProperties := &RuntimeTunnelProperties{
 		Credentials:    credentials,
-		QuickTunnelUrl: session.Hostname,
+		QuickTunnelURL: session.Hostname,
 	}
 
-	protocolSelector, err := cfdconnection.NewProtocolSelector(
-		session.Edge.Protocol,
-		session.AccountTag,
-		false,
-		staticProtocolPercentages(),
-		time.Hour,
-		&a.logger,
-	)
+	protocolSelector, err := NewStaticProtocolSelector(session.Edge.Protocol)
 	if err != nil {
 		return nil, fmt.Errorf("build upstream protocol selector: %w", err)
 	}
@@ -68,13 +52,4 @@ func (a *UpstreamAdapter) Bind(session Session) (*UpstreamBinding, error) {
 		TunnelProperties: tunnelProperties,
 		ProtocolSelector: protocolSelector,
 	}, nil
-}
-
-func staticProtocolPercentages() cfdedgediscovery.PercentageFetcher {
-	return func() (cfdedgediscovery.ProtocolPercents, error) {
-		return cfdedgediscovery.ProtocolPercents{
-			{Protocol: "quic", Percentage: 100},
-			{Protocol: "http2", Percentage: 0},
-		}, nil
-	}
 }

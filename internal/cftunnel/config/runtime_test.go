@@ -11,7 +11,7 @@ func TestNormalizeDefaultsQuickTunnelRuntime(t *testing.T) {
 
 	cfg, err := Normalize(appconfig.CFTunnelConfig{
 		Enabled:        true,
-		EdgeProtocol:   appconfig.EdgeProtocolAuto,
+		EdgeProtocol:   appconfig.EdgeProtocolQUIC,
 		Target:         "127.0.0.1:8080",
 		OriginProtocol: appconfig.ProtocolHTTP,
 	})

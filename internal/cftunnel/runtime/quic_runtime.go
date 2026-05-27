@@ -16,19 +16,17 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/cloudflare/cloudflared/config"
 	cfdconnection "github.com/cloudflare/cloudflared/connection"
 	"github.com/cloudflare/cloudflared/connection/dialopts"
-	cfdflow "github.com/cloudflare/cloudflared/flow"
-	"github.com/cloudflare/cloudflared/ingress"
-	"github.com/cloudflare/cloudflared/packet"
 	cfdquic "github.com/cloudflare/cloudflared/quic"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	quicgo "github.com/quic-go/quic-go"
 )
 
 type QUICRuntime struct {
-	tunnelConn cfdconnection.TunnelConnection
+	tunnelConn interface {
+		Serve(context.Context) error
+	}
 	quicConn   quicConnectionCloser
 	serverConn *quicgo.Listener
 	udpConn    *net.UDPConn
@@ -97,31 +95,6 @@ func newLoopbackQUICRuntime(session Session, logger *slog.Logger) (*QUICRuntime,
 		return nil, err
 	}
 
-	sessionDemuxChan := make(chan *packet.Session, 4)
-	datagramMuxer := cfdquic.NewDatagramMuxerV2(conn, &log, sessionDemuxChan)
-	packetRouter := ingress.NewPacketRouter(nil, datagramMuxer, 0, &log)
-	defaultDialer := ingress.NewDialer(ingress.WarpRoutingConfig{
-		ConnectTimeout: config.CustomDuration{Duration: 1 * time.Second},
-		TCPKeepAlive:   config.CustomDuration{Duration: 15 * time.Second},
-		MaxActiveFlows: 0,
-	})
-	originDialer := ingress.NewOriginDialer(ingress.OriginConfig{
-		DefaultDialer:   defaultDialer,
-		TCPWriteTimeout: 1 * time.Second,
-	}, &log)
-
-	datagramConn := cfdconnection.NewDatagramV2Connection(
-		ctx,
-		conn,
-		originDialer,
-		nil,
-		0,
-		15*time.Second,
-		0,
-		cfdflow.NewLimiter(0),
-		&log,
-	)
-
 	prepared, err := PrepareRuntime(session)
 	if err != nil {
 		_ = closeQUICRuntimeStartupResources(conn, listener, udpListener)
@@ -138,21 +111,18 @@ func newLoopbackQUICRuntime(session Session, logger *slog.Logger) (*QUICRuntime,
 		return nil, fmt.Errorf("build quic connection options: %w", err)
 	}
 
-	tunnelConn := cfdconnection.NewTunnelConnection(
-		ctx,
+	tunnelConn := NewRuntimeQUICConnection(
 		conn,
-		0,
 		orchestrator,
-		datagramConn,
+		newNoopDatagramSessionHandler(),
 		fakeQUICControlStream{},
 		connOptions,
+		0,
 		15*time.Second,
 		0,
 		0,
 		&log,
 	)
-
-	_ = packetRouter
 
 	return &QUICRuntime{
 		tunnelConn: tunnelConn,
@@ -209,26 +179,6 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dial
 		return nil, err
 	}
 
-	defaultDialer := ingress.NewDialer(ingress.WarpRoutingConfig{
-		ConnectTimeout: config.CustomDuration{Duration: 1 * time.Second},
-		TCPKeepAlive:   config.CustomDuration{Duration: 15 * time.Second},
-		MaxActiveFlows: 0,
-	})
-	originDialer := ingress.NewOriginDialer(ingress.OriginConfig{
-		DefaultDialer:   defaultDialer,
-		TCPWriteTimeout: 1 * time.Second,
-	}, &log)
-	datagramConn := cfdconnection.NewDatagramV2Connection(
-		ctx,
-		conn,
-		originDialer,
-		nil,
-		0,
-		15*time.Second,
-		0,
-		cfdflow.NewLimiter(0),
-		&log,
-	)
 	connOptions, err := newRuntimeConnectionOptions()
 	if err != nil {
 		_ = conn.CloseWithError(0, "")
@@ -239,28 +189,24 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dial
 		_ = conn.CloseWithError(0, "")
 		return nil, err
 	}
-	observer := cfdconnection.NewObserver(&log, &log)
-	controlStreamHandler := cfdconnection.NewControlStream(
-		observer,
-		noopConnectedFuse{},
-		binding.TunnelProperties,
-		0,
-		net.IP(edgeAddr.Addr().AsSlice()),
-		nil,
-		time.Second,
-		nil,
-		time.Second,
-		cfdconnection.QUIC,
-	)
+	controlStreamHandler := NewControlStream(runtimeControlStreamOptions{
+		ConnectedFuse:      noopConnectedFuse{},
+		TunnelProperties:   binding.TunnelProperties,
+		ConnIndex:          0,
+		EdgeAddress:        net.IP(edgeAddr.Addr().AsSlice()),
+		RegisterClientFunc: nil,
+		RegisterTimeout:    time.Second,
+		GracefulShutdownC:  nil,
+		GracePeriod:        time.Second,
+	})
 
-	tunnelConn := cfdconnection.NewTunnelConnection(
-		ctx,
+	tunnelConn := NewRuntimeQUICConnection(
 		conn,
-		0,
 		orchestrator,
-		datagramConn,
+		newNoopDatagramSessionHandler(),
 		controlStreamHandler,
 		connOptions,
+		0,
 		15*time.Second,
 		0,
 		time.Second,
@@ -372,7 +318,7 @@ type fakeQUICControlStream struct {
 	cfdconnection.ControlStreamHandler
 }
 
-func (fakeQUICControlStream) ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *tunnelpogs.ConnectionOptions, tunnelConfigGetter cfdconnection.TunnelConfigJSONGetter) error {
+func (fakeQUICControlStream) ServeControlStream(ctx context.Context, rw io.ReadWriteCloser, connOptions *tunnelpogs.ConnectionOptions, tunnelConfigGetter TunnelConfigJSONGetter) error {
 	<-ctx.Done()
 	return nil
 }
