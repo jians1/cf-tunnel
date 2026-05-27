@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	cfdflow "github.com/cloudflare/cloudflared/flow"
-	cfdquic "github.com/cloudflare/cloudflared/quic"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
@@ -127,7 +125,7 @@ func (q *RuntimeQUICConnection) acceptStream(ctx context.Context) error {
 
 func (q *RuntimeQUICConnection) runStream(quicStream quic.Stream) {
 	ctx := quicStream.Context()
-	stream := cfdquic.NewSafeStreamCloser(quicStream, q.streamWriteTimeout, q.logger)
+	stream := newRuntimeSafeStreamCloser(quicStream, q.streamWriteTimeout, q.logger)
 	defer stream.Close()
 	noCloseStream := &nopCloserReadWriter{ReadWriteCloser: stream}
 	ss := newRuntimeCloudflaredServer(q.handleDataStream, q.datagramHandler, q, q.rpcTimeout)
@@ -146,7 +144,7 @@ func (q *RuntimeQUICConnection) handleDataStream(ctx context.Context, stream *ru
 			return err
 		}
 		var metadata []tunnelpogs.Metadata
-		if errors.Is(err, cfdflow.ErrTooManyActiveFlows) {
+		if errors.Is(err, errTooManyActiveFlows) {
 			metadata = append(metadata, tunnelpogs.ErrorFlowConnectRateLimitedMetadata)
 		}
 		if writeRespErr := stream.WriteConnectResponseData(err, metadata...); writeRespErr != nil {

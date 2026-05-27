@@ -15,8 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"golang.org/x/net/http2"
-
-	cfdflow "github.com/cloudflare/cloudflared/flow"
 )
 
 var errRuntimeEdgeConnectionClosed = fmt.Errorf("connection with edge closed")
@@ -272,7 +270,7 @@ func (rp *runtimeHTTP2RespWriter) WriteErrorResponse(err error) bool {
 	if rp.statusWritten {
 		return false
 	}
-	if errors.Is(err, cfdflow.ErrTooManyActiveFlows) {
+	if errors.Is(err, errTooManyActiveFlows) {
 		rp.w.Header().Set(CanonicalResponseMetaHeader, `{"src":"cloudflared","flow_rate_limited":true}`)
 	} else {
 		rp.w.Header().Set(CanonicalResponseMetaHeader, `{"src":"cloudflared"}`)
@@ -327,10 +325,16 @@ func handleMissingRequestParts(connType http2RequestType, r *http.Request) {
 	}
 }
 
-func isControlStreamUpgrade(r *http.Request) bool { return r.Header.Get(InternalUpgradeHeader) == ControlStreamUpgrade }
-func isWebsocketUpgrade(r *http.Request) bool    { return r.Header.Get(InternalUpgradeHeader) == WebsocketUpgrade }
-func isConfigurationUpdate(r *http.Request) bool { return r.Header.Get(InternalUpgradeHeader) == ConfigurationUpdate }
-func isTCPStream(r *http.Request) bool           { return r.Header.Get(InternalTCPProxySrcHeader) != "" }
+func isControlStreamUpgrade(r *http.Request) bool {
+	return r.Header.Get(InternalUpgradeHeader) == ControlStreamUpgrade
+}
+func isWebsocketUpgrade(r *http.Request) bool {
+	return r.Header.Get(InternalUpgradeHeader) == WebsocketUpgrade
+}
+func isConfigurationUpdate(r *http.Request) bool {
+	return r.Header.Get(InternalUpgradeHeader) == ConfigurationUpdate
+}
+func isTCPStream(r *http.Request) bool { return r.Header.Get(InternalTCPProxySrcHeader) != "" }
 func stripWebsocketUpgradeHeader(r *http.Request) {
 	r.Header.Del(InternalUpgradeHeader)
 }

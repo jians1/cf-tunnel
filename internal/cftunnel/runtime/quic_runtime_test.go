@@ -152,6 +152,44 @@ func TestNewQUICConfigSetsExplicitFlowControlWindows(t *testing.T) {
 	}
 }
 
+func TestNewQUICConfigUsesCloudflaredRuntimeTimeouts(t *testing.T) {
+	t.Parallel()
+
+	cfg := newQUICConfig(true)
+
+	if cfg.HandshakeIdleTimeout != 5*time.Second {
+		t.Fatalf("unexpected handshake idle timeout: got %s", cfg.HandshakeIdleTimeout)
+	}
+	if cfg.MaxIdleTimeout != 5*time.Second {
+		t.Fatalf("unexpected max idle timeout: got %s", cfg.MaxIdleTimeout)
+	}
+	if cfg.KeepAlivePeriod != time.Second {
+		t.Fatalf("unexpected keepalive period: got %s", cfg.KeepAlivePeriod)
+	}
+	if cfg.MaxIncomingStreams != 1<<60 {
+		t.Fatalf("unexpected max incoming streams: got %d", cfg.MaxIncomingStreams)
+	}
+	if cfg.MaxIncomingUniStreams != 1<<60 {
+		t.Fatalf("unexpected max incoming unidirectional streams: got %d", cfg.MaxIncomingUniStreams)
+	}
+	if !cfg.EnableDatagrams {
+		t.Fatal("expected datagrams to remain enabled for edge compatibility")
+	}
+	if cfg.InitialPacketSize != 1232 {
+		t.Fatalf("unexpected IPv4 initial packet size: got %d", cfg.InitialPacketSize)
+	}
+}
+
+func TestNewQUICConfigUsesIPv6InitialPacketSize(t *testing.T) {
+	t.Parallel()
+
+	cfg := newQUICConfig(false)
+
+	if cfg.InitialPacketSize != 1252 {
+		t.Fatalf("unexpected IPv6 initial packet size: got %d", cfg.InitialPacketSize)
+	}
+}
+
 type recordingQUICConnectionCloser struct {
 	closed bool
 }

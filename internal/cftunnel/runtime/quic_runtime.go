@@ -16,7 +16,6 @@ import (
 	"net/netip"
 	"time"
 
-	cfdquic "github.com/cloudflare/cloudflared/quic"
 	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	quicgo "github.com/quic-go/quic-go"
 )
@@ -40,6 +39,10 @@ var errMissingQUICDialConfig = errors.New("missing quic edge dial config")
 const (
 	defaultQUICConnectionReceiveWindow uint64 = 30 * (1 << 20)
 	defaultQUICStreamReceiveWindow     uint64 = 6 * (1 << 20)
+	defaultQUICHandshakeIdleTimeout           = 5 * time.Second
+	defaultQUICMaxIdleTimeout                 = 5 * time.Second
+	defaultQUICMaxIdlePingPeriod              = time.Second
+	defaultQUICMaxIncomingStreams             = 1 << 60
 )
 
 func NewQUICRuntime(session Session, logger *slog.Logger) (*QUICRuntime, error) {
@@ -160,15 +163,15 @@ func newQUICConfig(edgeIsIPv4 bool) *quicgo.Config {
 		initialPacketSize = 1232
 	}
 	return &quicgo.Config{
-		HandshakeIdleTimeout:  cfdquic.HandshakeIdleTimeout,
-		MaxIdleTimeout:        cfdquic.MaxIdleTimeout,
-		KeepAlivePeriod:       cfdquic.MaxIdlePingPeriod,
-		MaxIncomingStreams:    cfdquic.MaxIncomingStreams,
-		MaxIncomingUniStreams: cfdquic.MaxIncomingStreams,
-		EnableDatagrams:       true,
+		HandshakeIdleTimeout:       defaultQUICHandshakeIdleTimeout,
+		MaxIdleTimeout:             defaultQUICMaxIdleTimeout,
+		KeepAlivePeriod:            defaultQUICMaxIdlePingPeriod,
+		MaxIncomingStreams:         defaultQUICMaxIncomingStreams,
+		MaxIncomingUniStreams:      defaultQUICMaxIncomingStreams,
+		EnableDatagrams:            true,
 		MaxConnectionReceiveWindow: defaultQUICConnectionReceiveWindow,
 		MaxStreamReceiveWindow:     defaultQUICStreamReceiveWindow,
-		InitialPacketSize:     initialPacketSize,
+		InitialPacketSize:          initialPacketSize,
 	}
 }
 
