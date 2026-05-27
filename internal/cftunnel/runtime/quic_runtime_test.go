@@ -139,6 +139,19 @@ func TestQUICRuntimeUsesRuntimeTunnelConnection(t *testing.T) {
 	}
 }
 
+func TestNewQUICConfigSetsExplicitFlowControlWindows(t *testing.T) {
+	t.Parallel()
+
+	cfg := newQUICConfig(false)
+
+	if cfg.MaxConnectionReceiveWindow != defaultQUICConnectionReceiveWindow {
+		t.Fatalf("unexpected connection receive window: got %d want %d", cfg.MaxConnectionReceiveWindow, defaultQUICConnectionReceiveWindow)
+	}
+	if cfg.MaxStreamReceiveWindow != defaultQUICStreamReceiveWindow {
+		t.Fatalf("unexpected stream receive window: got %d want %d", cfg.MaxStreamReceiveWindow, defaultQUICStreamReceiveWindow)
+	}
+}
+
 type recordingQUICConnectionCloser struct {
 	closed bool
 }

@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
+	"sync"
 )
 
 type UpstreamOriginProxy struct {
@@ -71,22 +73,51 @@ func (p *UpstreamOriginProxy) ProxyTCP(ctx context.Context, rwa ReadWriteAcker, 
 		return fmt.Errorf("ack tcp connection: %w", err)
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	errC := make(chan error, 2)
+	var copyWG sync.WaitGroup
+	copyWG.Add(2)
 	go func() {
+		defer copyWG.Done()
 		_, err := io.Copy(originConn, rwa)
 		errC <- err
 	}()
 	go func() {
+		defer copyWG.Done()
 		_, err := io.Copy(rwa, originConn)
 		errC <- err
 	}()
 
+	waitForCopies := func(initialErr error, pending int) error {
+		firstErr := initialErr
+		for range pending {
+			if err := <-errC; firstErr == nil {
+				firstErr = err
+			}
+		}
+		copyWG.Wait()
+		if firstErr != nil && !isBenignTCPProxyError(firstErr) {
+			return firstErr
+		}
+		return nil
+	}
+
 	select {
 	case <-ctx.Done():
+		cancel()
 		_ = originConn.Close()
+		stopReadWriteAckerRead(rwa)
+		_ = waitForCopies(nil, 2)
 		return ctx.Err()
 	case err := <-errC:
+		cancel()
 		_ = originConn.Close()
+		stopReadWriteAckerRead(rwa)
+		if tailErr := waitForCopies(err, 1); err == nil {
+			err = tailErr
+		}
 		if err != nil && !isBenignTCPProxyError(err) {
 			return err
 		}
@@ -94,6 +125,17 @@ func (p *UpstreamOriginProxy) ProxyTCP(ctx context.Context, rwa ReadWriteAcker, 
 	}
 }
 
+func stopReadWriteAckerRead(rwa ReadWriteAcker) {
+	closer, ok := rwa.(interface{ CloseRead() error })
+	if ok {
+		_ = closer.CloseRead()
+		return
+	}
+	if closer, ok := rwa.(io.Closer); ok {
+		_ = closer.Close()
+	}
+}
+
 func isBenignTCPProxyError(err error) bool {
-	return err == nil || err == io.EOF || err == net.ErrClosed
+	return err == nil || err == io.EOF || err == net.ErrClosed || strings.Contains(err.Error(), "use of closed network connection")
 }

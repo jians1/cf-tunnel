@@ -39,6 +39,11 @@ type quicConnectionCloser interface {
 var errNilEntropyReader = errors.New("nil entropy reader")
 var errMissingQUICDialConfig = errors.New("missing quic edge dial config")
 
+const (
+	defaultQUICConnectionReceiveWindow uint64 = 30 * (1 << 20)
+	defaultQUICStreamReceiveWindow     uint64 = 6 * (1 << 20)
+)
+
 func NewQUICRuntime(session Session, logger *slog.Logger) (*QUICRuntime, error) {
 	return NewQUICRuntimeWithOptions(session, logger, QUICRuntimeOptions{})
 }
@@ -48,88 +53,6 @@ func NewQUICRuntimeWithOptions(session Session, logger *slog.Logger, options QUI
 		return newQUICRuntimeWithEdgeDialConfig(session, logger, options.DialConfig)
 	}
 	return nil, errMissingQUICDialConfig
-}
-
-func newLoopbackQUICRuntime(session Session, logger *slog.Logger) (*QUICRuntime, error) {
-	log := newZeroLoggerFromSlog(logger)
-	ctx := context.Background()
-
-	tlsServerConfig, err := generateQUICServerTLSConfig()
-	if err != nil {
-		return nil, fmt.Errorf("generate quic server tls config: %w", err)
-	}
-	udpAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
-	if err != nil {
-		return nil, err
-	}
-	udpListener, err := net.ListenUDP(udpAddr.Network(), udpAddr)
-	if err != nil {
-		return nil, err
-	}
-	serverAddr := netip.MustParseAddrPort(udpListener.LocalAddr().String())
-	quicConfig := newQUICConfig(serverAddr.Addr().Is4())
-	transport := &quicgo.Transport{Conn: udpListener, ConnectionIDLength: 16}
-	listener, err := transport.Listen(tlsServerConfig, quicConfig)
-	if err != nil {
-		_ = closeQUICRuntimeStartupResources(nil, nil, udpListener)
-		return nil, err
-	}
-
-	tlsClientConfig := &tls.Config{
-		InsecureSkipVerify: true, // loopback runtime transport only
-		NextProtos:         []string{edgeALPNQUIC},
-	}
-
-	conn, err := cfdconnection.DialQuic(
-		ctx,
-		quicConfig,
-		tlsClientConfig,
-		serverAddr,
-		nil,
-		0,
-		&log,
-		dialopts.DialOpts{},
-	)
-	if err != nil {
-		_ = closeQUICRuntimeStartupResources(nil, listener, udpListener)
-		return nil, err
-	}
-
-	prepared, err := PrepareRuntime(session)
-	if err != nil {
-		_ = closeQUICRuntimeStartupResources(conn, listener, udpListener)
-		return nil, err
-	}
-	orchestrator, err := NewUpstreamOrchestrator(NewUpstreamOriginProxy(prepared.OriginProxy), session)
-	if err != nil {
-		_ = closeQUICRuntimeStartupResources(conn, listener, udpListener)
-		return nil, err
-	}
-	connOptions, err := newRuntimeConnectionOptions()
-	if err != nil {
-		_ = closeQUICRuntimeStartupResources(conn, listener, udpListener)
-		return nil, fmt.Errorf("build quic connection options: %w", err)
-	}
-
-	tunnelConn := NewRuntimeQUICConnection(
-		conn,
-		orchestrator,
-		newNoopDatagramSessionHandler(),
-		fakeQUICControlStream{},
-		connOptions,
-		0,
-		15*time.Second,
-		0,
-		0,
-		&log,
-	)
-
-	return &QUICRuntime{
-		tunnelConn: tunnelConn,
-		quicConn:   conn,
-		serverConn: listener,
-		udpConn:    udpListener,
-	}, nil
 }
 
 func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dialConfig *QUICDialConfig) (*QUICRuntime, error) {
@@ -245,6 +168,8 @@ func newQUICConfig(edgeIsIPv4 bool) *quicgo.Config {
 		MaxIncomingStreams:    cfdquic.MaxIncomingStreams,
 		MaxIncomingUniStreams: cfdquic.MaxIncomingStreams,
 		EnableDatagrams:       true,
+		MaxConnectionReceiveWindow: defaultQUICConnectionReceiveWindow,
+		MaxStreamReceiveWindow:     defaultQUICStreamReceiveWindow,
 		InitialPacketSize:     initialPacketSize,
 	}
 }
