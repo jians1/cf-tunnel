@@ -10,7 +10,6 @@ import (
 	"github.com/cloudflare/cloudflared/tunnelrpc/proto"
 	"github.com/google/uuid"
 	capnp "zombiezen.com/go/capnproto2"
-	capnppogs "zombiezen.com/go/capnproto2/pogs"
 	"zombiezen.com/go/capnproto2/rpc"
 	"zombiezen.com/go/capnproto2/server"
 )
@@ -40,7 +39,38 @@ type runtimeConnectionOptions struct {
 }
 
 func (o *runtimeConnectionOptions) marshalCapnproto(s proto.ConnectionOptions) error {
-	return capnppogs.Insert(proto.ConnectionOptions_TypeID, s.Struct, o)
+	clientInfo, err := s.NewClient()
+	if err != nil {
+		return err
+	}
+	if err := clientInfo.SetClientId(o.Client.ClientID); err != nil {
+		return err
+	}
+	features, err := clientInfo.NewFeatures(int32(len(o.Client.Features)))
+	if err != nil {
+		return err
+	}
+	for i, feature := range o.Client.Features {
+		if err := features.Set(i, feature); err != nil {
+			return err
+		}
+	}
+	if err := clientInfo.SetVersion(o.Client.Version); err != nil {
+		return err
+	}
+	if err := clientInfo.SetArch(o.Client.Arch); err != nil {
+		return err
+	}
+	if err := s.SetClient(clientInfo); err != nil {
+		return err
+	}
+	if err := s.SetOriginLocalIp([]byte(o.OriginLocalIP)); err != nil {
+		return err
+	}
+	s.SetReplaceExisting(o.ReplaceExisting)
+	s.SetCompressionQuality(o.CompressionQuality)
+	s.SetNumPreviousAttempts(o.NumPreviousAttempts)
+	return nil
 }
 
 type runtimeTunnelAuth struct {
@@ -49,7 +79,10 @@ type runtimeTunnelAuth struct {
 }
 
 func (a runtimeTunnelAuth) marshalCapnproto(s proto.TunnelAuth) error {
-	return capnppogs.Insert(proto.TunnelAuth_TypeID, s.Struct, &a)
+	if err := s.SetAccountTag(a.AccountTag); err != nil {
+		return err
+	}
+	return s.SetTunnelSecret(a.TunnelSecret)
 }
 
 type runtimeConnectionDetails struct {
@@ -271,11 +304,38 @@ func (r *runtimeConnectRequest) MetadataMap() map[string]string {
 }
 
 func (r *runtimeConnectRequest) FromPogs(msg *capnp.Message) error {
-	metadata, err := proto.ReadRootConnectRequest(msg)
+	req, err := proto.ReadRootConnectRequest(msg)
 	if err != nil {
 		return err
 	}
-	return capnppogs.Extract(r, proto.ConnectRequest_TypeID, metadata.Struct)
+
+	dest, err := req.Dest()
+	if err != nil {
+		return err
+	}
+	metadataList, err := req.Metadata()
+	if err != nil {
+		return err
+	}
+
+	metadata := make([]runtimeMetadata, 0, metadataList.Len())
+	for i := 0; i < metadataList.Len(); i++ {
+		item := metadataList.At(i)
+		key, err := item.Key()
+		if err != nil {
+			return err
+		}
+		val, err := item.Val()
+		if err != nil {
+			return err
+		}
+		metadata = append(metadata, runtimeMetadata{Key: key, Val: val})
+	}
+
+	r.Dest = dest
+	r.Type = runtimeConnectionType(req.Type())
+	r.Metadata = metadata
+	return nil
 }
 
 func (r *runtimeConnectRequest) ToPogs() (*capnp.Message, error) {
@@ -289,8 +349,22 @@ func (r *runtimeConnectRequest) ToPogs() (*capnp.Message, error) {
 		return nil, err
 	}
 
-	if err := capnppogs.Insert(proto.ConnectRequest_TypeID, root.Struct, r); err != nil {
+	if err := root.SetDest(r.Dest); err != nil {
 		return nil, err
+	}
+	root.SetType(proto.ConnectionType(r.Type))
+	metadata, err := root.NewMetadata(int32(len(r.Metadata)))
+	if err != nil {
+		return nil, err
+	}
+	for i, entry := range r.Metadata {
+		item := metadata.At(i)
+		if err := item.SetKey(entry.Key); err != nil {
+			return nil, err
+		}
+		if err := item.SetVal(entry.Val); err != nil {
+			return nil, err
+		}
 	}
 
 	return msg, nil
@@ -307,11 +381,37 @@ type runtimeConnectResponse struct {
 }
 
 func (r *runtimeConnectResponse) FromPogs(msg *capnp.Message) error {
-	metadata, err := proto.ReadRootConnectResponse(msg)
+	resp, err := proto.ReadRootConnectResponse(msg)
 	if err != nil {
 		return err
 	}
-	return capnppogs.Extract(r, proto.ConnectResponse_TypeID, metadata.Struct)
+
+	errText, err := resp.Error()
+	if err != nil {
+		return err
+	}
+	metadataList, err := resp.Metadata()
+	if err != nil {
+		return err
+	}
+
+	metadata := make([]runtimeMetadata, 0, metadataList.Len())
+	for i := 0; i < metadataList.Len(); i++ {
+		item := metadataList.At(i)
+		key, err := item.Key()
+		if err != nil {
+			return err
+		}
+		val, err := item.Val()
+		if err != nil {
+			return err
+		}
+		metadata = append(metadata, runtimeMetadata{Key: key, Val: val})
+	}
+
+	r.Error = errText
+	r.Metadata = metadata
+	return nil
 }
 
 func (r *runtimeConnectResponse) ToPogs() (*capnp.Message, error) {
@@ -325,8 +425,21 @@ func (r *runtimeConnectResponse) ToPogs() (*capnp.Message, error) {
 		return nil, err
 	}
 
-	if err := capnppogs.Insert(proto.ConnectResponse_TypeID, root.Struct, r); err != nil {
+	if err := root.SetError(r.Error); err != nil {
 		return nil, err
+	}
+	metadata, err := root.NewMetadata(int32(len(r.Metadata)))
+	if err != nil {
+		return nil, err
+	}
+	for i, entry := range r.Metadata {
+		item := metadata.At(i)
+		if err := item.SetKey(entry.Key); err != nil {
+			return nil, err
+		}
+		if err := item.SetVal(entry.Val); err != nil {
+			return nil, err
+		}
 	}
 
 	return msg, nil
