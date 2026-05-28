@@ -134,6 +134,8 @@ func TestParseRejectsRemovedCFTunnelDebugFlags(t *testing.T) {
 		"--cf-quic-edge-address=198.51.100.10:7844",
 		"--cf-quic-edge-discovery",
 		"--cf-quic-edge-ip-version=6",
+		"--cf-quick-service-timeout=3s",
+		"--cf-quick-service-retry-backoff=10ms,20ms",
 	}
 
 	for _, flag := range removed {
@@ -161,8 +163,6 @@ func TestParseAcceptsCFTunnelRuntimeFlags(t *testing.T) {
 	cfg, err := Parse([]string{
 		"--enable-cf-tunnel",
 		"--cf-quick-service=https://example.com",
-		"--cf-quick-service-timeout=3s",
-		"--cf-quick-service-retry-backoff=10ms,20ms",
 		"--cf-edge-protocol=http2",
 		"--cf-tunnel-target=127.0.0.1:8080",
 		"--cf-origin-protocol=http",
@@ -174,12 +174,6 @@ func TestParseAcceptsCFTunnelRuntimeFlags(t *testing.T) {
 	}
 	if cfg.CFTunnel.QuickService != "https://example.com" {
 		t.Fatalf("unexpected quick service: %s", cfg.CFTunnel.QuickService)
-	}
-	if cfg.CFTunnel.QuickServiceTimeout.String() != "3s" {
-		t.Fatalf("unexpected quick service timeout: %s", cfg.CFTunnel.QuickServiceTimeout)
-	}
-	if got := cfg.CFTunnel.QuickServiceRetryBackoff; got != "10ms,20ms" {
-		t.Fatalf("unexpected quick service retry backoff: %s", got)
 	}
 	if cfg.CFTunnel.HAConnections != 1 {
 		t.Fatalf("unexpected ha connections: %d", cfg.CFTunnel.HAConnections)
@@ -210,22 +204,6 @@ func TestParseRejectsAutoEdgeProtocol(t *testing.T) {
 		"--cf-edge-protocol=auto",
 		"--cf-tunnel-target=127.0.0.1:8080",
 		"--cf-origin-protocol=http",
-		"--health-listen=",
-	})
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-}
-
-func TestParseRejectsInvalidQuickServiceRetryBackoff(t *testing.T) {
-	t.Parallel()
-
-	_, err := Parse([]string{
-		"--enable-cf-tunnel",
-		"--cf-edge-protocol=http2",
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
-		"--cf-quick-service-retry-backoff=10ms,nope",
 		"--health-listen=",
 	})
 	if err == nil {

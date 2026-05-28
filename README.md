@@ -167,8 +167,6 @@ go run ./cmd/app \
 
 - `--enable-cf-tunnel`
 - `--cf-quick-service=https://api.trycloudflare.com`
-- `--cf-quick-service-timeout=15s`
-- `--cf-quick-service-retry-backoff=500ms,1500ms`
 - `--cf-edge-protocol=quic|http2`
 - `--cf-ha-connections=1`
 - `--cf-tunnel-target=host:port|url`

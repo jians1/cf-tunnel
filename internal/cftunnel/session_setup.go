@@ -26,7 +26,10 @@ func prepareQuickTunnelSession(
 	logger *slog.Logger,
 ) (*preparedSession, error) {
 	return prepareQuickTunnelSessionWith(ctx, cfg, logger, func(ctx context.Context, runtimeConfig tunnelconfig.RuntimeConfig) (*api.QuickTunnelReservation, error) {
-		client := api.NewClient(runtimeConfig.QuickService, buildUserAgent())
+		client := api.NewClientWithOptions(runtimeConfig.QuickService, buildUserAgent(), api.ClientOptions{
+			Timeout:       runtimeConfig.QuickServiceTimeout,
+			RetryBackoffs: runtimeConfig.RetryBackoffs,
+		})
 		return client.CreateQuickTunnel(ctx)
 	})
 }

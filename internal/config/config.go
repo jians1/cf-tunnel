@@ -33,16 +33,14 @@ type AppConfig struct {
 }
 
 type CFTunnelConfig struct {
-	Enabled                  bool
-	QuickService             string
-	QuickServiceTimeout      time.Duration
-	QuickServiceRetryBackoff string
-	EdgeProtocol             string
-	HAConnections            int
-	Target                   string
-	OriginProtocol           string
-	OriginServerName         string
-	InsecureSkipVerify       bool
+	Enabled            bool
+	QuickService       string
+	EdgeProtocol       string
+	HAConnections      int
+	Target             string
+	OriginProtocol     string
+	OriginServerName   string
+	InsecureSkipVerify bool
 }
 
 type IPv6PoolConfig struct {
@@ -65,8 +63,6 @@ func Parse(args []string) (AppConfig, error) {
 
 	fs.BoolVar(&cfg.CFTunnel.Enabled, "enable-cf-tunnel", false, "enable Cloudflare quick tunnel")
 	fs.StringVar(&cfg.CFTunnel.QuickService, "cf-quick-service", "https://api.trycloudflare.com", "Quick Tunnel service base URL")
-	fs.DurationVar(&cfg.CFTunnel.QuickServiceTimeout, "cf-quick-service-timeout", 15*time.Second, "Quick Tunnel service request timeout")
-	fs.StringVar(&cfg.CFTunnel.QuickServiceRetryBackoff, "cf-quick-service-retry-backoff", "500ms,1500ms", "comma-separated retry backoffs for Quick Tunnel service rate limits")
 	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolQUIC, "Cloudflare edge protocol")
 	fs.IntVar(&cfg.CFTunnel.HAConnections, "cf-ha-connections", 1, "Cloudflare Quick Tunnel edge connections; current Quick Tunnel runtime supports 1")
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
@@ -119,12 +115,6 @@ func (c CFTunnelConfig) Validate() error {
 	}
 	if err := validateEdgeProtocol(c.EdgeProtocol); err != nil {
 		return err
-	}
-	if c.QuickServiceTimeout <= 0 {
-		return errors.New("cf-quick-service-timeout must be positive")
-	}
-	if _, err := parseDurationList(c.QuickServiceRetryBackoff); err != nil {
-		return fmt.Errorf("invalid cf-quick-service-retry-backoff: %w", err)
 	}
 	if c.HAConnections != 1 {
 		return errors.New("cf-ha-connections currently supports only 1 for Quick Tunnel")
@@ -206,29 +196,6 @@ func validateIPv6Strategy(v string) error {
 	default:
 		return fmt.Errorf("unsupported ipv6-pool-strategy: %s", v)
 	}
-}
-
-func parseDurationList(v string) ([]time.Duration, error) {
-	if strings.TrimSpace(v) == "" {
-		return nil, nil
-	}
-	parts := strings.Split(v, ",")
-	durations := make([]time.Duration, 0, len(parts))
-	for _, part := range parts {
-		value := strings.TrimSpace(part)
-		if value == "" {
-			return nil, errors.New("empty duration")
-		}
-		duration, err := time.ParseDuration(value)
-		if err != nil {
-			return nil, err
-		}
-		if duration < 0 {
-			return nil, errors.New("duration must not be negative")
-		}
-		durations = append(durations, duration)
-	}
-	return durations, nil
 }
 
 func validateTarget(target string) (bool, error) {

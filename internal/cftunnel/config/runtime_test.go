@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
@@ -48,5 +49,11 @@ func TestNormalizeCarriesRuntimeFields(t *testing.T) {
 	}
 	if cfg.HAConnections != 1 {
 		t.Fatalf("unexpected ha connections: %d", cfg.HAConnections)
+	}
+	if cfg.QuickServiceTimeout != 15*time.Second {
+		t.Fatalf("unexpected quick service timeout: %s", cfg.QuickServiceTimeout)
+	}
+	if len(cfg.RetryBackoffs) != 2 || cfg.RetryBackoffs[0] != 500*time.Millisecond || cfg.RetryBackoffs[1] != 1500*time.Millisecond {
+		t.Fatalf("unexpected retry backoffs: %#v", cfg.RetryBackoffs)
 	}
 }
