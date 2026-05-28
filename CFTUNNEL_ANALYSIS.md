@@ -300,20 +300,7 @@ Effect:
 
 - we must keep our scope narrow: one target, HTTP/HTTPS origin, WebSocket upgrade support
 
-## Immediate Implementation Plan
+## Decision Record
 
-1. Add a local `internal/cftunnel/api` package that implements the Quick Tunnel request.
-2. Add local response and credential structs matching the upstream API contract.
-3. Start a runtime spike that tries to assemble the minimum tunnel config without importing upstream CLI packages.
-4. Document the first concrete package subset that compiles inside this repo.
-
-## Current Decision
-
-Proceed with:
-
-- local reimplementation of Quick Tunnel API request
-- selective extraction of lower-level tunnel runtime
-
-Do not proceed with:
-
-- importing or vendoring the full `cmd/cloudflared/tunnel` package tree as the production integration boundary
+- Keep this document as architectural rationale for extraction boundaries.
+- Track current execution status in `NEXT_STEPS.md` instead of adding new action lists here.
