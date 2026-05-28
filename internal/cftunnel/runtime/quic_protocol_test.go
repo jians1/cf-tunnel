@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"net"
 	"testing"
 
@@ -108,5 +109,132 @@ func TestRuntimeRegistrationOptionsMarshal(t *testing.T) {
 
 	if err := runtimeOptions.marshalCapnproto(options); err != nil {
 		t.Fatalf("marshal runtime connection options: %v", err)
+	}
+}
+
+func TestRuntimeRegisterUDPSessionResponseMarshal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		response  runtimeRegisterUDPSessionResponse
+		wantErr   string
+		wantSpans []byte
+	}{
+		{
+			name: "success preserves spans",
+			response: runtimeRegisterUDPSessionResponse{
+				Spans: []byte("trace-spans"),
+			},
+			wantSpans: []byte("trace-spans"),
+		},
+		{
+			name: "error preserves message and omits spans",
+			response: runtimeRegisterUDPSessionResponse{
+				Err:   errors.New("session rejected"),
+				Spans: []byte("ignored"),
+			},
+			wantErr: "session rejected",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, seg, err := capnp.NewMessage(capnp.SingleSegment(nil))
+			if err != nil {
+				t.Fatalf("new capnp message: %v", err)
+			}
+			result, err := proto.NewRegisterUdpSessionResponse(seg)
+			if err != nil {
+				t.Fatalf("new register UDP session response: %v", err)
+			}
+
+			if err := test.response.marshalCapnproto(result); err != nil {
+				t.Fatalf("marshal register UDP session response: %v", err)
+			}
+
+			gotErr, err := result.Err()
+			if err != nil {
+				t.Fatalf("read response error: %v", err)
+			}
+			if gotErr != test.wantErr {
+				t.Fatalf("unexpected error: got %q want %q", gotErr, test.wantErr)
+			}
+
+			gotSpans, err := result.Spans()
+			if err != nil {
+				t.Fatalf("read response spans: %v", err)
+			}
+			if string(gotSpans) != string(test.wantSpans) {
+				t.Fatalf("unexpected spans: got %q want %q", gotSpans, test.wantSpans)
+			}
+		})
+	}
+}
+
+func TestRuntimeUpdateConfigurationResponseMarshal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		response    runtimeUpdateConfigurationResponse
+		wantVersion int32
+		wantErr     string
+	}{
+		{
+			name: "success preserves version",
+			response: runtimeUpdateConfigurationResponse{
+				LastAppliedVersion: 42,
+			},
+			wantVersion: 42,
+		},
+		{
+			name: "error preserves message",
+			response: runtimeUpdateConfigurationResponse{
+				LastAppliedVersion: 7,
+				Err:                errors.New("bad config"),
+			},
+			wantVersion: 7,
+			wantErr:     "bad config",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, seg, err := capnp.NewMessage(capnp.SingleSegment(nil))
+			if err != nil {
+				t.Fatalf("new capnp message: %v", err)
+			}
+			result, err := proto.NewUpdateConfigurationResponse(seg)
+			if err != nil {
+				t.Fatalf("new update configuration response: %v", err)
+			}
+
+			if err := test.response.marshalCapnproto(result); err != nil {
+				t.Fatalf("marshal update configuration response: %v", err)
+			}
+
+			if gotVersion := result.LatestAppliedVersion(); gotVersion != test.wantVersion {
+				t.Fatalf("unexpected version: got %d want %d", gotVersion, test.wantVersion)
+			}
+
+			gotErr := ""
+			if result.HasErr() {
+				var err error
+				gotErr, err = result.Err()
+				if err != nil {
+					t.Fatalf("read response error: %v", err)
+				}
+			}
+			if gotErr != test.wantErr {
+				t.Fatalf("unexpected error: got %q want %q", gotErr, test.wantErr)
+			}
+		})
 	}
 }

@@ -7,12 +7,12 @@ import (
 	"net"
 	"time"
 
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/cloudflare/cloudflared/tunnelrpc/proto"
 	"github.com/google/uuid"
 	capnp "zombiezen.com/go/capnproto2"
 	capnppogs "zombiezen.com/go/capnproto2/pogs"
 	"zombiezen.com/go/capnproto2/rpc"
+	"zombiezen.com/go/capnproto2/server"
 )
 
 type runtimeSessionManager interface {
@@ -82,14 +82,11 @@ type runtimeRegisterUDPSessionResponse struct {
 	Spans []byte
 }
 
-func (r *runtimeRegisterUDPSessionResponse) toPogs() *tunnelpogs.RegisterUdpSessionResponse {
-	if r == nil {
-		return nil
+func (r *runtimeRegisterUDPSessionResponse) marshalCapnproto(s proto.RegisterUdpSessionResponse) error {
+	if r.Err != nil {
+		return s.SetErr(r.Err.Error())
 	}
-	return &tunnelpogs.RegisterUdpSessionResponse{
-		Err:   r.Err,
-		Spans: append([]byte(nil), r.Spans...),
-	}
+	return s.SetSpans(r.Spans)
 }
 
 type runtimeUpdateConfigurationResponse struct {
@@ -97,14 +94,12 @@ type runtimeUpdateConfigurationResponse struct {
 	Err                error `json:"err"`
 }
 
-func (r *runtimeUpdateConfigurationResponse) toPogs() *tunnelpogs.UpdateConfigurationResponse {
-	if r == nil {
-		return nil
+func (r *runtimeUpdateConfigurationResponse) marshalCapnproto(s proto.UpdateConfigurationResponse) error {
+	s.SetLatestAppliedVersion(r.LastAppliedVersion)
+	if r.Err != nil {
+		return s.SetErr(r.Err.Error())
 	}
-	return &tunnelpogs.UpdateConfigurationResponse{
-		LastAppliedVersion: r.LastAppliedVersion,
-		Err:                r.Err,
-	}
+	return nil
 }
 
 type runtimeRegistrationServerClient interface {
@@ -342,36 +337,104 @@ var runtimeErrorFlowConnectRateLimitedMetadata = runtimeMetadata{
 	Val: "true",
 }
 
-type runtimeSessionManagerPogsAdapter struct {
-	manager runtimeSessionManager
+type runtimeCloudflaredServerClient struct {
+	sessionManager runtimeSessionManager
+	configManager  runtimeConfigurationManager
 }
 
-func (a runtimeSessionManagerPogsAdapter) RegisterUdpSession(ctx context.Context, sessionID uuid.UUID, dstIP net.IP, dstPort uint16, closeAfterIdleHint time.Duration, traceContext string) (*tunnelpogs.RegisterUdpSessionResponse, error) {
-	response, err := a.manager.RegisterUdpSession(ctx, sessionID, dstIP, dstPort, closeAfterIdleHint, traceContext)
-	if response == nil {
-		return nil, err
+func (c runtimeCloudflaredServerClient) RegisterUdpSession(p proto.SessionManager_registerUdpSession) error {
+	server.Ack(p.Options)
+
+	sessionIDRaw, err := p.Params.SessionId()
+	if err != nil {
+		return err
 	}
-	return response.toPogs(), err
+	sessionID, err := uuid.FromBytes(sessionIDRaw)
+	if err != nil {
+		return err
+	}
+
+	dstIPRaw, err := p.Params.DstIp()
+	if err != nil {
+		return err
+	}
+	dstIP := net.IP(dstIPRaw)
+	if dstIP == nil {
+		return fmt.Errorf("%v is not valid IP", dstIPRaw)
+	}
+
+	traceContext, err := p.Params.TraceContext()
+	if err != nil {
+		return err
+	}
+
+	response, registrationErr := c.sessionManager.RegisterUdpSession(
+		p.Ctx,
+		sessionID,
+		dstIP,
+		p.Params.DstPort(),
+		time.Duration(p.Params.CloseAfterIdleHint()),
+		traceContext,
+	)
+	if registrationErr != nil {
+		if response == nil {
+			response = &runtimeRegisterUDPSessionResponse{}
+		}
+		response.Err = registrationErr
+	}
+	if response == nil {
+		return errors.New("runtime UDP session manager returned nil response")
+	}
+
+	result, err := p.Results.NewResult()
+	if err != nil {
+		return err
+	}
+	return response.marshalCapnproto(result)
 }
 
-func (a runtimeSessionManagerPogsAdapter) UnregisterUdpSession(ctx context.Context, sessionID uuid.UUID, message string) error {
-	return a.manager.UnregisterUdpSession(ctx, sessionID, message)
+func (c runtimeCloudflaredServerClient) UnregisterUdpSession(p proto.SessionManager_unregisterUdpSession) error {
+	server.Ack(p.Options)
+
+	sessionIDRaw, err := p.Params.SessionId()
+	if err != nil {
+		return err
+	}
+	sessionID, err := uuid.FromBytes(sessionIDRaw)
+	if err != nil {
+		return err
+	}
+	message, err := p.Params.Message()
+	if err != nil {
+		return err
+	}
+	return c.sessionManager.UnregisterUdpSession(p.Ctx, sessionID, message)
 }
 
-type runtimeConfigurationManagerPogsAdapter struct {
-	manager runtimeConfigurationManager
-}
+func (c runtimeCloudflaredServerClient) UpdateConfiguration(p proto.ConfigurationManager_updateConfiguration) error {
+	server.Ack(p.Options)
 
-func (a runtimeConfigurationManagerPogsAdapter) UpdateConfiguration(ctx context.Context, version int32, config []byte) *tunnelpogs.UpdateConfigurationResponse {
-	response := a.manager.UpdateConfiguration(ctx, version, config)
-	return response.toPogs()
+	config, err := p.Params.Config()
+	if err != nil {
+		return err
+	}
+	response := c.configManager.UpdateConfiguration(p.Ctx, p.Params.Version(), config)
+	if response == nil {
+		return errors.New("runtime configuration manager returned nil response")
+	}
+
+	result, err := p.Results.NewResult()
+	if err != nil {
+		return err
+	}
+	return response.marshalCapnproto(result)
 }
 
 func newRuntimeCloudflaredServerClient(sessionManager runtimeSessionManager, configManager runtimeConfigurationManager) capnp.Client {
-	return tunnelpogs.CloudflaredServer_ServerToClient(
-		runtimeSessionManagerPogsAdapter{manager: sessionManager},
-		runtimeConfigurationManagerPogsAdapter{manager: configManager},
-	).Client
+	return proto.CloudflaredServer_ServerToClient(runtimeCloudflaredServerClient{
+		sessionManager: sessionManager,
+		configManager:  configManager,
+	}).Client
 }
 
 func newRuntimeRegistrationServerClient(client capnp.Client, conn *rpc.Conn) runtimeRegistrationServerClient {

@@ -10,8 +10,8 @@
   - removed `management` / `go-jose` from the production build graph
   - removed `urfave/cli`, `fsnotify`, and related command-only/runtime-unneeded packages from the production build graph
   - removed `hello`, `ipaccess`, `socks`, `otel`, `gorilla/websocket`, `connection`, `tunnelrpc`, `tunnelrpc/quic`, and `tunnelrpc/metrics` from the production build graph
-- The remaining heavy runtime dependency cluster is now concentrated in:
-  - `third_party/cloudflared/tunnelrpc/pogs`
+- Removed the runtime server-side dependency on `third_party/cloudflared/tunnelrpc/pogs`
+- The remaining Cloudflared runtime dependency is now concentrated in:
   - `third_party/cloudflared/tunnelrpc/proto`
   - `zombiezen.com/go/capnproto2`
 
@@ -32,12 +32,12 @@ Current release build:
 
 - command: `./scripts/build-release.sh`
 - target: `linux/amd64`
-- size: `11,309,218 bytes`
+- size: `9,904,290 bytes`
 
 Comparison point:
 
 - `502c10b` release build size: `13,303,970 bytes`
-- current is smaller by `1,994,752 bytes` (`14.99%`)
+- current is smaller by `3,399,680 bytes` (`25.55%`)
 
 ## Recommended Next Work
 
@@ -50,8 +50,8 @@ Recommended order:
    - treat current end-to-end results as the release baseline
 
 2. If further slimming is required, scope it as a new high-risk effort
-   - replace `tunnelrpc/pogs` with a minimal local protocol layer
    - reduce or eliminate `zombiezen.com/go/capnproto2/pogs` reflection-based bindings
+   - replace remaining reflection-based connect request/response marshaling with direct schema access
    - avoid mixing this with unrelated cleanup
 
 3. After any protocol-layer change
