@@ -8,10 +8,7 @@ require (
 	golang.org/x/sync v0.20.0
 )
 
-require (
-	github.com/go-logr/logr v1.4.3 // indirect
-	github.com/kylelemons/godebug v1.1.0 // indirect
-)
+require github.com/go-logr/logr v1.4.3 // indirect
 
 require (
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
