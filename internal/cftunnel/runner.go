@@ -3,6 +3,7 @@ package cftunnel
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
@@ -11,19 +12,33 @@ import (
 )
 
 type Runner struct {
+	name   string
 	cfg    config.CFTunnelConfig
 	logger *slog.Logger
 }
 
 func NewRunner(cfg config.CFTunnelConfig, logger *slog.Logger) *Runner {
 	return &Runner{
+		name:   "cftunnel",
 		cfg:    cfg,
 		logger: logger.With("component", "cftunnel"),
 	}
 }
 
+func NewNamedRunner(name string, cfg config.CFTunnelConfig, logger *slog.Logger) *Runner {
+	tunnelName := name
+	if strings.TrimSpace(tunnelName) == "" {
+		tunnelName = "cftunnel"
+	}
+	return &Runner{
+		name:   tunnelName,
+		cfg:    cfg,
+		logger: logger.With("component", "cftunnel", "tunnel_name", tunnelName),
+	}
+}
+
 func (r *Runner) Name() string {
-	return "cftunnel"
+	return r.name
 }
 
 func (r *Runner) Run(ctx context.Context) error {

@@ -366,3 +366,64 @@ func TestParseRejectsInvalidCFRouteFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAcceptsMultiTunnelFlags(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http,edge=http2",
+		"--cf-tunnel=name=t2,target=https://127.0.0.1:8443,origin=https,quick=https://example.com",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Tunnels) != 2 {
+		t.Fatalf("unexpected tunnel count: %d", len(cfg.Tunnels))
+	}
+	if cfg.Tunnels[0].Name != "t1" {
+		t.Fatalf("unexpected first tunnel name: %s", cfg.Tunnels[0].Name)
+	}
+	if cfg.Tunnels[1].CFTunnel.QuickService != "https://example.com" {
+		t.Fatalf("unexpected quick service: %s", cfg.Tunnels[1].CFTunnel.QuickService)
+	}
+}
+
+func TestParseRejectsMultiTunnelMissingRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--cf-tunnel=name=t1,target=127.0.0.1:8081",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+}
+
+func TestParseRejectsDuplicateTunnelNames(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http",
+		"--cf-tunnel=name=T1,target=127.0.0.1:8082,origin=http",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected duplicate name validation error")
+	}
+}
+
+func TestParseRejectsMixedSingleAndMultiTunnelFlags(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--cf-tunnel-target=127.0.0.1:8080",
+		"--cf-origin-protocol=http",
+		"--cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected mixed mode validation error")
+	}
+}

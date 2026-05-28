@@ -92,6 +92,17 @@ This currently performs:
 2. compact release binary build into `dist/`
 3. Docker image build
 
+Optional multi-tunnel real-link regression (disabled by default):
+
+```bash
+CI_E2E_MULTI=1 ./scripts/ci.sh
+```
+
+When enabled, CI additionally runs:
+
+1. `scripts/e2e/run_trycloudflare_multi_tunnel_real.sh http2 1`
+2. `scripts/e2e/run_trycloudflare_multi_tunnel_real.sh quic 1`
+
 ## E2E A/B Test
 
 The repository includes real end-to-end Quick Tunnel throughput scripts for `http2` and `quic` against a local `sing-box` VLESS-over-WebSocket origin.
@@ -156,6 +167,19 @@ go run ./cmd/app \
   --cf-route=/ws/*=ws://127.0.0.1:10000
 ```
 
+Multi-tunnel mode (repeat `--cf-tunnel`):
+
+```bash
+go run ./cmd/app \
+  --cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http,edge=http2 \
+  --cf-tunnel=name=t2,target=127.0.0.1:10000,origin=ws,edge=quic
+```
+
+Notes:
+
+- In multi-tunnel mode, do not mix single-tunnel flags such as `--cf-tunnel-target`, `--cf-origin-protocol`, `--cf-route`.
+- When `--health-listen` is enabled, `/ready` returns a multi-tunnel summary string in multi mode.
+
 ## Important Flags
 
 ### Global Controls
@@ -175,6 +199,7 @@ go run ./cmd/app \
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
 - `--cf-route=/path=host:port|url` (repeatable, supports exact `/health` and prefix `/api/*`)
+- `--cf-tunnel=name=<name>,target=<host:port|url>,origin=<auto|http|https|ws|wss>[,edge=<quic|http2>][,quick=<url>][,ha=1][,server_name=<name>][,insecure_skip_verify=true|false]` (repeatable)
 
 ## Current Runtime Behavior
 

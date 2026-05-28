@@ -258,6 +258,71 @@ Verify end-to-end path-based split for HTTP and WebSocket traffic through curren
    - backend A for `/api/*`
    - backend B for `/ws/*`
 2. Assert `/api/...` reaches backend A with response marker.
+
+## Execution Status (2026-05-29)
+
+### Phase A Delivery Status
+
+- A1 done: route config model landed in `internal/config`.
+- A2 done: route grammar/duplicate validation landed with tests.
+- A3 done: deterministic router (`exact > longest-prefix > default`) landed with tests.
+- A4 done: HTTP + WebSocket path-based backend dispatch integrated in runtime path.
+- A5 done: smoke tests and real-link e2e path-split validation are now part of current scripts.
+
+### Current Verified Baseline
+
+- Local and package-level tests pass (`go test ./...`).
+- Real-link e2e validation passes for both `http2` and `quic`.
+- Path-based routing checks pass in e2e (`path_routing_check=pass`).
+
+## Next Construction Phase (Priority 2)
+
+### Phase B: Multi-Tunnel Creation and Runtime Management
+
+#### Goal
+
+Run multiple Quick Tunnel instances in one process with shared lifecycle and deterministic startup/shutdown behavior.
+
+#### Scope
+
+- Add config model for multiple tunnel entries.
+- Build per-tunnel runtime sessions with isolated origin/routing config.
+- Start/stop tunnels under one lifecycle manager.
+- Keep unified logging while adding per-tunnel identifiers.
+
+#### Out of Scope (B)
+
+- Dynamic hot-reload of tunnel definitions.
+- Cross-tunnel load balancing policy.
+- Named tunnel/account login management.
+
+#### Task Breakdown (B, Proposed)
+
+##### Task B1: Config Model for Multi-Tunnel
+
+- Add `[]CFTunnelConfig` style top-level structure or equivalent CLI/file mapping.
+- Enforce unique tunnel names/ids and deterministic validation errors.
+
+##### Task B2: Runner Refactor for Multi-Instance
+
+- Extract single-tunnel startup into reusable per-instance unit.
+- Add orchestrator to start all configured tunnels and aggregate run errors.
+
+##### Task B3: Lifecycle and Shutdown Semantics
+
+- Define fail-fast vs fail-continue startup policy (explicit and test-covered).
+- Ensure graceful shutdown ordering and timeout handling across instances.
+
+##### Task B4: Observability and Ops Safety
+
+- Add per-tunnel log fields.
+- Add minimal health/readiness surface for multi-instance visibility.
+
+##### Task B5: Verification
+
+- Unit tests for config and lifecycle orchestration.
+- Integration smoke test with at least two active tunnels.
+- Real-link serial validation confirming no regression for single-tunnel mode.
 3. Assert websocket upgrade and message exchange on `/ws/...` reaches backend B.
 4. Assert unmatched path falls back to default backend.
 

@@ -192,6 +192,7 @@ if [[ "$(curl -fsS "${URL}/default.txt")" != "default-ok" ]]; then
   echo "path-routing check failed: default route did not hit default backend" >&2
   exit 1
 fi
+PATH_ROUTING_CHECK="pass"
 
 echo "warm" > "$PHASE_FILE"
 sleep 1
@@ -225,6 +226,7 @@ rss_ready_kb=${RSS_READY_KB}
 rss_warm_kb=${RSS_WARM_KB}
 peak_rss_kb=${PEAK_RSS_KB}
 rss_final_kb=${RSS_FINAL_KB}
+path_routing_check=${PATH_ROUTING_CHECK}
 TXT
 
 rm -f "$OUT/blob.bin"
