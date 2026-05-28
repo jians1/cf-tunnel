@@ -6,7 +6,7 @@
 
 **Architecture:** Runtime protocol ownership is being moved into `internal/cftunnel/runtime`, with direct Cap'n Proto wire handling kept explicit and tested. Each dependency removal should be small, wire-compatible, and verified with unit tests, full tests, release build, and real trycloudflare link tests when RPC behavior changes.
 
-**Tech Stack:** Go, Cap'n Proto via `github.com/cloudflare/cloudflared/tunnelrpc/proto`, `zombiezen.com/go/capnproto2/pogs`, Quick Tunnel e2e scripts, static release builds.
+**Tech Stack:** Go, Cap'n Proto via `github.com/cloudflare/cloudflared/tunnelrpc/proto`, Quick Tunnel e2e scripts, static release builds.
 
 ---
 
@@ -40,7 +40,7 @@
 - `internal/cftunnel/runtime/quic_protocol.go`: `github.com/cloudflare/cloudflared/tunnelrpc/proto`
 - `internal/cftunnel/runtime/quic_protocol_test.go`: `github.com/cloudflare/cloudflared/tunnelrpc/proto`
 
-`proto` is still expected for wire schema access. The next meaningful target is reducing `zombiezen.com/go/capnproto2/pogs` reflection-based marshaling on the connect request/response path.
+`proto` is still expected for wire schema access. Runtime path has removed reflection-based `pogs` marshaling; the next meaningful target is evaluating whether additional vendored `cloudflared` surface can be trimmed while preserving wire compatibility.
 
 ## Implementation Plan
 
@@ -142,6 +142,18 @@
 
 **Files:**
 - Read logs from: `/tmp/cfqt-e2e`
+
+**Execution rule (required for comparable throughput):**
+- Run `http2` and `quic` serially, not in parallel.
+- Parallel runs are acceptable only for functional smoke checks, not for `throughput_mbps` comparison.
+- Always report the same sampled fields:
+  - `duration_seconds`
+  - `throughput_mbps`
+  - `sha256`
+  - `rss_ready_kb`
+  - `rss_warm_kb`
+  - `peak_rss_kb`
+  - `rss_final_kb`
 
 - [ ] **Step 1: Test `http2` real Quick Tunnel**
 

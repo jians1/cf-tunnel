@@ -26,6 +26,29 @@ All future RSS comparisons should use the same fields from `scripts/e2e/run_tryc
 
 Do not compare new results with older ad-hoc measurements unless the sampling method is known to match.
 
+For real-link throughput measurements, `http2` and `quic` MUST run serially.
+
+- Required order: finish one protocol run, then start the next.
+- Forbidden: running `http2` and `quic` at the same time for throughput comparison.
+- Reason: parallel runs contend for CPU/network and distort `throughput_mbps`.
+
+Recommended serial commands:
+
+```bash
+bash scripts/e2e/run_trycloudflare_ab.sh http2 1
+bash scripts/e2e/run_trycloudflare_ab.sh quic 1
+```
+
+When reporting results, include these fields from each run's `result.txt`:
+
+- `duration_seconds`
+- `throughput_mbps`
+- `sha256`
+- `rss_ready_kb`
+- `rss_warm_kb`
+- `peak_rss_kb`
+- `rss_final_kb`
+
 ## Release Size Baseline
 
 Current release build:
@@ -50,8 +73,8 @@ Recommended order:
    - treat current end-to-end results as the release baseline
 
 2. If further slimming is required, scope it as a new high-risk effort
-   - reduce or eliminate `zombiezen.com/go/capnproto2/pogs` reflection-based bindings
-   - replace remaining reflection-based connect request/response marshaling with direct schema access
+   - keep `internal/` runtime path pinned to direct `tunnelrpc/proto` schema access only
+   - evaluate whether `third_party/cloudflared` vendored tree can be further trimmed without breaking wire compatibility
    - avoid mixing this with unrelated cleanup
 
 3. After any protocol-layer change
