@@ -4,8 +4,8 @@
 
 - The current release candidate is stable enough to publish as `0.1.0-prototype`.
 - Latest validated commits:
-  - `586a41f refactor: remove runtime capnp pogs marshaling`
-  - `7cf9b92 docs: enforce serial throughput sampling policy`
+  - `d4aef3e chore: remove unused capnp source files`
+  - `8817692 chore: tidy go module dependencies`
 - Real end-to-end regression checks still pass for both `http2` and `quic` after dependency trimming:
   - `1GiB` downloads completed with matching SHA256
   - RSS stayed in the tens of MiB range
@@ -15,13 +15,13 @@
   - removed `hello`, `ipaccess`, `socks`, `otel`, `gorilla/websocket`, `connection`, `tunnelrpc`, `tunnelrpc/quic`, and `tunnelrpc/metrics` from the production build graph
 - Removed the runtime server-side dependency on `third_party/cloudflared/tunnelrpc/pogs`
 - The remaining Cloudflared runtime dependency is now concentrated in:
-  - `third_party/cloudflared/tunnelrpc/proto`
+  - `third_party/cloudflared/tunnelrpc/proto/*.capnp.go`
   - `zombiezen.com/go/capnproto2`
 
 Latest serial real-link measurements on 2026-05-28:
 
-- `http2`: `duration_seconds=9`, `throughput_mbps=954.44`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19512`, `rss_warm_kb=19512`, `peak_rss_kb=19524`, `rss_final_kb=19080`
-- `quic`: `duration_seconds=11`, `throughput_mbps=780.90`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19200`, `rss_warm_kb=19204`, `peak_rss_kb=19080`, `rss_final_kb=18992`
+- `http2`: `duration_seconds=10`, `throughput_mbps=858.99`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19304`, `rss_warm_kb=19528`, `peak_rss_kb=19532`, `rss_final_kb=19532`
+- `quic`: `duration_seconds=10`, `throughput_mbps=858.99`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=21384`, `rss_warm_kb=21388`, `peak_rss_kb=21868`, `rss_final_kb=21792`
 
 ## Fixed Benchmark Output Standard
 
@@ -63,7 +63,7 @@ Current release build:
 
 - command: `./scripts/build-release.sh`
 - target: `linux/amd64`
-- size: `9,904,290 bytes`
+- size: `9,744,546 bytes`
 
 Comparison point:
 
@@ -72,30 +72,31 @@ Comparison point:
 
 ## Recommended Next Work
 
-Primary goal: decide whether to keep shipping the current `0.1.0-prototype` as-is or continue into a higher-risk protocol-layer rewrite.
+Primary goal: shift focus from dependency slimming to code quality, performance optimization, and resource-usage stability.
 
 Recommended order:
 
-1. Preserve the current publishable state
-   - keep the `0.1.0-prototype` release artifacts and notes
-   - treat current end-to-end results as the release baseline
+1. Code quality baseline
+   - map top error-prone paths in `internal/cftunnel/runtime`, `internal/cftunnel/api`, `internal/ipv6pool`
+   - remove duplicate validation/config branches and unify invariants
+   - add/strengthen focused unit tests for connection lifecycle and failure paths
 
-2. If further slimming is required, scope it as a new high-risk effort
-   - keep `internal/` runtime path pinned to direct `tunnelrpc/proto` schema access only
-   - evaluate whether `third_party/cloudflared` vendored tree can be further trimmed without breaking wire compatibility:
-     - build a candidate list of vendored directories unreachable from runtime/test/build paths
-     - remove only clearly unreachable directories in small, isolated patches
-     - verify each patch with `go test -count=1 ./...` and `bash scripts/build-release.sh`
-   - avoid mixing this with unrelated cleanup
+2. Performance baseline and profiling
+   - collect reproducible baseline from serial `http2`/`quic` e2e runs (throughput + RSS fields)
+   - run targeted CPU/memory profiling on hot paths (registration, data stream forwarding, reconnect path)
+   - identify top 3 bottlenecks and estimate impact before changing code
 
-3. After any protocol-layer change
-   - rebuild the release binary
-   - run `go test ./internal/cftunnel/...`
-   - rerun real `http2` and `quic` end-to-end downloads
+3. Resource occupancy optimization
+   - optimize buffer reuse and reduce avoidable allocations in data plane
+   - tune goroutine lifecycle and shutdown path to prevent lingering workers
+   - verify regression gates after each optimization:
+     - `go test -count=1 ./...`
+     - `bash scripts/build-release.sh`
+     - serial real-link `http2` and `quic` runs
 
 ## Guardrails
 
 - Keep diffs small and attributable.
-- Do not mix dependency trimming with unrelated cleanup.
+- Do not mix quality/performance optimization with unrelated feature work.
 - Always compare release builds, not plain `go build`, when discussing shipping size.
 - Treat old memory numbers collected with unknown sampling as historical hints, not hard baselines.
