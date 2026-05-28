@@ -4,21 +4,31 @@ set -euo pipefail
 PROTO="${1:?proto required: http2 or quic}"
 ROUND="${2:?round required}"
 
+case "$PROTO" in
+  http2) PROTO_PORT_OFFSET=0 ;;
+  quic) PROTO_PORT_OFFSET=100 ;;
+  *)
+    echo "unsupported proto: $PROTO (expected http2 or quic)" >&2
+    exit 1
+    ;;
+esac
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BASE="${TMPDIR:-/tmp}/cfqt-e2e"
 ORIGIN_DIR="$BASE/origin"
-HTTP_PORT=$((18080 + ROUND))
-WS_PORT=$((10000 + ROUND))
-SOCKS_PORT=$((1080 + ROUND))
+HTTP_PORT=$((18080 + PROTO_PORT_OFFSET + ROUND))
+WS_PORT=$((10000 + PROTO_PORT_OFFSET + ROUND))
+SOCKS_PORT=$((1080 + PROTO_PORT_OFFSET + ROUND))
 CF_DNS_RESOLVER="${CF_DNS_RESOLVER:-1.1.1.1}"
 CFQT_BIN="$BASE/cfqt"
 SING_BIN="${SING_BOX_BIN:-/root/.local/bin/sing-box}"
 UUID="${SING_BOX_UUID:-ff78bef5-223f-4845-8676-a2780c305ea4}"
 OUT="$BASE/${PROTO}-round${ROUND}"
 PHASE_FILE="$OUT/phase"
+SERVER_CONFIG="$OUT/sing-box-server.json"
 
-rm -rf "$BASE"
-mkdir -p "$OUT" "$ORIGIN_DIR"
+rm -rf "$OUT"
+mkdir -p "$BASE" "$OUT" "$ORIGIN_DIR"
 echo "startup" > "$PHASE_FILE"
 
 cleanup() {
@@ -39,7 +49,7 @@ fi
 
 truncate -s 1G "$ORIGIN_DIR/blob.bin"
 
-cat > "$BASE/sing-box-server.json" <<JSON
+cat > "$SERVER_CONFIG" <<JSON
 {
   "log": {"level": "warn", "timestamp": true},
   "inbounds": [
@@ -59,7 +69,7 @@ JSON
 python3 -m http.server "$HTTP_PORT" --bind 127.0.0.1 --directory "$ORIGIN_DIR" >"$OUT/http-origin.log" 2>&1 &
 PIDS+=($!)
 
-"$SING_BIN" run -c "$BASE/sing-box-server.json" >"$OUT/sing-server.log" 2>&1 &
+"$SING_BIN" run -c "$SERVER_CONFIG" >"$OUT/sing-server.log" 2>&1 &
 PIDS+=($!)
 
 "$CFQT_BIN" \
