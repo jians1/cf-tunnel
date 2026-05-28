@@ -7,8 +7,6 @@ import (
 	"time"
 
 	capnp "zombiezen.com/go/capnproto2"
-
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type protocolSignature [6]byte
@@ -64,12 +62,12 @@ type runtimeHandleRequestFunc func(ctx context.Context, stream *runtimeRequestSe
 
 type runtimeCloudflaredServer struct {
 	handleRequest   runtimeHandleRequestFunc
-	sessionManager  tunnelpogs.SessionManager
-	configManager   tunnelpogs.ConfigurationManager
+	sessionManager  runtimeSessionManager
+	configManager   runtimeConfigurationManager
 	responseTimeout time.Duration
 }
 
-func newRuntimeCloudflaredServer(handleRequest runtimeHandleRequestFunc, sessionManager tunnelpogs.SessionManager, configManager tunnelpogs.ConfigurationManager, responseTimeout time.Duration) *runtimeCloudflaredServer {
+func newRuntimeCloudflaredServer(handleRequest runtimeHandleRequestFunc, sessionManager runtimeSessionManager, configManager runtimeConfigurationManager, responseTimeout time.Duration) *runtimeCloudflaredServer {
 	return &runtimeCloudflaredServer{
 		handleRequest:   handleRequest,
 		sessionManager:  sessionManager,
@@ -101,8 +99,7 @@ func (s *runtimeCloudflaredServer) handleRPC(ctx context.Context, stream io.Read
 	transport := safeTransport(stream)
 	defer transport.Close()
 
-	main := tunnelpogs.CloudflaredServer_ServerToClient(s.sessionManager, s.configManager)
-	rpcConn := newServerConn(transport, main.Client)
+	rpcConn := newServerConn(transport, newRuntimeCloudflaredServerClient(s.sessionManager, s.configManager))
 	defer rpcConn.Close()
 
 	select {

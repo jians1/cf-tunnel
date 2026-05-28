@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -38,7 +37,7 @@ type RuntimeQUICConnection struct {
 
 type noOpSessionManager interface {
 	Serve(context.Context) error
-	tunnelpogs.SessionManager
+	runtimeSessionManager
 }
 
 func NewRuntimeQUICConnection(

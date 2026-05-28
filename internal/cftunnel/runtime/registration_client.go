@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 	"zombiezen.com/go/capnproto2/rpc"
 )
 
@@ -27,7 +26,7 @@ type registrationClient interface {
 type registrationClientFactory func(context.Context, io.ReadWriteCloser, time.Duration) registrationClient
 
 type runtimeRegistrationClient struct {
-	client         tunnelpogs.RegistrationServer_PogsClient
+	client         runtimeRegistrationServerClient
 	transport      rpc.Transport
 	requestTimeout time.Duration
 }
@@ -35,7 +34,7 @@ type runtimeRegistrationClient struct {
 func newRegistrationClient(ctx context.Context, stream io.ReadWriteCloser, requestTimeout time.Duration) registrationClient {
 	transport := safeTransport(stream)
 	conn := newClientConn(transport)
-	client := tunnelpogs.NewRegistrationServer_PogsClient(conn.Bootstrap(ctx), conn)
+	client := newRuntimeRegistrationServerClient(conn.Bootstrap(ctx), conn)
 	return &runtimeRegistrationClient{
 		client:         client,
 		transport:      transport,
