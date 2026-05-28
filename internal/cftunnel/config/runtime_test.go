@@ -11,7 +11,6 @@ func TestNormalizeDefaultsQuickTunnelRuntime(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := Normalize(appconfig.CFTunnelConfig{
-		Enabled:        true,
 		EdgeProtocol:   appconfig.EdgeProtocolQUIC,
 		Target:         "127.0.0.1:8080",
 		OriginProtocol: appconfig.ProtocolHTTP,
@@ -34,7 +33,6 @@ func TestNormalizeCarriesRuntimeFields(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := Normalize(appconfig.CFTunnelConfig{
-		Enabled:        true,
 		QuickService:   "https://example.com",
 		EdgeProtocol:   appconfig.EdgeProtocolHTTP2,
 		Target:         "127.0.0.1:8080",

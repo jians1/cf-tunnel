@@ -72,7 +72,6 @@ Example run:
 ```bash
 docker run --rm \
   cf-quicktunnel-ipv6pool:0.1.0-prototype \
-  --enable-cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:8080 \
   --cf-origin-protocol=http \
@@ -123,7 +122,6 @@ Run a local HTTP origin through Quick Tunnel:
 
 ```bash
 go run ./cmd/app \
-  --enable-cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:8080 \
   --cf-origin-protocol=http
@@ -133,7 +131,6 @@ Force a specific Cloudflare edge transport:
 
 ```bash
 go run ./cmd/app \
-  --enable-cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:8080 \
   --cf-origin-protocol=http
@@ -143,10 +140,20 @@ For a WebSocket origin such as VLESS over WS:
 
 ```bash
 go run ./cmd/app \
-  --enable-cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=127.0.0.1:10000 \
   --cf-origin-protocol=ws
+```
+
+Path-based backend split (repeat `--cf-route`):
+
+```bash
+go run ./cmd/app \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=127.0.0.1:8080 \
+  --cf-origin-protocol=http \
+  --cf-route=/api/*=127.0.0.1:9001 \
+  --cf-route=/ws/*=ws://127.0.0.1:10000
 ```
 
 ## Important Flags
@@ -160,7 +167,6 @@ go run ./cmd/app \
 
 ### Tunnel Controls
 
-- `--enable-cf-tunnel`
 - `--cf-quick-service=https://api.trycloudflare.com`
 - `--cf-edge-protocol=quic|http2`
 - `--cf-ha-connections=1`
@@ -168,6 +174,7 @@ go run ./cmd/app \
 - `--cf-origin-protocol=auto|http|https|ws|wss`
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
+- `--cf-route=/path=host:port|url` (repeatable, supports exact `/health` and prefix `/api/*`)
 
 ## Current Runtime Behavior
 

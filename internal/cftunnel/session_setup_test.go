@@ -17,7 +17,6 @@ func TestPrepareQuickTunnelSessionWithMockReservation(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	prepared, err := prepareQuickTunnelSessionWith(context.Background(), config.CFTunnelConfig{
-		Enabled:        true,
 		EdgeProtocol:   config.EdgeProtocolHTTP2,
 		Target:         "127.0.0.1:8080",
 		OriginProtocol: config.ProtocolHTTP,
@@ -38,7 +37,6 @@ func TestPrepareQuickTunnelSessionWithCarriesQuickServiceOptions(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	_, err := prepareQuickTunnelSessionWith(context.Background(), config.CFTunnelConfig{
-		Enabled:        true,
 		EdgeProtocol:   config.EdgeProtocolHTTP2,
 		Target:         "127.0.0.1:8080",
 		OriginProtocol: config.ProtocolHTTP,

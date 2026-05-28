@@ -20,6 +20,7 @@ type RuntimeConfig struct {
 	RetryBackoffs       []time.Duration
 	HAConnections       int
 	Origin              origin.Target
+	Routes              []appconfig.RouteRule
 	QuickTunnelDefault  bool
 }
 
@@ -45,6 +46,7 @@ func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 		RetryBackoffs:       append([]time.Duration(nil), defaultQuickServiceRetryBackoffs...),
 		HAConnections:       haConnections,
 		Origin:              target,
+		Routes:              append([]appconfig.RouteRule(nil), cfg.Routes...),
 		QuickTunnelDefault:  true,
 	}, nil
 }

@@ -34,7 +34,10 @@ func PrepareRuntime(session Session) (*PreparedRuntime, error) {
 		return nil, fmt.Errorf("rebuild origin target: %w", err)
 	}
 
-	proxy := origin.NewProxy(originTarget)
+	proxy, err := origin.NewRoutedProxy(originTarget, session.Origin.Routes)
+	if err != nil {
+		return nil, fmt.Errorf("build routed origin proxy: %w", err)
+	}
 	edgeTLS, err := buildEdgeTLSConfigs(session.Edge.Protocol)
 	if err != nil {
 		return nil, err

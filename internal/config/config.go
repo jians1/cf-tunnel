@@ -31,7 +31,6 @@ type AppConfig struct {
 }
 
 type CFTunnelConfig struct {
-	Enabled            bool
 	QuickService       string
 	EdgeProtocol       string
 	HAConnections      int
@@ -39,6 +38,46 @@ type CFTunnelConfig struct {
 	OriginProtocol     string
 	OriginServerName   string
 	InsecureSkipVerify bool
+	Routes             []RouteRule
+}
+
+type RouteRule struct {
+	Path   string
+	Target string
+}
+
+type routeFlag []RouteRule
+
+func (r *routeFlag) String() string {
+	if r == nil || len(*r) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(*r))
+	for _, rule := range *r {
+		parts = append(parts, rule.Path+"="+rule.Target)
+	}
+	return strings.Join(parts, ",")
+}
+
+func (r *routeFlag) Set(v string) error {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return errors.New("route rule cannot be empty")
+	}
+	idx := strings.Index(v, "=")
+	if idx <= 0 || idx >= len(v)-1 {
+		return errors.New("route rule must be in format path=target")
+	}
+	path := strings.TrimSpace(v[:idx])
+	target := strings.TrimSpace(v[idx+1:])
+	if path == "" || target == "" {
+		return errors.New("route rule must include non-empty path and target")
+	}
+	*r = append(*r, RouteRule{
+		Path:   path,
+		Target: target,
+	})
+	return nil
 }
 
 func Parse(args []string) (AppConfig, error) {
@@ -50,7 +89,6 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.HealthListen, "health-listen", ":9090", "health endpoint listen address")
 	fs.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", 10*time.Second, "maximum time to wait for runners to stop after shutdown starts")
 
-	fs.BoolVar(&cfg.CFTunnel.Enabled, "enable-cf-tunnel", false, "enable Cloudflare quick tunnel")
 	fs.StringVar(&cfg.CFTunnel.QuickService, "cf-quick-service", "https://api.trycloudflare.com", "Quick Tunnel service base URL")
 	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolQUIC, "Cloudflare edge protocol")
 	fs.IntVar(&cfg.CFTunnel.HAConnections, "cf-ha-connections", 1, "Cloudflare Quick Tunnel edge connections; current Quick Tunnel runtime supports 1")
@@ -58,6 +96,7 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.OriginProtocol, "cf-origin-protocol", ProtocolAuto, "origin protocol")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
+	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=host:port|url or /prefix/*=host:port|url")
 
 	if err := fs.Parse(args); err != nil {
 		return AppConfig{}, err
@@ -73,9 +112,6 @@ func Parse(args []string) (AppConfig, error) {
 }
 
 func (c AppConfig) Validate() error {
-	if !c.CFTunnel.Enabled {
-		return errors.New("enable-cf-tunnel must be true")
-	}
 	if err := validateLogFormat(c.LogFormat); err != nil {
 		return err
 	}
@@ -89,9 +125,6 @@ func (c AppConfig) Validate() error {
 }
 
 func (c CFTunnelConfig) Validate() error {
-	if !c.Enabled {
-		return nil
-	}
 	if err := validateEdgeProtocol(c.EdgeProtocol); err != nil {
 		return err
 	}
@@ -99,7 +132,7 @@ func (c CFTunnelConfig) Validate() error {
 		return errors.New("cf-ha-connections currently supports only 1 for Quick Tunnel")
 	}
 	if c.Target == "" {
-		return errors.New("cf-tunnel-target is required when enable-cf-tunnel=true")
+		return errors.New("cf-tunnel-target is required")
 	}
 
 	targetHasScheme, err := validateTarget(c.Target)
@@ -117,7 +150,70 @@ func (c CFTunnelConfig) Validate() error {
 			return err
 		}
 	}
+	if err := validateRouteRules(c.Routes); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateRouteRules(routes []RouteRule) error {
+	exactSeen := make(map[string]struct{})
+	prefixSeen := make(map[string]struct{})
+	for i, route := range routes {
+		path := strings.TrimSpace(route.Path)
+		if path == "" {
+			return fmt.Errorf("route[%d].path is required", i)
+		}
+		if strings.TrimSpace(route.Target) == "" {
+			return fmt.Errorf("route[%d].target is required", i)
+		}
+		kind, normalized, err := validateAndNormalizeRoutePath(path)
+		if err != nil {
+			return fmt.Errorf("route[%d].path: %w", i, err)
+		}
+		switch kind {
+		case "exact":
+			if _, ok := exactSeen[normalized]; ok {
+				return fmt.Errorf("duplicate exact route path: %s", normalized)
+			}
+			exactSeen[normalized] = struct{}{}
+		case "prefix":
+			if _, ok := prefixSeen[normalized]; ok {
+				return fmt.Errorf("duplicate prefix route path: %s/*", normalized)
+			}
+			prefixSeen[normalized] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func validateAndNormalizeRoutePath(path string) (kind string, normalized string, err error) {
+	if path == "/" {
+		return "exact", "/", nil
+	}
+	if !strings.HasPrefix(path, "/") {
+		return "", "", errors.New("must start with '/'")
+	}
+	if strings.Contains(path, "//") {
+		return "", "", errors.New("must not contain consecutive '/'")
+	}
+
+	if strings.HasSuffix(path, "/*") {
+		base := strings.TrimSuffix(path, "/*")
+		if base == "" || base == "/" {
+			return "", "", errors.New("invalid prefix wildcard path")
+		}
+		if strings.Contains(base, "*") {
+			return "", "", errors.New("wildcard '*' is only allowed as trailing '/*'")
+		}
+		return "prefix", base, nil
+	}
+
+	if strings.Contains(path, "*") {
+		return "", "", errors.New("wildcard '*' is only allowed as trailing '/*'")
+	}
+
+	return "exact", path, nil
 }
 
 func validateLogFormat(v string) error {

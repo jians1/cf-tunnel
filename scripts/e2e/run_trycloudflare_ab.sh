@@ -16,7 +16,9 @@ esac
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BASE="${TMPDIR:-/tmp}/cfqt-e2e"
 ORIGIN_DIR="$BASE/origin"
+API_DIR="$BASE/api-origin"
 HTTP_PORT=$((18080 + PROTO_PORT_OFFSET + ROUND))
+API_PORT=$((19080 + PROTO_PORT_OFFSET + ROUND))
 WS_PORT=$((10000 + PROTO_PORT_OFFSET + ROUND))
 SOCKS_PORT=$((1080 + PROTO_PORT_OFFSET + ROUND))
 CF_DNS_RESOLVER="${CF_DNS_RESOLVER:-1.1.1.1}"
@@ -28,7 +30,8 @@ PHASE_FILE="$OUT/phase"
 SERVER_CONFIG="$OUT/sing-box-server.json"
 
 rm -rf "$OUT"
-mkdir -p "$BASE" "$OUT" "$ORIGIN_DIR"
+mkdir -p "$BASE" "$OUT" "$ORIGIN_DIR" "$API_DIR"
+mkdir -p "$API_DIR/api"
 echo "startup" > "$PHASE_FILE"
 
 cleanup() {
@@ -43,11 +46,11 @@ if [[ ! -x "$SING_BIN" ]]; then
   exit 1
 fi
 
-if [[ ! -x "$CFQT_BIN" ]]; then
-  (cd "$ROOT_DIR" && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$CFQT_BIN" ./cmd/app)
-fi
+(cd "$ROOT_DIR" && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$CFQT_BIN" ./cmd/app)
 
 truncate -s 1G "$ORIGIN_DIR/blob.bin"
+echo "default-ok" > "$ORIGIN_DIR/default.txt"
+echo "api-ok" > "$API_DIR/api/ping.txt"
 
 cat > "$SERVER_CONFIG" <<JSON
 {
@@ -69,14 +72,18 @@ JSON
 python3 -m http.server "$HTTP_PORT" --bind 127.0.0.1 --directory "$ORIGIN_DIR" >"$OUT/http-origin.log" 2>&1 &
 PIDS+=($!)
 
+python3 -m http.server "$API_PORT" --bind 127.0.0.1 --directory "$API_DIR" >"$OUT/api-origin.log" 2>&1 &
+PIDS+=($!)
+
 "$SING_BIN" run -c "$SERVER_CONFIG" >"$OUT/sing-server.log" 2>&1 &
 PIDS+=($!)
 
 "$CFQT_BIN" \
-  --enable-cf-tunnel \
   --cf-edge-protocol="$PROTO" \
-  --cf-tunnel-target=127.0.0.1:${WS_PORT} \
-  --cf-origin-protocol=ws \
+  --cf-tunnel-target=127.0.0.1:${HTTP_PORT} \
+  --cf-origin-protocol=http \
+  --cf-route=/ws=ws://127.0.0.1:${WS_PORT} \
+  --cf-route=/api/*=127.0.0.1:${API_PORT} \
   --health-listen= \
   --log-level=info \
   >"$OUT/cfqt.log" 2>&1 &
@@ -176,6 +183,16 @@ if [[ "$WARMED" -ne 1 ]]; then
   echo "warmup failed" >&2
   exit 1
 fi
+
+if [[ "$(curl -fsS "${URL}/api/ping.txt")" != "api-ok" ]]; then
+  echo "path-routing check failed: /api/* did not hit api backend" >&2
+  exit 1
+fi
+if [[ "$(curl -fsS "${URL}/default.txt")" != "default-ok" ]]; then
+  echo "path-routing check failed: default route did not hit default backend" >&2
+  exit 1
+fi
+
 echo "warm" > "$PHASE_FILE"
 sleep 1
 

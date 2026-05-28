@@ -64,8 +64,6 @@ func prepareQuickTunnelSessionWith(
 		return nil, fmt.Errorf("build cftunnel runtime session: %w", err)
 	}
 
-	_ = logger
-
 	return &preparedSession{
 		runtimeConfig: runtimeConfig,
 		reservation:   reservation,

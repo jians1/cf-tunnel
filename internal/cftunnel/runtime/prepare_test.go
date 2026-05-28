@@ -3,12 +3,15 @@ package runtime
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
+	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
 
 func TestPrepareRuntimeForQUIC(t *testing.T) {
@@ -114,6 +117,49 @@ func TestOriginTargetRebuild(t *testing.T) {
 	}
 	if target.URL.String() != "http://127.0.0.1:8080" {
 		t.Fatalf("unexpected target url: %s", target.URL.String())
+	}
+}
+
+func TestPrepareRuntimeRoutesByPath(t *testing.T) {
+	t.Parallel()
+
+	defaultSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("default"))
+	}))
+	defer defaultSrv.Close()
+
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("api"))
+	}))
+	defer apiSrv.Close()
+
+	session := testSession(t, "http2")
+	session.Origin.URL = defaultSrv.URL
+	session.Origin.Routes = []appconfig.RouteRule{
+		{Path: "/api/*", Target: apiSrv.URL},
+	}
+
+	prepared, err := PrepareRuntime(session)
+	if err != nil {
+		t.Fatalf("prepare runtime: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/api/ping", nil)
+	rec := httptest.NewRecorder()
+	prepared.OriginProxy.ServeHTTP(rec, req)
+	body, _ := io.ReadAll(rec.Result().Body)
+	_ = rec.Result().Body.Close()
+	if string(body) != "api" {
+		t.Fatalf("unexpected route body: %q", string(body))
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "http://example.test/other", nil)
+	rec = httptest.NewRecorder()
+	prepared.OriginProxy.ServeHTTP(rec, req)
+	body, _ = io.ReadAll(rec.Result().Body)
+	_ = rec.Result().Body.Close()
+	if string(body) != "default" {
+		t.Fatalf("unexpected default body: %q", string(body))
 	}
 }
 

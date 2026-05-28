@@ -26,9 +26,7 @@ func main() {
 	if cfg.HealthListen != "" {
 		runners = append(runners, health.NewRunner(cfg.HealthListen, logger))
 	}
-	if cfg.CFTunnel.Enabled {
-		runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
-	}
+	runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
 
 	if err := appRuntime.RunWithOptions(ctx, logger, appRuntime.Options{
 		ShutdownTimeout: cfg.ShutdownTimeout,

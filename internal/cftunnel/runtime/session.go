@@ -6,6 +6,7 @@ import (
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/api"
 	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
+	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
 
 type Session struct {
@@ -31,6 +32,7 @@ type OriginSettings struct {
 	ServerName           string
 	InsecureSkipVerify   bool
 	WebsocketUpgradeMode bool
+	Routes               []appconfig.RouteRule
 }
 
 func (s Session) ValidateRequiredQuickTunnelFields() error {
@@ -72,6 +74,7 @@ func BuildSession(cfg tunnelconfig.RuntimeConfig, reservation *api.QuickTunnelRe
 			ServerName:           cfg.Origin.ServerName,
 			InsecureSkipVerify:   cfg.Origin.InsecureSkipVerify,
 			WebsocketUpgradeMode: cfg.Origin.WebsocketUpgradeMode,
+			Routes:               append([]appconfig.RouteRule(nil), cfg.Routes...),
 		},
 		QuickTunnel:   cfg.QuickTunnelDefault,
 		HAConnections: cfg.HAConnections,
