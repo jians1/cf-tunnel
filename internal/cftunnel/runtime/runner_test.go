@@ -71,3 +71,15 @@ func TestBridgeRunnerQUICUsesConfiguredEdgeDial(t *testing.T) {
 func newDiscardSlogLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
+
+func TestNewBridgeRunnerAcceptsNilLogger(t *testing.T) {
+	t.Parallel()
+
+	runner := NewBridgeRunner(testSession(t, "http2"), nil)
+	if runner == nil {
+		t.Fatal("expected runner")
+	}
+	if runner.logger == nil {
+		t.Fatal("expected default logger")
+	}
+}

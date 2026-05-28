@@ -53,6 +53,23 @@ func TestPrepareRuntimeForHTTP2(t *testing.T) {
 	assertEdgeTLSDefaults(t, cfg)
 }
 
+func TestPrepareRuntimeReusesEdgeRootCAPool(t *testing.T) {
+	t.Parallel()
+
+	first, err := PrepareRuntime(testSession(t, "http2"))
+	if err != nil {
+		t.Fatalf("prepare first runtime: %v", err)
+	}
+	second, err := PrepareRuntime(testSession(t, "http2"))
+	if err != nil {
+		t.Fatalf("prepare second runtime: %v", err)
+	}
+
+	if first.EdgeTLSByProto["http2"].RootCAs != second.EdgeTLSByProto["http2"].RootCAs {
+		t.Fatal("expected prepared runtimes to reuse cached root CA pool")
+	}
+}
+
 func assertEdgeTLSDefaults(t *testing.T, cfg *tls.Config) {
 	t.Helper()
 

@@ -18,17 +18,25 @@ func (p EdgeProtocol) String() string {
 	return string(p)
 }
 
+func ParseEdgeProtocol(raw string) (EdgeProtocol, error) {
+	switch raw {
+	case edgeProtocolHTTP2, edgeProtocolQUIC:
+		return EdgeProtocol(raw), nil
+	default:
+		return "", fmt.Errorf("unsupported edge protocol: %s", raw)
+	}
+}
+
 type staticProtocolSelector struct {
 	current EdgeProtocol
 }
 
 func NewStaticProtocolSelector(protocol string) (ProtocolSelector, error) {
-	switch protocol {
-	case edgeProtocolHTTP2, edgeProtocolQUIC:
-		return staticProtocolSelector{current: EdgeProtocol(protocol)}, nil
-	default:
-		return nil, fmt.Errorf("unsupported edge protocol: %s", protocol)
+	current, err := ParseEdgeProtocol(protocol)
+	if err != nil {
+		return nil, err
 	}
+	return staticProtocolSelector{current: current}, nil
 }
 
 func (s staticProtocolSelector) Current() EdgeProtocol {

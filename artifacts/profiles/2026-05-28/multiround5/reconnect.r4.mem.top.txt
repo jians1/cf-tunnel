@@ -1,0 +1,54 @@
+File: runtime.test
+Build ID: ec6e64c944b2105f0a7e05b5d547245cce0ba885
+Type: alloc_space
+Time: 2026-05-28 12:21:50 CST
+Showing nodes accounting for 9854.06kB, 100% of 9854.06kB total
+      flat  flat%   sum%        cum   cum%
+ 2170.83kB 22.03% 22.03%  2170.83kB 22.03%  os.readFileContents
+ 2050.28kB 20.81% 42.84%  5122.61kB 51.98%  crypto/x509.parseCertificate
+ 1024.41kB 10.40% 53.23%  1024.41kB 10.40%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin.newTransport (inline)
+ 1024.07kB 10.39% 63.62%  1024.07kB 10.39%  crypto/x509.parseName
+ 1024.06kB 10.39% 74.02%  1024.06kB 10.39%  crypto/x509/pkix.(*Name).FillFromRDNSequence
+  512.16kB  5.20% 79.21%   512.16kB  5.20%  math/big.nat.make (inline)
+  512.10kB  5.20% 84.41%   512.10kB  5.20%  log/slog.(*Record).Add
+  512.10kB  5.20% 89.61%   512.10kB  5.20%  os.(*File).Stat
+  512.04kB  5.20% 94.80%   512.04kB  5.20%  vendor/golang.org/x/crypto/cryptobyte.(*String).ReadASN1ObjectIdentifier
+  512.01kB  5.20%   100%   512.01kB  5.20%  strings.genSplit
+         0     0%   100%  5122.61kB 51.98%  crypto/x509.(*CertPool).AppendCertsFromPEM
+         0     0%   100%  5122.61kB 51.98%  crypto/x509.ParseCertificate
+         0     0%   100%  7292.79kB 74.01%  crypto/x509.SystemCertPool
+         0     0%   100%  7292.79kB 74.01%  crypto/x509.initSystemRoots
+         0     0%   100%  7292.79kB 74.01%  crypto/x509.loadSystemRoots
+         0     0%   100%   512.04kB  5.20%  crypto/x509.parseAI
+         0     0%   100%   512.16kB  5.20%  crypto/x509.parsePublicKey
+         0     0%   100%  7292.79kB 74.01%  crypto/x509.systemRootsPool
+         0     0%   100%  1024.41kB 10.40%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin.NewProxy
+         0     0%   100%  9342.05kB 94.80%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*BridgeRunner).Run
+         0     0%   100%  8829.95kB 89.61%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewInstanceWithRuntimeOptions
+         0     0%   100%  1024.41kB 10.40%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewQUICRuntimeWithOptions
+         0     0%   100%  8829.95kB 89.61%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.PrepareRuntime
+         0     0%   100%  9342.05kB 94.80%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestBridgeRunnerQUICUsesConfiguredEdgeDial
+         0     0%   100%  7805.54kB 79.21%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.buildEdgeTLSConfigs
+         0     0%   100%  7805.54kB 79.21%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool
+         0     0%   100%  7805.54kB 79.21%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool.func1
+         0     0%   100%  7805.54kB 79.21%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.newEdgeTLSConfig
+         0     0%   100%  1024.41kB 10.40%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.newQUICRuntimeWithEdgeDialConfig
+         0     0%   100%   512.10kB  5.20%  log/slog.(*Logger).Info (inline)
+         0     0%   100%   512.10kB  5.20%  log/slog.(*Logger).log
+         0     0%   100%   512.01kB  5.20%  main.main
+         0     0%   100%   512.16kB  5.20%  math/big.(*Int).SetBytes (inline)
+         0     0%   100%   512.16kB  5.20%  math/big.nat.setBytes
+         0     0%   100%  2682.93kB 27.23%  os.ReadFile
+         0     0%   100%   512.10kB  5.20%  os.statOrZero
+         0     0%   100%   512.01kB  5.20%  runtime.main
+         0     0%   100%   512.01kB  5.20%  strings.Split (inline)
+         0     0%   100%  7805.54kB 79.21%  sync.(*Once).Do (inline)
+         0     0%   100%  7805.54kB 79.21%  sync.(*Once).doSlow
+         0     0%   100%   512.01kB  5.20%  testing.(*M).Run
+         0     0%   100%   512.01kB  5.20%  testing.(*T).Run
+         0     0%   100%   512.01kB  5.20%  testing.(*matcher).fullName
+         0     0%   100%   512.01kB  5.20%  testing.runTests
+         0     0%   100%   512.01kB  5.20%  testing.runTests.func1
+         0     0%   100%  9854.06kB   100%  testing.tRunner
+         0     0%   100%   512.16kB  5.20%  vendor/golang.org/x/crypto/cryptobyte.(*String).ReadASN1Integer
+         0     0%   100%   512.16kB  5.20%  vendor/golang.org/x/crypto/cryptobyte.(*String).readASN1BigInt

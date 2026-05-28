@@ -1,0 +1,48 @@
+File: runtime.test
+Build ID: ec6e64c944b2105f0a7e05b5d547245cce0ba885
+Type: alloc_space
+Time: 2026-05-28 12:21:18 CST
+Showing nodes accounting for 7201.77kB, 100% of 7201.77kB total
+      flat  flat%   sum%        cum   cum%
+ 1024.41kB 14.22% 14.22%  2048.43kB 28.44%  testing.(*T).Run
+ 1024.34kB 14.22% 28.45%  3072.77kB 42.67%  testing.runTests
+  544.67kB  7.56% 36.01%   544.67kB  7.56%  net.open
+  512.06kB  7.11% 43.12%   512.06kB  7.11%  net.newFD (inline)
+  512.05kB  7.11% 50.23%   512.05kB  7.11%  context.(*cancelCtx).Done
+  512.05kB  7.11% 57.34%   512.05kB  7.11%  net.makePipeDeadline (inline)
+  512.05kB  7.11% 64.45%   512.05kB  7.11%  testing.(*M).writeProfiles
+  512.05kB  7.11% 71.56%   512.05kB  7.11%  time.NewTimer
+  512.05kB  7.11% 78.67%   512.05kB  7.11%  runtime.mallocgc
+  512.02kB  7.11% 85.78%   512.02kB  7.11%  testing.(*common).setOutputWriter (inline)
+  512.01kB  7.11% 92.89%   512.01kB  7.11%  net.(*OpError).Error
+  512.01kB  7.11%   100%   512.01kB  7.11%  strings.genSplit
+         0     0%   100%  1024.07kB 14.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*UpstreamOriginProxy).ProxyTCP
+         0     0%   100%   512.01kB  7.11%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*UpstreamOriginProxy).ProxyTCP.func3 (inline)
+         0     0%   100%  2080.84kB 28.89%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestUpstreamOriginProxyProxyTCPForwardsBytes
+         0     0%   100%  1024.07kB 14.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestUpstreamOriginProxyProxyTCPForwardsBytes.func2
+         0     0%   100%   512.01kB  7.11%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.isBenignTCPProxyError
+         0     0%   100%  3584.82kB 49.78%  main.main
+         0     0%   100%  1056.73kB 14.67%  net.(*ListenConfig).Listen
+         0     0%   100%  1056.73kB 14.67%  net.(*sysListener).listenMPTCP
+         0     0%   100%  1056.73kB 14.67%  net.(*sysListener).listenTCPProto
+         0     0%   100%  1056.73kB 14.67%  net.Listen
+         0     0%   100%   512.05kB  7.11%  net.Pipe
+         0     0%   100%  1056.73kB 14.67%  net.internetSocket
+         0     0%   100%   544.67kB  7.56%  net.listenerBacklog
+         0     0%   100%   544.67kB  7.56%  net.listenerBacklog.func1
+         0     0%   100%   544.67kB  7.56%  net.maxListenerBacklog
+         0     0%   100%  1056.73kB 14.67%  net.socket
+         0     0%   100%   512.05kB  7.11%  runtime.(*scavengerState).init
+         0     0%   100%   512.05kB  7.11%  runtime.bgscavenge
+         0     0%   100%  3584.82kB 49.78%  runtime.main
+         0     0%   100%   512.05kB  7.11%  runtime.newobject
+         0     0%   100%   512.01kB  7.11%  strings.Split (inline)
+         0     0%   100%  1056.72kB 14.67%  sync.(*Once).Do (inline)
+         0     0%   100%  1056.72kB 14.67%  sync.(*Once).doSlow
+         0     0%   100%  3584.82kB 49.78%  testing.(*M).Run
+         0     0%   100%   512.05kB  7.11%  testing.(*M).after
+         0     0%   100%   512.05kB  7.11%  testing.(*M).after.func1
+         0     0%   100%   512.01kB  7.11%  testing.(*matcher).fullName
+         0     0%   100%  2048.43kB 28.44%  testing.runTests.func1
+         0     0%   100%  4129.27kB 57.34%  testing.tRunner
+         0     0%   100%   512.05kB  7.11%  time.After (inline)

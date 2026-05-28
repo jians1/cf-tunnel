@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
 )
@@ -20,6 +21,12 @@ type PreparedRuntime struct {
 	OriginProxy    http.Handler
 	EdgeTLSByProto map[string]*tls.Config
 }
+
+var (
+	edgeRootCAPoolOnce sync.Once
+	edgeRootCAPool     *x509.CertPool
+	edgeRootCAPoolErr  error
+)
 
 func PrepareRuntime(session Session) (*PreparedRuntime, error) {
 	originTarget, err := session.OriginTarget()
@@ -41,14 +48,19 @@ func PrepareRuntime(session Session) (*PreparedRuntime, error) {
 }
 
 func buildEdgeTLSConfigs(selected string) (map[string]*tls.Config, error) {
-	switch selected {
-	case "quic":
+	protocol, err := ParseEdgeProtocol(selected)
+	if err != nil {
+		return nil, err
+	}
+
+	switch protocol {
+	case EdgeProtocol(edgeProtocolQUIC):
 		cfg, err := newEdgeTLSConfig(edgeServerNameQUIC, []string{edgeALPNQUIC})
 		if err != nil {
 			return nil, err
 		}
 		return map[string]*tls.Config{"quic": cfg}, nil
-	case "http2":
+	case EdgeProtocol(edgeProtocolHTTP2):
 		cfg, err := newEdgeTLSConfig(edgeServerNameHTTP2, nil)
 		if err != nil {
 			return nil, err
@@ -60,12 +72,9 @@ func buildEdgeTLSConfigs(selected string) (map[string]*tls.Config, error) {
 }
 
 func newEdgeTLSConfig(serverName string, nextProtos []string) (*tls.Config, error) {
-	rootCAs, err := x509.SystemCertPool()
+	rootCAs, err := edgeTLSRootCAPool()
 	if err != nil {
-		return nil, fmt.Errorf("load system root CAs: %w", err)
-	}
-	if !rootCAs.AppendCertsFromPEM([]byte(cloudflareRootCAPEM)) {
-		return nil, fmt.Errorf("load cloudflare root CAs")
+		return nil, err
 	}
 
 	cfg := &tls.Config{
@@ -78,4 +87,23 @@ func newEdgeTLSConfig(serverName string, nextProtos []string) (*tls.Config, erro
 		cfg.NextProtos = append([]string(nil), nextProtos...)
 	}
 	return cfg, nil
+}
+
+func edgeTLSRootCAPool() (*x509.CertPool, error) {
+	edgeRootCAPoolOnce.Do(func() {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			edgeRootCAPoolErr = fmt.Errorf("load system root CAs: %w", err)
+			return
+		}
+		if !pool.AppendCertsFromPEM([]byte(cloudflareRootCAPEM)) {
+			edgeRootCAPoolErr = fmt.Errorf("load cloudflare root CAs")
+			return
+		}
+		edgeRootCAPool = pool
+	})
+	if edgeRootCAPoolErr != nil {
+		return nil, edgeRootCAPoolErr
+	}
+	return edgeRootCAPool, nil
 }

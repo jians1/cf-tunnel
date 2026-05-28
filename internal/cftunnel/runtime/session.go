@@ -33,15 +33,22 @@ type OriginSettings struct {
 	WebsocketUpgradeMode bool
 }
 
+func (s Session) ValidateRequiredQuickTunnelFields() error {
+	if s.AccountTag == "" {
+		return fmt.Errorf("missing account tag")
+	}
+	if len(s.Secret) == 0 {
+		return fmt.Errorf("missing tunnel secret")
+	}
+	if s.Hostname == "" {
+		return fmt.Errorf("missing quick tunnel hostname")
+	}
+	return nil
+}
+
 func BuildSession(cfg tunnelconfig.RuntimeConfig, reservation *api.QuickTunnelReservation) (Session, error) {
 	if reservation == nil {
 		return Session{}, fmt.Errorf("nil quick tunnel reservation")
-	}
-	if reservation.Credentials.AccountTag == "" {
-		return Session{}, fmt.Errorf("missing account tag")
-	}
-	if len(reservation.Credentials.TunnelSecret) == 0 {
-		return Session{}, fmt.Errorf("missing tunnel secret")
 	}
 	if reservation.Credentials.TunnelID.String() == "" {
 		return Session{}, fmt.Errorf("missing tunnel id")
@@ -49,8 +56,7 @@ func BuildSession(cfg tunnelconfig.RuntimeConfig, reservation *api.QuickTunnelRe
 	if reservation.Hostname == "" || reservation.URL == "" {
 		return Session{}, fmt.Errorf("missing quick tunnel hostname or url")
 	}
-
-	return Session{
+	session := Session{
 		TunnelID:   reservation.Credentials.TunnelID.String(),
 		AccountTag: reservation.Credentials.AccountTag,
 		Secret:     append([]byte(nil), reservation.Credentials.TunnelSecret...),
@@ -69,5 +75,10 @@ func BuildSession(cfg tunnelconfig.RuntimeConfig, reservation *api.QuickTunnelRe
 		},
 		QuickTunnel:   cfg.QuickTunnelDefault,
 		HAConnections: cfg.HAConnections,
-	}, nil
+	}
+	if err := session.ValidateRequiredQuickTunnelFields(); err != nil {
+		return Session{}, err
+	}
+
+	return session, nil
 }

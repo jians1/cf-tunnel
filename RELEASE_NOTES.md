@@ -24,7 +24,7 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 - sing-box VLESS-over-WebSocket origin through both `http2` and `quic`
 - `1GiB` file downloads through both `http2` and `quic` with matching SHA256
 - dependency-trimmed runtime still passes real `http2` and `quic` end-to-end regression checks
-- release binary size reduced to `11,309,218 bytes` for `linux/amd64`
+- release binary size reduced to `9,744,546 bytes` for `linux/amd64`
 
 ### Dependency Trimming Included
 

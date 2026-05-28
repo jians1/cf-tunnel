@@ -1,0 +1,39 @@
+File: runtime.test
+Build ID: ec6e64c944b2105f0a7e05b5d547245cce0ba885
+Type: alloc_space
+Time: 2026-05-28 12:21:51 CST
+Showing nodes accounting for 2560.36kB, 100% of 2560.36kB total
+      flat  flat%   sum%        cum   cum%
+ 1024.02kB 39.99% 39.99%  1024.02kB 39.99%  strings.genSplit
+  512.23kB 20.01% 60.00%   512.23kB 20.01%  runtime.mallocgc
+  512.05kB 20.00% 80.00%   512.05kB 20.00%  context.AfterFunc
+  512.05kB 20.00%   100%   512.05kB 20.00%  net.makePipeDeadline (inline)
+         0     0%   100%   512.05kB 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*UpstreamOriginProxy).ProxyTCP
+         0     0%   100%   512.05kB 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestUpstreamOriginProxyProxyTCPForwardsBytes
+         0     0%   100%   512.05kB 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestUpstreamOriginProxyProxyTCPForwardsBytes.func2
+         0     0%   100%  1024.02kB 39.99%  main.main
+         0     0%   100%   512.05kB 20.00%  net.(*Dialer).DialContext
+         0     0%   100%   512.05kB 20.00%  net.(*netFD).connect
+         0     0%   100%   512.05kB 20.00%  net.(*netFD).dial
+         0     0%   100%   512.05kB 20.00%  net.(*sysDialer).dialParallel
+         0     0%   100%   512.05kB 20.00%  net.(*sysDialer).dialSerial
+         0     0%   100%   512.05kB 20.00%  net.(*sysDialer).dialSingle
+         0     0%   100%   512.05kB 20.00%  net.(*sysDialer).dialTCP
+         0     0%   100%   512.05kB 20.00%  net.(*sysDialer).doDialTCP (inline)
+         0     0%   100%   512.05kB 20.00%  net.(*sysDialer).doDialTCPProto
+         0     0%   100%   512.05kB 20.00%  net.Pipe
+         0     0%   100%   512.05kB 20.00%  net.internetSocket
+         0     0%   100%   512.05kB 20.00%  net.socket
+         0     0%   100%  1024.02kB 39.99%  runtime.main
+         0     0%   100%   512.23kB 20.01%  runtime.malg
+         0     0%   100%   512.23kB 20.01%  runtime.newobject
+         0     0%   100%   512.23kB 20.01%  runtime.newproc.func1
+         0     0%   100%   512.23kB 20.01%  runtime.newproc1
+         0     0%   100%   512.23kB 20.01%  runtime.systemstack
+         0     0%   100%  1024.02kB 39.99%  strings.Split (inline)
+         0     0%   100%  1024.02kB 39.99%  testing.(*M).Run
+         0     0%   100%  1024.02kB 39.99%  testing.(*T).Run
+         0     0%   100%  1024.02kB 39.99%  testing.(*matcher).fullName
+         0     0%   100%  1024.02kB 39.99%  testing.runTests
+         0     0%   100%  1024.02kB 39.99%  testing.runTests.func1
+         0     0%   100%  1536.07kB 59.99%  testing.tRunner

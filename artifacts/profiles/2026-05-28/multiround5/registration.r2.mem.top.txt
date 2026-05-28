@@ -1,0 +1,113 @@
+File: runtime.test
+Build ID: ec6e64c944b2105f0a7e05b5d547245cce0ba885
+Type: alloc_space
+Time: 2026-05-28 12:21:48 CST
+Showing nodes accounting for 15890.21kB, 100% of 15890.21kB total
+      flat  flat%   sum%        cum   cum%
+ 1542.01kB  9.70%  9.70%  1542.01kB  9.70%  bufio.NewReaderSize (inline)
+ 1537.53kB  9.68% 19.38%  2561.73kB 16.12%  crypto/x509.parseCertificate
+ 1536.02kB  9.67% 29.05%  1536.02kB  9.67%  strings.genSplit
+  518.02kB  3.26% 32.31%   518.02kB  3.26%  crypto/x509.(*CertPool).addCertFunc (inline)
+     514kB  3.23% 35.54%      514kB  3.23%  bufio.NewWriterSize (inline)
+  512.75kB  3.23% 38.77%   512.75kB  3.23%  encoding/pem.Decode
+  512.44kB  3.22% 41.99%   512.44kB  3.22%  go/token.init.0
+  512.22kB  3.22% 45.22%  2568.23kB 16.16%  golang.org/x/net/http2.(*Transport).newClientConn
+  512.19kB  3.22% 48.44%   512.19kB  3.22%  golang.org/x/net/http2.(*ClientConn).internalRoundTrip
+  512.17kB  3.22% 51.66%   512.17kB  3.22%  golang.org/x/net/http2/hpack.(*headerFieldTable).addEntry (inline)
+  512.16kB  3.22% 54.89%   512.16kB  3.22%  math/big.nat.make (inline)
+  512.12kB  3.22% 58.11%   512.12kB  3.22%  golang.org/x/net/http2.init
+  512.11kB  3.22% 61.33%   512.11kB  3.22%  golang.org/x/net/http2.NewFramer (inline)
+  512.10kB  3.22% 64.55%   512.10kB  3.22%  context.(*cancelCtx).propagateCancel
+  512.05kB  3.22% 67.78%   512.05kB  3.22%  net.(*pipe).read
+  512.05kB  3.22% 71.00%   512.05kB  3.22%  net.Pipe
+  512.05kB  3.22% 74.22%   512.05kB  3.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewRuntimeHTTP2Connection (inline)
+  512.04kB  3.22% 77.44%   512.04kB  3.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin.NewProxy
+  512.04kB  3.22% 80.67%   512.04kB  3.22%  os.readlink
+  512.04kB  3.22% 83.89%   512.04kB  3.22%  vendor/golang.org/x/crypto/cryptobyte.(*String).ReadASN1ObjectIdentifier
+  512.03kB  3.22% 87.11%   512.03kB  3.22%  testing.rewrite
+  512.02kB  3.22% 90.33%  1024.03kB  6.44%  golang.org/x/net/http2.(*Framer).readMetaFrame
+  512.02kB  3.22% 93.56%   512.02kB  3.22%  golang.org/x/net/http2.(*serverConn).newWriterAndRequest
+  512.01kB  3.22% 96.78%   512.01kB  3.22%  golang.org/x/net/http2/hpack.newInternalNode (inline)
+  512.01kB  3.22%   100%   512.01kB  3.22%  iter.init
+         0     0%   100%   512.05kB  3.22%  bufio.(*Reader).Read
+         0     0%   100%  1542.01kB  9.70%  bufio.NewReader (inline)
+         0     0%   100%      514kB  3.23%  bufio.NewWriter (inline)
+         0     0%   100%   512.10kB  3.22%  context.WithCancel
+         0     0%   100%   512.10kB  3.22%  context.withCancel (inline)
+         0     0%   100%  3592.50kB 22.61%  crypto/x509.(*CertPool).AppendCertsFromPEM
+         0     0%   100%  2561.73kB 16.12%  crypto/x509.ParseCertificate
+         0     0%   100%  3586.52kB 22.57%  crypto/x509.SystemCertPool
+         0     0%   100%  3586.52kB 22.57%  crypto/x509.initSystemRoots
+         0     0%   100%   512.04kB  3.22%  crypto/x509.isSameDirSymlink
+         0     0%   100%  3586.52kB 22.57%  crypto/x509.loadSystemRoots
+         0     0%   100%   512.04kB  3.22%  crypto/x509.parseAI
+         0     0%   100%   512.16kB  3.22%  crypto/x509.parsePublicKey
+         0     0%   100%   512.04kB  3.22%  crypto/x509.readUniqueDirectoryEntries
+         0     0%   100%  3586.52kB 22.57%  crypto/x509.systemRootsPool
+         0     0%   100%   512.19kB  3.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*HTTP2Client).RoundTrip
+         0     0%   100%  1536.23kB  9.67%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*HTTP2Server).Serve
+         0     0%   100%  1536.23kB  9.67%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*RuntimeHTTP2Connection).Serve
+         0     0%   100%  2568.23kB 16.16%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewHTTP2Client
+         0     0%   100%  1024.10kB  6.44%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewHTTP2ServerWithHandler
+         0     0%   100%   512.05kB  3.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.PipeHTTP2TransportFactory.NewTransport
+         0     0%   100%  4616.58kB 29.05%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.PrepareRuntime
+         0     0%   100%  8208.91kB 51.66%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestHTTP2ServerControlStreamRegistrationLifecycle
+         0     0%   100%  1536.23kB  9.67%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestHTTP2ServerControlStreamRegistrationLifecycle.func1
+         0     0%   100%   512.19kB  3.22%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestHTTP2ServerControlStreamRegistrationLifecycle.func2
+         0     0%   100%  4104.54kB 25.83%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.buildEdgeTLSConfigs
+         0     0%   100%  4104.54kB 25.83%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool
+         0     0%   100%  4104.54kB 25.83%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool.func1
+         0     0%   100%  4104.54kB 25.83%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.newEdgeTLSConfig
+         0     0%   100%   512.19kB  3.22%  golang.org/x/net/http2.(*ClientConn).RoundTrip
+         0     0%   100%   512.05kB  3.22%  golang.org/x/net/http2.(*ClientConn).readLoop
+         0     0%   100%   512.19kB  3.22%  golang.org/x/net/http2.(*ClientConn).roundTrip (inline)
+         0     0%   100%  1536.09kB  9.67%  golang.org/x/net/http2.(*Framer).ReadFrame
+         0     0%   100%  1024.03kB  6.44%  golang.org/x/net/http2.(*Framer).ReadFrameForHeader
+         0     0%   100%   512.05kB  3.22%  golang.org/x/net/http2.(*Framer).ReadFrameHeader
+         0     0%   100%  1536.23kB  9.67%  golang.org/x/net/http2.(*Server).ServeConn (inline)
+         0     0%   100%  1536.23kB  9.67%  golang.org/x/net/http2.(*Server).serveConn
+         0     0%   100%  2568.23kB 16.16%  golang.org/x/net/http2.(*Transport).NewClientConn (inline)
+         0     0%   100%  2568.23kB 16.16%  golang.org/x/net/http2.(*Transport).newUserClientConn
+         0     0%   100%   512.05kB  3.22%  golang.org/x/net/http2.(*clientConnReadLoop).run
+         0     0%   100%   512.10kB  3.22%  golang.org/x/net/http2.(*serverConn).newStream
+         0     0%   100%  1024.12kB  6.45%  golang.org/x/net/http2.(*serverConn).processFrame
+         0     0%   100%  1024.12kB  6.45%  golang.org/x/net/http2.(*serverConn).processFrameFromReader
+         0     0%   100%  1024.12kB  6.45%  golang.org/x/net/http2.(*serverConn).processHeaders
+         0     0%   100%  1024.03kB  6.44%  golang.org/x/net/http2.(*serverConn).readFrames
+         0     0%   100%  1024.12kB  6.45%  golang.org/x/net/http2.(*serverConn).serve
+         0     0%   100%   512.17kB  3.22%  golang.org/x/net/http2.(*serverConn).writeFrameAsync
+         0     0%   100%   512.17kB  3.22%  golang.org/x/net/http2.(*writeResHeaders).writeFrame
+         0     0%   100%   512.17kB  3.22%  golang.org/x/net/http2.encKV
+         0     0%   100%   512.05kB  3.22%  golang.org/x/net/http2.readFrameHeader
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.(*Decoder).Write
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.(*Decoder).decodeString
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.(*Decoder).parseFieldLiteral
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.(*Decoder).parseHeaderFieldRepr
+         0     0%   100%   512.17kB  3.22%  golang.org/x/net/http2/hpack.(*Encoder).WriteField
+         0     0%   100%   512.17kB  3.22%  golang.org/x/net/http2/hpack.(*dynamicTable).add
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.buildRootHuffmanNode
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.getRootHuffmanNode (inline)
+         0     0%   100%   512.01kB  3.22%  golang.org/x/net/http2/hpack.huffmanDecode
+         0     0%   100%   512.05kB  3.22%  io.ReadAtLeast
+         0     0%   100%   512.05kB  3.22%  io.ReadFull (inline)
+         0     0%   100%  2048.05kB 12.89%  main.main
+         0     0%   100%   512.16kB  3.22%  math/big.(*Int).SetBytes (inline)
+         0     0%   100%   512.16kB  3.22%  math/big.nat.setBytes
+         0     0%   100%   512.05kB  3.22%  net.(*pipe).Read
+         0     0%   100%   512.04kB  3.22%  os.Readlink (inline)
+         0     0%   100%  1536.57kB  9.67%  runtime.doInit (inline)
+         0     0%   100%  1536.57kB  9.67%  runtime.doInit1
+         0     0%   100%  3584.62kB 22.56%  runtime.main
+         0     0%   100%  1536.02kB  9.67%  strings.Split (inline)
+         0     0%   100%  4616.55kB 29.05%  sync.(*Once).Do (inline)
+         0     0%   100%  4616.55kB 29.05%  sync.(*Once).doSlow
+         0     0%   100%  2048.05kB 12.89%  testing.(*M).Run
+         0     0%   100%  1536.02kB  9.67%  testing.(*T).Run
+         0     0%   100%  1536.02kB  9.67%  testing.(*matcher).fullName
+         0     0%   100%   512.03kB  3.22%  testing.newMatcher
+         0     0%   100%  2048.05kB 12.89%  testing.runTests
+         0     0%   100%  1536.02kB  9.67%  testing.runTests.func1
+         0     0%   100%   512.03kB  3.22%  testing.simpleMatch.verify
+         0     0%   100%  9744.93kB 61.33%  testing.tRunner
+         0     0%   100%   512.16kB  3.22%  vendor/golang.org/x/crypto/cryptobyte.(*String).ReadASN1Integer
+         0     0%   100%   512.16kB  3.22%  vendor/golang.org/x/crypto/cryptobyte.(*String).readASN1BigInt

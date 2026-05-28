@@ -1,0 +1,51 @@
+File: runtime.test
+Build ID: a9a145e6d65c13922ae43f00e95ea38a56be50b8
+Type: cpu
+Time: 2026-05-28 12:01:22 CST
+Duration: 38.15ms, Total samples = 50ms (131.06%)
+Showing nodes accounting for 50ms, 100% of 50ms total
+      flat  flat%   sum%        cum   cum%
+      10ms 20.00% 20.00%       10ms 20.00%  internal/runtime/atomic.(*UnsafePointer).StoreNoWB (inline)
+      10ms 20.00% 40.00%       10ms 20.00%  runtime.(*itabTableType).find
+      10ms 20.00% 60.00%       10ms 20.00%  runtime.findfunc
+      10ms 20.00% 80.00%       10ms 20.00%  runtime.memclrNoHeapPointers
+      10ms 20.00%   100%       10ms 20.00%  runtime.scanblock
+         0     0%   100%       10ms 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*HTTP2Server).Serve
+         0     0%   100%       10ms 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*RuntimeHTTP2Connection).Serve
+         0     0%   100%       10ms 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*RuntimeHTTP2Connection).ServeHTTP
+         0     0%   100%       10ms 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestHTTP2ServerControlStreamRegistrationLifecycle
+         0     0%   100%       10ms 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestHTTP2ServerControlStreamRegistrationLifecycle.func1
+         0     0%   100%       10ms 20.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.newRuntimeHTTP2RespWriter
+         0     0%   100%       10ms 20.00%  golang.org/x/net/http2.(*Server).ServeConn (inline)
+         0     0%   100%       10ms 20.00%  golang.org/x/net/http2.(*Server).serveConn
+         0     0%   100%       10ms 20.00%  golang.org/x/net/http2.(*serverConn).runHandler
+         0     0%   100%       10ms 20.00%  runtime.(*atomicMSpanPointer).StoreNoWB (inline)
+         0     0%   100%       10ms 20.00%  runtime.(*mcache).prepareForSweep
+         0     0%   100%       10ms 20.00%  runtime.(*mcache).releaseAll
+         0     0%   100%       10ms 20.00%  runtime.(*mcentral).uncacheSpan
+         0     0%   100%       10ms 20.00%  runtime.(*spanSet).push
+         0     0%   100%       10ms 20.00%  runtime.(*sweepLocked).sweep
+         0     0%   100%       10ms 20.00%  runtime.(*unwinder).next
+         0     0%   100%       10ms 20.00%  runtime.copystack
+         0     0%   100%       20ms 40.00%  runtime.gcBgMarkWorker
+         0     0%   100%       10ms 20.00%  runtime.gcBgMarkWorker.func2
+         0     0%   100%       10ms 20.00%  runtime.gcDrain
+         0     0%   100%       10ms 20.00%  runtime.gcDrainMarkWorkerFractional (inline)
+         0     0%   100%       10ms 20.00%  runtime.gcMarkDone
+         0     0%   100%       10ms 20.00%  runtime.gcMarkTermination
+         0     0%   100%       10ms 20.00%  runtime.gcMarkTermination.func3
+         0     0%   100%       10ms 20.00%  runtime.getitab
+         0     0%   100%       10ms 20.00%  runtime.growslice
+         0     0%   100%       10ms 20.00%  runtime.makechan
+         0     0%   100%       20ms 40.00%  runtime.mallocgc
+         0     0%   100%       20ms 40.00%  runtime.mallocgcSmallScanNoHeader
+         0     0%   100%       10ms 20.00%  runtime.markroot
+         0     0%   100%       10ms 20.00%  runtime.markrootBlock
+         0     0%   100%       10ms 20.00%  runtime.newobject
+         0     0%   100%       10ms 20.00%  runtime.newstack
+         0     0%   100%       10ms 20.00%  runtime.procresize
+         0     0%   100%       10ms 20.00%  runtime.startTheWorldWithSema
+         0     0%   100%       20ms 40.00%  runtime.systemstack
+         0     0%   100%       10ms 20.00%  runtime.typeAssert
+         0     0%   100%       10ms 20.00%  testing.(*T).Parallel
+         0     0%   100%       10ms 20.00%  testing.tRunner

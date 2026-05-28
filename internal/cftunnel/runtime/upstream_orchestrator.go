@@ -10,26 +10,47 @@ type UpstreamOrchestrator struct {
 	configJSON  []byte
 }
 
+type upstreamOrchestratorConfig struct {
+	QuickTunnel bool                           `json:"quick_tunnel"`
+	Origin      upstreamOrchestratorOrigin     `json:"origin"`
+	Edge        upstreamOrchestratorEdge       `json:"edge"`
+	Hostname    string                         `json:"hostname"`
+	URL         string                         `json:"url"`
+}
+
+type upstreamOrchestratorOrigin struct {
+	URL                  string `json:"url"`
+	Protocol             string `json:"protocol"`
+	ServerName           string `json:"server_name"`
+	InsecureSkipVerify   bool   `json:"insecure_skip_verify"`
+	WebsocketUpgradeMode bool   `json:"websocket_upgrade_mode"`
+}
+
+type upstreamOrchestratorEdge struct {
+	Protocol      string `json:"protocol"`
+	HAConnections int    `json:"ha_connections"`
+}
+
 func NewUpstreamOrchestrator(originProxy OriginProxy, session Session) (*UpstreamOrchestrator, error) {
 	if originProxy == nil {
 		return nil, fmt.Errorf("nil upstream origin proxy")
 	}
 
-	configJSON, err := json.Marshal(map[string]any{
-		"quick_tunnel": true,
-		"origin": map[string]any{
-			"url":                    session.Origin.URL,
-			"protocol":               string(session.Origin.Protocol),
-			"server_name":            session.Origin.ServerName,
-			"insecure_skip_verify":   session.Origin.InsecureSkipVerify,
-			"websocket_upgrade_mode": session.Origin.WebsocketUpgradeMode,
+	configJSON, err := json.Marshal(upstreamOrchestratorConfig{
+		QuickTunnel: true,
+		Origin: upstreamOrchestratorOrigin{
+			URL:                  session.Origin.URL,
+			Protocol:             string(session.Origin.Protocol),
+			ServerName:           session.Origin.ServerName,
+			InsecureSkipVerify:   session.Origin.InsecureSkipVerify,
+			WebsocketUpgradeMode: session.Origin.WebsocketUpgradeMode,
 		},
-		"edge": map[string]any{
-			"protocol":       session.Edge.Protocol,
-			"ha_connections": session.HAConnections,
+		Edge: upstreamOrchestratorEdge{
+			Protocol:      session.Edge.Protocol,
+			HAConnections: session.HAConnections,
 		},
-		"hostname": session.Hostname,
-		"url":      session.PublicURL,
+		Hostname: session.Hostname,
+		URL:      session.PublicURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal orchestrator config: %w", err)

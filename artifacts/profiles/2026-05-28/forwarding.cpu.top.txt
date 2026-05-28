@@ -1,0 +1,54 @@
+File: runtime.test
+Build ID: af4e93fe19ed94618a03bcdb787f97ae01a81a23
+Type: cpu
+Time: 2026-05-28 11:58:51 CST
+Duration: 48.44ms, Total samples = 40ms (82.58%)
+Showing nodes accounting for 40ms, 100% of 40ms total
+      flat  flat%   sum%        cum   cum%
+      20ms 50.00% 50.00%       20ms 50.00%  internal/runtime/syscall/linux.Syscall6
+      10ms 25.00% 75.00%       10ms 25.00%  internal/sync.(*Mutex).Lock (inline)
+      10ms 25.00%   100%       10ms 25.00%  runtime.(*pageAlloc).find
+         0     0%   100%       10ms 25.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*UpstreamOriginProxy).ProxyTCP
+         0     0%   100%       10ms 25.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*UpstreamOriginProxy).ProxyTCP.func2
+         0     0%   100%       10ms 25.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestUpstreamOriginProxyProxyTCPForwardsBytes.func1
+         0     0%   100%       10ms 25.00%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestUpstreamOriginProxyProxyTCPForwardsBytes.func2
+         0     0%   100%       10ms 25.00%  internal/poll.(*FD).Accept
+         0     0%   100%       10ms 25.00%  internal/poll.(*FD).Close
+         0     0%   100%       10ms 25.00%  internal/poll.(*FD).decref
+         0     0%   100%       10ms 25.00%  internal/poll.(*FD).destroy
+         0     0%   100%       10ms 25.00%  internal/poll.(*SysFile).destroy (inline)
+         0     0%   100%       10ms 25.00%  internal/poll.accept
+         0     0%   100%       10ms 25.00%  io.Copy (inline)
+         0     0%   100%       10ms 25.00%  io.copyBuffer
+         0     0%   100%       10ms 25.00%  main.main
+         0     0%   100%       10ms 25.00%  net.(*TCPConn).WriteTo
+         0     0%   100%       10ms 25.00%  net.(*TCPConn).writeTo
+         0     0%   100%       10ms 25.00%  net.(*TCPListener).Accept
+         0     0%   100%       10ms 25.00%  net.(*TCPListener).accept
+         0     0%   100%       10ms 25.00%  net.(*conn).Close
+         0     0%   100%       10ms 25.00%  net.(*netFD).Close
+         0     0%   100%       10ms 25.00%  net.(*netFD).accept
+         0     0%   100%       10ms 25.00%  net.genericWriteTo
+         0     0%   100%       10ms 25.00%  runtime.(*mcache).allocLarge
+         0     0%   100%       10ms 25.00%  runtime.(*mheap).alloc
+         0     0%   100%       10ms 25.00%  runtime.(*mheap).alloc.func1
+         0     0%   100%       10ms 25.00%  runtime.(*mheap).allocSpan
+         0     0%   100%       10ms 25.00%  runtime.(*pageAlloc).alloc
+         0     0%   100%       10ms 25.00%  runtime.main
+         0     0%   100%       10ms 25.00%  runtime.makeslice
+         0     0%   100%       10ms 25.00%  runtime.mallocgc
+         0     0%   100%       10ms 25.00%  runtime.mallocgcLarge
+         0     0%   100%       10ms 25.00%  runtime.systemstack
+         0     0%   100%       10ms 25.00%  sync.(*Mutex).Lock (inline)
+         0     0%   100%       10ms 25.00%  syscall.Accept4
+         0     0%   100%       10ms 25.00%  syscall.Close
+         0     0%   100%       20ms 50.00%  syscall.RawSyscall6
+         0     0%   100%       10ms 25.00%  syscall.Syscall
+         0     0%   100%       10ms 25.00%  syscall.Syscall6
+         0     0%   100%       10ms 25.00%  syscall.accept4
+         0     0%   100%       10ms 25.00%  testing.(*M).Run
+         0     0%   100%       10ms 25.00%  testing.(*T).Run
+         0     0%   100%       10ms 25.00%  testing.(*matcher).fullName
+         0     0%   100%       10ms 25.00%  testing.runTests
+         0     0%   100%       10ms 25.00%  testing.runTests.func1
+         0     0%   100%       10ms 25.00%  testing.tRunner

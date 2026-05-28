@@ -22,14 +22,8 @@ func (a *UpstreamAdapter) Bind(session Session) (*UpstreamBinding, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse tunnel id: %w", err)
 	}
-	if session.AccountTag == "" {
-		return nil, fmt.Errorf("missing account tag")
-	}
-	if len(session.Secret) == 0 {
-		return nil, fmt.Errorf("missing tunnel secret")
-	}
-	if session.Hostname == "" {
-		return nil, fmt.Errorf("missing quick tunnel hostname")
+	if err := session.ValidateRequiredQuickTunnelFields(); err != nil {
+		return nil, err
 	}
 
 	credentials := RuntimeCredentials{

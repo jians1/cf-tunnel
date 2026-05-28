@@ -10,6 +10,14 @@ import (
 	"sync"
 )
 
+const proxyTCPBufferSize = 32 * 1024
+
+var proxyTCPBufferPool = sync.Pool{
+	New: func() any {
+		return make([]byte, proxyTCPBufferSize)
+	},
+}
+
 type UpstreamOriginProxy struct {
 	handler http.Handler
 }
@@ -81,12 +89,16 @@ func (p *UpstreamOriginProxy) ProxyTCP(ctx context.Context, rwa ReadWriteAcker, 
 	copyWG.Add(2)
 	go func() {
 		defer copyWG.Done()
-		_, err := io.Copy(originConn, rwa)
+		buf := getProxyTCPBuffer()
+		defer putProxyTCPBuffer(buf)
+		_, err := copyTCPStream(originConn, rwa, buf)
 		errC <- err
 	}()
 	go func() {
 		defer copyWG.Done()
-		_, err := io.Copy(rwa, originConn)
+		buf := getProxyTCPBuffer()
+		defer putProxyTCPBuffer(buf)
+		_, err := copyTCPStream(rwa, originConn, buf)
 		errC <- err
 	}()
 
@@ -138,4 +150,42 @@ func stopReadWriteAckerRead(rwa ReadWriteAcker) {
 
 func isBenignTCPProxyError(err error) bool {
 	return err == nil || err == io.EOF || err == net.ErrClosed || strings.Contains(err.Error(), "use of closed network connection")
+}
+
+func getProxyTCPBuffer() []byte {
+	buf, _ := proxyTCPBufferPool.Get().([]byte)
+	if cap(buf) < proxyTCPBufferSize {
+		return make([]byte, proxyTCPBufferSize)
+	}
+	return buf[:proxyTCPBufferSize]
+}
+
+func putProxyTCPBuffer(buf []byte) {
+	if cap(buf) < proxyTCPBufferSize {
+		return
+	}
+	proxyTCPBufferPool.Put(buf[:proxyTCPBufferSize])
+}
+
+func copyTCPStream(dst io.Writer, src io.Reader, buf []byte) (int64, error) {
+	var written int64
+	for {
+		nr, readErr := src.Read(buf)
+		if nr > 0 {
+			nw, writeErr := dst.Write(buf[:nr])
+			written += int64(nw)
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if nw != nr {
+				return written, io.ErrShortWrite
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				return written, nil
+			}
+			return written, readErr
+		}
+	}
 }
