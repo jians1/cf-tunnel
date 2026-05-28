@@ -3,6 +3,9 @@
 ## Current State
 
 - The current release candidate is stable enough to publish as `0.1.0-prototype`.
+- Latest validated commits:
+  - `586a41f refactor: remove runtime capnp pogs marshaling`
+  - `7cf9b92 docs: enforce serial throughput sampling policy`
 - Real end-to-end regression checks still pass for both `http2` and `quic` after dependency trimming:
   - `1GiB` downloads completed with matching SHA256
   - RSS stayed in the tens of MiB range
@@ -14,6 +17,11 @@
 - The remaining Cloudflared runtime dependency is now concentrated in:
   - `third_party/cloudflared/tunnelrpc/proto`
   - `zombiezen.com/go/capnproto2`
+
+Latest serial real-link measurements on 2026-05-28:
+
+- `http2`: `duration_seconds=9`, `throughput_mbps=954.44`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19512`, `rss_warm_kb=19512`, `peak_rss_kb=19524`, `rss_final_kb=19080`
+- `quic`: `duration_seconds=11`, `throughput_mbps=780.90`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19200`, `rss_warm_kb=19204`, `peak_rss_kb=19080`, `rss_final_kb=18992`
 
 ## Fixed Benchmark Output Standard
 
@@ -74,7 +82,10 @@ Recommended order:
 
 2. If further slimming is required, scope it as a new high-risk effort
    - keep `internal/` runtime path pinned to direct `tunnelrpc/proto` schema access only
-   - evaluate whether `third_party/cloudflared` vendored tree can be further trimmed without breaking wire compatibility
+   - evaluate whether `third_party/cloudflared` vendored tree can be further trimmed without breaking wire compatibility:
+     - build a candidate list of vendored directories unreachable from runtime/test/build paths
+     - remove only clearly unreachable directories in small, isolated patches
+     - verify each patch with `go test -count=1 ./...` and `bash scripts/build-release.sh`
    - avoid mixing this with unrelated cleanup
 
 3. After any protocol-layer change

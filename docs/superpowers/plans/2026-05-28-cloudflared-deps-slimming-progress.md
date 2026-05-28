@@ -14,8 +14,10 @@
 
 **Git state**
 - Branch: `slim-cloudflared-deps`
-- Worktree before this note: contains the uncommitted `tunnelrpc/pogs` removal work
-- Latest commit: `471ae62 refactor: localize runtime tunnelrpc protocol`
+- Worktree: dirty (pending documentation updates in `NEXT_STEPS.md` and this progress file)
+- Latest commits:
+  - `7cf9b92 docs: enforce serial throughput sampling policy`
+  - `586a41f refactor: remove runtime capnp pogs marshaling`
 
 **Completed refactors**
 - Removed direct runtime usage of `cloudflared/flow`, `cloudflared/quic`, and `cloudflared/tlsconfig`.
@@ -25,6 +27,7 @@
 - Localized QUIC data stream protocol types and round-trip tests.
 - Localized registration-side runtime RPC data types and removed direct `RegistrationServer_PogsClient` use.
 - Removed the runtime server-side dependency on `cloudflared/tunnelrpc/pogs`.
+- Removed runtime `capnproto2/pogs` marshaling for `ConnectionOptions` and `TunnelAuth`.
 
 **Known validation evidence**
 - `go test -count=1 ./internal/cftunnel/runtime` passed after protocol localization.
@@ -35,6 +38,9 @@
 - `bash scripts/build-release.sh` passed after removing runtime `tunnelrpc/pogs`.
 - Current release binary size after removing runtime `tunnelrpc/pogs`: `9,904,290 bytes`.
 - Real Quick Tunnel e2e previously passed for `http2` and `quic`.
+- Real Quick Tunnel e2e revalidated serially on 2026-05-28:
+  - `http2`: `duration_seconds=9`, `throughput_mbps=954.44`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19512`, `rss_warm_kb=19512`, `peak_rss_kb=19524`, `rss_final_kb=19080`
+  - `quic`: `duration_seconds=11`, `throughput_mbps=780.90`, `sha256=49bc20df15e412a64472421e13fe86ff1c5165e18b2afccf160d4dc19fe68a14`, `rss_ready_kb=19200`, `rss_warm_kb=19204`, `peak_rss_kb=19080`, `rss_final_kb=18992`
 
 **Remaining direct `cloudflared` imports**
 - `internal/cftunnel/runtime/quic_protocol.go`: `github.com/cloudflare/cloudflared/tunnelrpc/proto`
@@ -155,7 +161,7 @@
   - `peak_rss_kb`
   - `rss_final_kb`
 
-- [ ] **Step 1: Test `http2` real Quick Tunnel**
+- [x] **Step 1: Test `http2` real Quick Tunnel**
 
   Run: `bash scripts/e2e/run_trycloudflare_ab.sh http2 1`
 
@@ -164,7 +170,7 @@
   - 1GiB transfer completes
   - SHA256 matches the generated source file
 
-- [ ] **Step 2: Test `quic` real Quick Tunnel**
+- [x] **Step 2: Test `quic` real Quick Tunnel**
 
   Run: `bash scripts/e2e/run_trycloudflare_ab.sh quic 1`
 
@@ -173,7 +179,7 @@
   - 1GiB transfer completes
   - SHA256 matches the generated source file
 
-- [ ] **Step 3: Inspect logs on failure**
+- [x] **Step 3: Inspect logs on failure**
 
   If a real-link test fails, inspect:
   - `/tmp/cfqt-e2e/<proto>-round1/cfqt.log`
@@ -185,11 +191,11 @@
 **Files:**
 - Commit changed runtime code, tests, and this progress plan if desired.
 
-- [ ] **Step 1: Review diff**
+- [x] **Step 1: Review diff**
 
   Run: `git diff --stat && git diff --check`
 
-- [ ] **Step 2: Commit only when requested**
+- [x] **Step 2: Commit only when requested**
 
   Example message after validation:
 
@@ -202,3 +208,16 @@
 - Keep each protocol change small. The last real-link failure was caused by a Cap'n Proto field tag mismatch: `OriginLocalIP` needed `capnp:"originLocalIp"`.
 - Do not assume unit tests are enough for RPC wire changes. Real-link `http2` and `quic` tests are required before claiming behavior is preserved.
 - A temporary binary size increase is acceptable while local wrappers coexist with remaining generated adapters. Measure again after `tunnelrpc/pogs` is removed.
+
+## Next Phase Plan
+
+1. Build a safe-trim candidate list under `third_party/cloudflared`
+   - enumerate runtime-reachable packages from `cmd/internal`
+   - flag vendored directories not in runtime/test/build paths
+2. Apply one minimal trim patch at a time
+   - delete only clearly unreachable vendored directories
+   - avoid touching `tunnelrpc/proto` and capnp runtime dependencies
+3. Verify each trim patch
+   - `go test -count=1 ./...`
+   - `bash scripts/build-release.sh`
+   - if protocol path changed: rerun serial real-link tests (`http2` then `quic`)

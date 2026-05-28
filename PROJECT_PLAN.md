@@ -435,8 +435,12 @@ Mitigation:
 
 ## Immediate Next Tasks
 
-1. Create the Go module and directory skeleton.
-2. Write the config structs and CLI flag parser.
-3. Build validation and startup orchestration.
-4. Analyze `cloudflared` Quick Tunnel dependency graph.
-5. Reimplement the IPv6 pool feature set inside `internal/ipv6pool`.
+The original bootstrap tasks in this section are complete (module skeleton, CLI/config validation, runner orchestration, and initial feature integration).
+
+Current phase priorities:
+
+1. Preserve the current publishable `0.1.0-prototype` baseline and keep release evidence up to date.
+2. Continue `third_party/cloudflared` dependency trimming in small, isolated patches only.
+3. Verify every trim patch with `go test -count=1 ./...` and `bash scripts/build-release.sh`.
+4. Re-run serial real-link e2e (`http2` then `quic`) when protocol-path behavior changes.
+5. Stop trimming when size gains flatten or wire-compatibility risk outweighs benefit.
