@@ -74,34 +74,6 @@ func TestParseAcceptsHostPortTargetWithExplicitOriginProtocol(t *testing.T) {
 	}
 }
 
-func TestParseRejectsIPv6PoolWithoutSource(t *testing.T) {
-	t.Parallel()
-
-	_, err := Parse([]string{
-		"--enable-ipv6-pool",
-		"--health-listen=",
-	})
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-}
-
-func TestParseAcceptsIPv6PoolWithCIDR(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := Parse([]string{
-		"--enable-ipv6-pool",
-		"--ipv6-pool-cidr=2001:db8::/120",
-		"--health-listen=",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.IPv6Pool.Strategy != IPv6StrategyRandom {
-		t.Fatalf("unexpected strategy: %s", cfg.IPv6Pool.Strategy)
-	}
-}
-
 func TestParseRejectsIncompatibleOriginOverride(t *testing.T) {
 	t.Parallel()
 

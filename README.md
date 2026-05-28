@@ -1,9 +1,6 @@
 # cf-quicktunnel-ipv6pool
 
-Single-binary Go project with two independent feature areas:
-
-1. Cloudflare `TryCloudflare / Quick Tunnel`
-2. IPv6 pool outbound proxy
+Single-binary Go project focused on Cloudflare `TryCloudflare / Quick Tunnel`.
 
 The tunnel path is intentionally kept small for personal use: startup requests a real Quick Tunnel, connects to Cloudflare edge with `quic` or `http2`, and proxies traffic to the configured local origin.
 
@@ -12,8 +9,6 @@ The tunnel path is intentionally kept small for personal use: startup requests a
 ### Working Today
 
 - unified CLI and config validation
-- IPv6 pool HTTP proxy
-- IPv6 pool SOCKS5 proxy
 - Quick Tunnel request client
 - local origin target parsing
 - local reverse proxy for HTTP/HTTPS and WebSocket upgrade
@@ -173,15 +168,6 @@ go run ./cmd/app \
 - `--cf-origin-protocol=auto|http|https|ws|wss`
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
-
-### IPv6 Pool Controls
-
-- `--enable-ipv6-pool`
-- `--ipv6-pool-http=:3128`
-- `--ipv6-pool-socks5=:3129`
-- `--ipv6-pool-bind-interface=eth0`
-- `--ipv6-pool-cidr=2001:db8::/64`
-- `--ipv6-pool-strategy=random`
 
 ## Current Runtime Behavior
 

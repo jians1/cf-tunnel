@@ -8,7 +8,6 @@ import (
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/ipv6pool"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/logging"
 	appRuntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/runtime"
 )
@@ -29,9 +28,6 @@ func main() {
 	}
 	if cfg.CFTunnel.Enabled {
 		runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
-	}
-	if cfg.IPv6Pool.Enabled {
-		runners = append(runners, ipv6pool.NewRunner(cfg.IPv6Pool, logger))
 	}
 
 	if err := appRuntime.RunWithOptions(ctx, logger, appRuntime.Options{

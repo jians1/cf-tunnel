@@ -20,7 +20,6 @@ const (
 	EdgeProtocolQUIC  = "quic"
 	EdgeProtocolHTTP2 = "http2"
 
-	IPv6StrategyRandom = "random"
 )
 
 type AppConfig struct {
@@ -29,7 +28,6 @@ type AppConfig struct {
 	HealthListen    string
 	ShutdownTimeout time.Duration
 	CFTunnel        CFTunnelConfig
-	IPv6Pool        IPv6PoolConfig
 }
 
 type CFTunnelConfig struct {
@@ -41,15 +39,6 @@ type CFTunnelConfig struct {
 	OriginProtocol     string
 	OriginServerName   string
 	InsecureSkipVerify bool
-}
-
-type IPv6PoolConfig struct {
-	Enabled       bool
-	HTTPListen    string
-	SOCKS5Listen  string
-	BindInterface string
-	CIDR          string
-	Strategy      string
 }
 
 func Parse(args []string) (AppConfig, error) {
@@ -70,13 +59,6 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
 
-	fs.BoolVar(&cfg.IPv6Pool.Enabled, "enable-ipv6-pool", false, "enable IPv6 pool proxy")
-	fs.StringVar(&cfg.IPv6Pool.HTTPListen, "ipv6-pool-http", ":3128", "IPv6 pool HTTP proxy listen address")
-	fs.StringVar(&cfg.IPv6Pool.SOCKS5Listen, "ipv6-pool-socks5", ":3129", "IPv6 pool SOCKS5 proxy listen address")
-	fs.StringVar(&cfg.IPv6Pool.BindInterface, "ipv6-pool-bind-interface", "", "network interface used to source IPv6 addresses")
-	fs.StringVar(&cfg.IPv6Pool.CIDR, "ipv6-pool-cidr", "", "IPv6 source CIDR")
-	fs.StringVar(&cfg.IPv6Pool.Strategy, "ipv6-pool-strategy", IPv6StrategyRandom, "IPv6 source selection strategy")
-
 	if err := fs.Parse(args); err != nil {
 		return AppConfig{}, err
 	}
@@ -91,8 +73,8 @@ func Parse(args []string) (AppConfig, error) {
 }
 
 func (c AppConfig) Validate() error {
-	if !c.CFTunnel.Enabled && !c.IPv6Pool.Enabled {
-		return errors.New("at least one feature must be enabled")
+	if !c.CFTunnel.Enabled {
+		return errors.New("enable-cf-tunnel must be true")
 	}
 	if err := validateLogFormat(c.LogFormat); err != nil {
 		return err
@@ -101,9 +83,6 @@ func (c AppConfig) Validate() error {
 		return errors.New("shutdown-timeout must be positive")
 	}
 	if err := c.CFTunnel.Validate(); err != nil {
-		return err
-	}
-	if err := c.IPv6Pool.Validate(); err != nil {
 		return err
 	}
 	return nil
@@ -141,27 +120,6 @@ func (c CFTunnelConfig) Validate() error {
 	return nil
 }
 
-func (c IPv6PoolConfig) Validate() error {
-	if !c.Enabled {
-		return nil
-	}
-	if c.HTTPListen == "" && c.SOCKS5Listen == "" {
-		return errors.New("at least one IPv6 pool listener must be set")
-	}
-	if c.CIDR == "" && c.BindInterface == "" {
-		return errors.New("ipv6-pool-cidr or ipv6-pool-bind-interface is required when enable-ipv6-pool=true")
-	}
-	if err := validateIPv6Strategy(c.Strategy); err != nil {
-		return err
-	}
-	if c.CIDR != "" {
-		if _, _, err := net.ParseCIDR(c.CIDR); err != nil {
-			return fmt.Errorf("invalid ipv6-pool-cidr: %w", err)
-		}
-	}
-	return nil
-}
-
 func validateLogFormat(v string) error {
 	switch v {
 	case "text", "json":
@@ -186,15 +144,6 @@ func validateOriginProtocol(v string) error {
 		return nil
 	default:
 		return fmt.Errorf("unsupported cf-origin-protocol: %s", v)
-	}
-}
-
-func validateIPv6Strategy(v string) error {
-	switch v {
-	case IPv6StrategyRandom:
-		return nil
-	default:
-		return fmt.Errorf("unsupported ipv6-pool-strategy: %s", v)
 	}
 }
 
