@@ -24,6 +24,13 @@ func (r *Runner) SetReadySummaryProvider(fn func() string) {
 	r.ready = fn
 }
 
+func (r *Runner) ReadySummary() string {
+	if r.ready != nil {
+		return r.ready()
+	}
+	return "ready"
+}
+
 func (r *Runner) Name() string {
 	return "health"
 }
@@ -36,11 +43,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if r.ready != nil {
-			_, _ = w.Write([]byte(r.ready()))
-			return
-		}
-		_, _ = w.Write([]byte("ready"))
+		_, _ = w.Write([]byte(r.ReadySummary()))
 	})
 
 	server := &http.Server{

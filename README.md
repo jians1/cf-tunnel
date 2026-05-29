@@ -26,7 +26,7 @@ The tunnel path is intentionally kept small for personal use: startup requests a
 
 - Quick Tunnel creation can be rate-limited by `api.trycloudflare.com`.
 - Newly-created `trycloudflare.com` hostnames can have a short DNS or edge convergence window; warm up with small requests before large transfers.
-- This project targets Quick Tunnel and does not implement named tunnels or account login flows.
+- This project targets Quick Tunnel and does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
 - Quick Tunnel currently runs with one HA connection in this implementation.
 
 ## Build
