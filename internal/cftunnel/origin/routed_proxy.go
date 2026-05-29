@@ -53,18 +53,18 @@ func (p *RoutedProxy) Handler() http.Handler {
 }
 
 func (p *RoutedProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	p.pickProxy(req.URL.Path).ServeHTTP(w, req)
+	p.pickProxy(req.Host, req.URL.Path).ServeHTTP(w, req)
 }
 
 func (p *RoutedProxy) ProxyWebsocket(w protocol.ResponseWriter, req *http.Request) error {
-	return p.pickProxy(req.URL.Path).ProxyWebsocket(w, req)
+	return p.pickProxy(req.Host, req.URL.Path).ProxyWebsocket(w, req)
 }
 
-func (p *RoutedProxy) pickProxy(path string) *Proxy {
+func (p *RoutedProxy) pickProxy(host, path string) *Proxy {
 	if p.router == nil {
 		return p.defaultProxy
 	}
-	route, ok := p.router.Match(path)
+	route, ok := p.router.Match(host, path)
 	if !ok {
 		return p.defaultProxy
 	}
@@ -79,16 +79,17 @@ func routeRuleProxyKey(route appconfig.RouteRule) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return routeProxyKey(normalized, route.Target, route.OriginServerName, route.InsecureSkipVerify), nil
+	return routeProxyKey(route.Host, normalized, route.Target, route.OriginServerName, route.InsecureSkipVerify), nil
 }
 
 func matchedRouteProxyKey(route Route) string {
-	return routeProxyKey(route.Path, route.Target, route.OriginServerName, route.InsecureSkipVerify)
+	return routeProxyKey(route.Host, route.Path, route.Target, route.OriginServerName, route.InsecureSkipVerify)
 }
 
-func routeProxyKey(path, target, serverName string, insecureSkipVerify bool) string {
+func routeProxyKey(host, path, target, serverName string, insecureSkipVerify bool) string {
 	return fmt.Sprintf(
-		"%s=%s,server_name=%s,insecure_skip_verify=%t",
+		"host=%s,path=%s,target=%s,server_name=%s,insecure_skip_verify=%t",
+		host,
 		path,
 		target,
 		serverName,

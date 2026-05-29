@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -337,6 +338,41 @@ func TestParseAcceptsCFRouteTLSOptions(t *testing.T) {
 	}
 	if !route.InsecureSkipVerify {
 		t.Fatal("expected route insecure skip verify")
+	}
+}
+
+func TestParseRouteAcceptsHostOption(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=http://127.0.0.1:9001,host=api.example.com",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(cfg.CFTunnel.Routes))
+	}
+	if cfg.CFTunnel.Routes[0].Host != "api.example.com" {
+		t.Fatalf("unexpected route host %q", cfg.CFTunnel.Routes[0].Host)
+	}
+}
+
+func TestParseRouteRejectsInvalidHostOption(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=http://127.0.0.1:9001,host=bad host",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected invalid host error")
+	}
+	if !strings.Contains(err.Error(), "route[0].host") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

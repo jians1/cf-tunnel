@@ -40,6 +40,7 @@ type NamedTunnelConfig struct {
 }
 
 type RouteRule struct {
+	Host                  string
 	Path                  string
 	Target                string
 	OriginServerName      string
@@ -56,6 +57,9 @@ func (r *routeFlag) String() string {
 	parts := make([]string, 0, len(*r))
 	for _, rule := range *r {
 		spec := rule.Path + "=" + rule.Target
+		if rule.Host != "" {
+			spec += ",host=" + rule.Host
+		}
 		if rule.OriginServerName != "" {
 			spec += ",server_name=" + rule.OriginServerName
 		}
@@ -117,6 +121,8 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 		seen[key] = struct{}{}
 
 		switch key {
+		case "host":
+			route.Host = strings.ToLower(strings.TrimSpace(value))
 		case "server_name":
 			route.OriginServerName = value
 		case "insecure_skip_verify":
@@ -271,6 +277,12 @@ func validateRouteRules(routes []RouteRule) error {
 	exactSeen := make(map[string]struct{})
 	prefixSeen := make(map[string]struct{})
 	for i, route := range routes {
+		host := strings.ToLower(strings.TrimSpace(route.Host))
+		if host != "" {
+			if err := validateRouteHost(host); err != nil {
+				return fmt.Errorf("route[%d].host: %w", i, err)
+			}
+		}
 		path := strings.TrimSpace(route.Path)
 		if path == "" {
 			return fmt.Errorf("route[%d].path is required", i)
@@ -286,20 +298,41 @@ func validateRouteRules(routes []RouteRule) error {
 		if err != nil {
 			return fmt.Errorf("route[%d].path: %w", i, err)
 		}
+		duplicateKey := routeDuplicateKey(host, normalized)
 		switch kind {
 		case "exact":
-			if _, ok := exactSeen[normalized]; ok {
+			if _, ok := exactSeen[duplicateKey]; ok {
 				return fmt.Errorf("duplicate exact route path: %s", normalized)
 			}
-			exactSeen[normalized] = struct{}{}
+			exactSeen[duplicateKey] = struct{}{}
 		case "prefix":
-			if _, ok := prefixSeen[normalized]; ok {
+			if _, ok := prefixSeen[duplicateKey]; ok {
 				return fmt.Errorf("duplicate prefix route path: %s/*", normalized)
 			}
-			prefixSeen[normalized] = struct{}{}
+			prefixSeen[duplicateKey] = struct{}{}
 		}
 	}
 	return nil
+}
+
+func validateRouteHost(host string) error {
+	if strings.Contains(host, "://") {
+		return errors.New("must be a hostname, not a URL")
+	}
+	if strings.ContainsAny(host, " /\\") {
+		return errors.New("must not contain spaces or path separators")
+	}
+	if strings.HasPrefix(host, ".") || strings.HasSuffix(host, ".") {
+		return errors.New("must not start or end with '.'")
+	}
+	if strings.Contains(host, "..") {
+		return errors.New("must not contain empty labels")
+	}
+	return nil
+}
+
+func routeDuplicateKey(host, path string) string {
+	return host + "\x00" + path
 }
 
 func validateAndNormalizeRoutePath(path string) (kind string, normalized string, err error) {
