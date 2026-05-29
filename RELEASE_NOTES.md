@@ -23,8 +23,11 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 - local WebSocket origin response through the tunnel path
 - sing-box VLESS-over-WebSocket origin through both `http2` and `quic`
 - `1GiB` file downloads through both `http2` and `quic` with matching SHA256
+- remote-managed token tunnel to Cloudflare public hostname `test.910666.xyz`
+- `256MiB` file downloads through both Quick Tunnel and remote-managed token tunnel with matching SHA256
+- `256MiB` RSS smoke: token tunnel peak `21,484 KB`, Quick Tunnel peak `22,676 KB`
 - dependency-trimmed runtime still passes real `http2` and `quic` end-to-end regression checks
-- release binary size reduced to `9,744,546 bytes` for `linux/amd64`
+- release binary size is `10,256,546 bytes` for `linux/amd64`
 
 ### Dependency Trimming Included
 

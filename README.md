@@ -20,8 +20,17 @@ The tunnel path is intentionally kept small for personal use: startup can reques
 
 - explicit `http2`: public `trycloudflare.com` URL returned the local origin response
 - explicit `quic`: public `trycloudflare.com` URL returned the local origin response
+- remote-managed token tunnel: public hostname `test.910666.xyz` returned the local origin response
 - `http2` and `quic`: `1GiB` downloads through a VLESS-over-WebSocket origin completed with matching SHA256
+- `quic`: `256MiB` downloads through both Quick Tunnel and remote-managed token tunnel completed with matching SHA256
 - large download RSS stayed in the tens of MiB range and did not grow with response size
+
+Latest `256MiB` RSS smoke results on `linux/amd64` release build:
+
+| Mode | Ready RSS | Warm RSS | Peak Download RSS | Final RSS |
+|---|---:|---:|---:|---:|
+| Remote-managed token tunnel, `quic` | `18,744 KB` | `19,132 KB` | `21,484 KB` | `21,356 KB` |
+| Quick Tunnel, `quic` | `16,052 KB` | `16,056 KB` | `22,676 KB` | `22,032 KB` |
 
 ### Known Limits
 
