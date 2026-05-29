@@ -431,7 +431,7 @@ git commit -m "feat: add formal tunnel token config"
 - Create: `internal/cftunnel/credentials/token.go`
 - Create: `internal/cftunnel/credentials/token_test.go`
 
-- [ ] **Step 1: Write failing token tests**
+- [x] **Step 1: Write failing token tests**
 
 Create `internal/cftunnel/credentials/token_test.go`:
 
@@ -486,7 +486,7 @@ func TestParseTunnelTokenRejectsMissingSecret(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -496,7 +496,7 @@ go test ./internal/cftunnel/credentials -run 'TestParseTunnelToken' -count=1
 
 Expected: FAIL because `ParseTunnelToken` does not exist.
 
-- [ ] **Step 3: Implement token decoder**
+- [x] **Step 3: Implement token decoder**
 
 Create `internal/cftunnel/credentials/token.go`:
 
@@ -552,7 +552,7 @@ func ParseTunnelToken(token string) (Credentials, error) {
 
 If existing `Credentials` already has an `Endpoint` field, copy it too. If it does not, do not add endpoint support in phase one; endpoint is not required for current edge discovery path.
 
-- [ ] **Step 4: Run token tests**
+- [x] **Step 4: Run token tests**
 
 Run:
 
@@ -562,7 +562,7 @@ go test ./internal/cftunnel/credentials -count=1
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/cftunnel/credentials/token.go internal/cftunnel/credentials/token_test.go
