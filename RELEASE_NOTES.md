@@ -54,7 +54,7 @@ The main remaining protocol/runtime weight is concentrated in:
 - newly-created Quick Tunnel hostnames can have a short DNS or edge convergence window
 - named tunnels and account login flows are not implemented
 - this implementation currently supports one Quick Tunnel HA connection
-- token mode does not download or apply Cloudflare remote ingress rules; configure local `Target` and `Routes`
+- token mode does not download or apply Cloudflare remote ingress rules; configure local `target` and `routes`
 
 ### Recommended Usage
 

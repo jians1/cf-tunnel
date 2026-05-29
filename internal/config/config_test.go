@@ -480,32 +480,25 @@ func TestParseRejectsInvalidCFRouteFormat(t *testing.T) {
 	}
 }
 
-func TestParseConfigFileMultiTunnel(t *testing.T) {
+func TestParseYAMLConfigFileMultiTunnel(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
-	p := filepath.Join(tmp, "cfg.json")
-	err := os.WriteFile(p, []byte(`{
-		"health_listen": "",
-		"tunnels": [
-			{
-				"name": "alpha",
-				"CFTunnel": {
-					"QuickService": "https://api.trycloudflare.com",
-					"EdgeProtocol": "http2",
-					"Target": "http://127.0.0.1:8081"
-				}
-			},
-			{
-				"name": "beta",
-				"CFTunnel": {
-					"QuickService": "https://api.trycloudflare.com",
-					"EdgeProtocol": "quic",
-					"Target": "ws://127.0.0.1:10000"
-				}
-			}
-		]
-	}`), 0o644)
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+tunnels:
+  - name: alpha
+    cf_tunnel:
+      quick_service: https://api.trycloudflare.com
+      edge_protocol: http2
+      target: http://127.0.0.1:8081
+  - name: beta
+    cf_tunnel:
+      quick_service: https://api.trycloudflare.com
+      edge_protocol: quic
+      target: ws://127.0.0.1:10000
+`), 0o644)
 	if err != nil {
 		t.Fatalf("write config file: %v", err)
 	}
@@ -522,18 +515,17 @@ func TestParseConfigFileMultiTunnel(t *testing.T) {
 	}
 }
 
-func TestParseConfigFileOverridesSingleTunnelCLI(t *testing.T) {
+func TestParseYAMLConfigFileOverridesSingleTunnelCLI(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
-	p := filepath.Join(tmp, "cfg.json")
-	err := os.WriteFile(p, []byte(`{
-		"cf_tunnel": {
-			"QuickService": "https://api.trycloudflare.com",
-			"EdgeProtocol": "http2",
-			"Target": "http://127.0.0.1:9001"
-		}
-	}`), 0o644)
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+cf_tunnel:
+  quick_service: https://api.trycloudflare.com
+  edge_protocol: http2
+  target: http://127.0.0.1:9001
+`), 0o644)
 	if err != nil {
 		t.Fatalf("write config file: %v", err)
 	}
@@ -555,31 +547,141 @@ func TestParseConfigFileOverridesSingleTunnelCLI(t *testing.T) {
 	}
 }
 
-func TestParseConfigFileRejectsDuplicateTunnelName(t *testing.T) {
+func TestParseYAMLConfigFileParsesFormalTunnelRoutes(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+cf_tunnel:
+  tunnel_token: token-from-yaml
+  edge_protocol: quic
+  target: http://127.0.0.1:13000
+  routes:
+    - host: test.910666.xyz
+      path: /api/*
+      target: http://127.0.0.1:13000
+      origin_server_name: api.internal
+      insecure_skip_verify: true
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := Parse([]string{"--config=" + p})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CFTunnel.TunnelToken != "token-from-yaml" {
+		t.Fatalf("unexpected tunnel token: %q", cfg.CFTunnel.TunnelToken)
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("unexpected routes len: %d", len(cfg.CFTunnel.Routes))
+	}
+	route := cfg.CFTunnel.Routes[0]
+	if route.Host != "test.910666.xyz" || route.Path != "/api/*" || route.Target != "http://127.0.0.1:13000" {
+		t.Fatalf("unexpected route: %#v", route)
+	}
+	if route.OriginServerName != "api.internal" || !route.InsecureSkipVerify {
+		t.Fatalf("unexpected route TLS settings: %#v", route)
+	}
+	if !route.InsecureSkipVerifySet {
+		t.Fatal("expected route insecure skip verify to be marked as explicitly set")
+	}
+}
+
+func TestParseYAMLConfigRejectsInternalRouteFields(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+cf_tunnel:
+  edge_protocol: quic
+  target: http://127.0.0.1:13000
+  routes:
+    - path: /api/*
+      target: http://127.0.0.1:13000
+      insecure_skip_verify_set: true
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	_, err = Parse([]string{"--config=" + p})
+	if err == nil {
+		t.Fatal("expected internal route field rejection")
+	}
+	if !strings.Contains(err.Error(), "field insecure_skip_verify_set not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseYAMLConfigRejectsJSONFile(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
 	p := filepath.Join(tmp, "cfg.json")
-	err := os.WriteFile(p, []byte(`{
-		"tunnels": [
-			{
-				"name": "dup",
-				"CFTunnel": {
-					"QuickService": "https://api.trycloudflare.com",
-					"EdgeProtocol": "http2",
-					"Target": "http://127.0.0.1:8081"
-				}
-			},
-			{
-				"name": "dup",
-				"CFTunnel": {
-					"QuickService": "https://api.trycloudflare.com",
-					"EdgeProtocol": "http2",
-					"Target": "http://127.0.0.1:8082"
-				}
-			}
-		]
-	}`), 0o644)
+	err := os.WriteFile(p, []byte(`{"health_listen":"","cf_tunnel":{"edge_protocol":"http2","target":"http://127.0.0.1:9001"}}`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	_, err = Parse([]string{"--config=" + p})
+	if err == nil {
+		t.Fatal("expected JSON config rejection")
+	}
+	if !strings.Contains(err.Error(), "YAML") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseYAMLConfigRejectsGoStyleFields(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+tunnels:
+  - name: alpha
+    CFTunnel:
+      EdgeProtocol: http2
+      Target: http://127.0.0.1:8081
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	_, err = Parse([]string{"--config=" + p})
+	if err == nil {
+		t.Fatal("expected Go-style field rejection")
+	}
+	if !strings.Contains(err.Error(), "field CFTunnel not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParseYAMLConfigFileRejectsDuplicateTunnelName(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+tunnels:
+  - name: dup
+    cf_tunnel:
+      quick_service: https://api.trycloudflare.com
+      edge_protocol: http2
+      target: http://127.0.0.1:8081
+  - name: dup
+    cf_tunnel:
+      quick_service: https://api.trycloudflare.com
+      edge_protocol: http2
+      target: http://127.0.0.1:8082
+`), 0o644)
 	if err != nil {
 		t.Fatalf("write config file: %v", err)
 	}

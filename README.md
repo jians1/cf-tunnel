@@ -28,7 +28,7 @@ The tunnel path is intentionally kept small for personal use: startup can reques
 - Quick Tunnel creation can be rate-limited by `api.trycloudflare.com`.
 - Newly-created `trycloudflare.com` hostnames can have a short DNS or edge convergence window; warm up with small requests before large transfers.
 - This project does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
-- Remote-managed token mode does not download Cloudflare remote ingress rules; local `Target` and `Routes` remain the source of truth.
+- Remote-managed token mode does not download Cloudflare remote ingress rules; local `target` and `routes` remain the source of truth.
 - Quick Tunnel currently runs with one HA connection in this implementation.
 
 ## Build
@@ -179,69 +179,57 @@ go run ./cmd/app \
   --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
-Phase-one token mode does not import Cloudflare remote ingress management. Cloudflare public hostnames route traffic to this connector; local forwarding is still controlled by this project's `Target` and `Routes` configuration.
+Phase-one token mode does not import Cloudflare remote ingress management. Cloudflare public hostnames route traffic to this connector; local forwarding is still controlled by this project's `target` and `routes` configuration.
 
 Multiple public hostnames on one Cloudflare Tunnel should be represented as one tunnel token plus host-aware local routes:
 
-```json
-{
-  "cf_tunnel": {
-    "TunnelToken": "...",
-    "EdgeProtocol": "quic",
-    "Target": "http://127.0.0.1:8080",
-    "Routes": [
-      {
-        "Host": "api.example.com",
-        "Path": "/api/*",
-        "Target": "http://127.0.0.1:9001"
-      },
-      {
-        "Host": "ws.example.com",
-        "Path": "/ws/*",
-        "Target": "ws://127.0.0.1:10000"
-      }
-    ]
-  }
-}
+```yaml
+cf_tunnel:
+  tunnel_token: "..."
+  edge_protocol: quic
+  target: http://127.0.0.1:8080
+  routes:
+    - host: api.example.com
+      path: /api/*
+      target: http://127.0.0.1:9001
+    - host: ws.example.com
+      path: /ws/*
+      target: ws://127.0.0.1:10000
 ```
 
-If no `Host` is set on a route, it remains a path-only fallback for any hostname.
+If no `host` is set on a route, it remains a path-only fallback for any hostname.
 
 ## Optional Config File (Multi-Tunnel)
 
-Use `--config=<path>` to load a JSON config file. This is optional and primarily for multi-tunnel setups.
+Use `--config=<path>` to load a YAML config file. This is optional and primarily for multi-tunnel setups.
 
 Example:
 
-```json
-{
-  "health_listen": ":9090",
-  "shutdown_timeout": "10s",
-  "tunnels": [
-    {
-      "name": "alpha",
-      "CFTunnel": {
-        "QuickService": "https://api.trycloudflare.com",
-        "EdgeProtocol": "quic",
-        "Target": "http://127.0.0.1:8081"
-      }
-    },
-    {
-      "name": "beta",
-      "CFTunnel": {
-        "QuickService": "https://api.trycloudflare.com",
-        "EdgeProtocol": "http2",
-        "Target": "ws://127.0.0.1:10000"
-      }
-    }
-  ]
-}
+```yaml
+health_listen: ":9090"
+shutdown_timeout: 10s
+
+tunnels:
+  - name: alpha
+    cf_tunnel:
+      edge_protocol: quic
+      target: http://127.0.0.1:8081
+
+  - name: beta
+    cf_tunnel:
+      tunnel_token: "..."
+      edge_protocol: http2
+      target: ws://127.0.0.1:10000
+      routes:
+        - host: test.910666.xyz
+          path: /ws/*
+          target: ws://127.0.0.1:10000
 ```
 
 Run:
 
 ```bash
-go run ./cmd/app --config=./config.json
+go run ./cmd/app --config=./config.yaml
 ```
 
 Compatibility rules:
@@ -249,6 +237,8 @@ Compatibility rules:
 - Without `--config`, current single-tunnel CLI behavior is unchanged.
 - With `--config`, file values are applied after CLI flags.
 - If `tunnels` is present and non-empty, runtime starts in multi-tunnel mode.
+- Config files must be YAML (`.yaml` or `.yml`) and use `snake_case` fields. JSON files and Go-style fields such as `CFTunnel` or `EdgeProtocol` are rejected.
+- If `tunnel_token` is stored in YAML, keep the file private, for example `chmod 600 config.yaml`.
 
 ## Important Flags
 

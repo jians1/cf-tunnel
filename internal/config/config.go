@@ -1,14 +1,16 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -26,18 +28,18 @@ type AppConfig struct {
 }
 
 type CFTunnelConfig struct {
-	QuickService       string
-	TunnelToken        string
-	EdgeProtocol       string
-	Target             string
-	OriginServerName   string
-	InsecureSkipVerify bool
-	Routes             []RouteRule
+	QuickService       string      `yaml:"quick_service"`
+	TunnelToken        string      `yaml:"tunnel_token"`
+	EdgeProtocol       string      `yaml:"edge_protocol"`
+	Target             string      `yaml:"target"`
+	OriginServerName   string      `yaml:"origin_server_name"`
+	InsecureSkipVerify bool        `yaml:"insecure_skip_verify"`
+	Routes             []RouteRule `yaml:"routes"`
 }
 
 type NamedTunnelConfig struct {
-	Name     string
-	CFTunnel CFTunnelConfig
+	Name     string         `yaml:"name"`
+	CFTunnel CFTunnelConfig `yaml:"cf_tunnel"`
 }
 
 type RouteRule struct {
@@ -47,6 +49,44 @@ type RouteRule struct {
 	OriginServerName      string
 	InsecureSkipVerify    bool
 	InsecureSkipVerifySet bool
+}
+
+func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("route rule must be a mapping")
+	}
+	allowed := map[string]struct{}{
+		"host":                 {},
+		"path":                 {},
+		"target":               {},
+		"origin_server_name":   {},
+		"insecure_skip_verify": {},
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		key := value.Content[i].Value
+		if _, ok := allowed[key]; !ok {
+			return fmt.Errorf("field %s not found in type config.RouteRule", key)
+		}
+	}
+	var raw struct {
+		Host               string `yaml:"host"`
+		Path               string `yaml:"path"`
+		Target             string `yaml:"target"`
+		OriginServerName   string `yaml:"origin_server_name"`
+		InsecureSkipVerify *bool  `yaml:"insecure_skip_verify"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	r.Host = raw.Host
+	r.Path = raw.Path
+	r.Target = raw.Target
+	r.OriginServerName = raw.OriginServerName
+	if raw.InsecureSkipVerify != nil {
+		r.InsecureSkipVerify = *raw.InsecureSkipVerify
+		r.InsecureSkipVerifySet = true
+	}
+	return nil
 }
 
 type routeFlag []RouteRule
@@ -153,7 +193,7 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.LogFormat, "log-format", "text", "log format")
 	fs.StringVar(&cfg.HealthListen, "health-listen", ":9090", "health endpoint listen address")
 	fs.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", 10*time.Second, "maximum time to wait for runners to stop after shutdown starts")
-	fs.StringVar(&configPath, "config", "", "optional JSON config file path")
+	fs.StringVar(&configPath, "config", "", "optional YAML config file path")
 
 	cfg.CFTunnel.QuickService = "https://api.trycloudflare.com"
 	cfg.CFTunnel.TunnelToken = strings.TrimSpace(os.Getenv("CF_TUNNEL_TOKEN"))
@@ -221,22 +261,30 @@ func validateNamedTunnels(tunnels []NamedTunnelConfig) error {
 }
 
 type fileConfig struct {
-	LogLevel        *string             `json:"log_level"`
-	LogFormat       *string             `json:"log_format"`
-	HealthListen    *string             `json:"health_listen"`
-	ShutdownTimeout *string             `json:"shutdown_timeout"`
-	CFTunnel        *CFTunnelConfig     `json:"cf_tunnel"`
-	Tunnels         []NamedTunnelConfig `json:"tunnels"`
+	LogLevel        *string             `yaml:"log_level"`
+	LogFormat       *string             `yaml:"log_format"`
+	HealthListen    *string             `yaml:"health_listen"`
+	ShutdownTimeout *string             `yaml:"shutdown_timeout"`
+	CFTunnel        *CFTunnelConfig     `yaml:"cf_tunnel"`
+	Tunnels         []NamedTunnelConfig `yaml:"tunnels"`
 }
 
 func applyConfigFile(cfg *AppConfig, path string) error {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yaml", ".yml":
+	default:
+		return fmt.Errorf("unsupported config file format %q: use YAML .yaml or .yml", filepath.Ext(path))
+	}
+
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read config file: %w", err)
 	}
 	var fc fileConfig
-	if err := json.Unmarshal(b, &fc); err != nil {
-		return fmt.Errorf("decode config file: %w", err)
+	decoder := yaml.NewDecoder(strings.NewReader(string(b)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&fc); err != nil {
+		return fmt.Errorf("decode YAML config file: %w", err)
 	}
 	if fc.LogLevel != nil {
 		cfg.LogLevel = *fc.LogLevel
@@ -255,9 +303,17 @@ func applyConfigFile(cfg *AppConfig, path string) error {
 		cfg.ShutdownTimeout = v
 	}
 	if fc.CFTunnel != nil {
+		if fc.CFTunnel.QuickService == "" {
+			fc.CFTunnel.QuickService = cfg.CFTunnel.QuickService
+		}
 		cfg.CFTunnel = *fc.CFTunnel
 	}
 	if len(fc.Tunnels) > 0 {
+		for i := range fc.Tunnels {
+			if fc.Tunnels[i].CFTunnel.QuickService == "" {
+				fc.Tunnels[i].CFTunnel.QuickService = cfg.CFTunnel.QuickService
+			}
+		}
 		cfg.Tunnels = append([]NamedTunnelConfig(nil), fc.Tunnels...)
 	}
 	return nil
