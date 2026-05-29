@@ -27,6 +27,7 @@ type AppConfig struct {
 
 type CFTunnelConfig struct {
 	QuickService       string
+	TunnelToken        string
 	EdgeProtocol       string
 	Target             string
 	OriginServerName   string
@@ -155,6 +156,8 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&configPath, "config", "", "optional JSON config file path")
 
 	cfg.CFTunnel.QuickService = "https://api.trycloudflare.com"
+	cfg.CFTunnel.TunnelToken = strings.TrimSpace(os.Getenv("CF_TUNNEL_TOKEN"))
+	fs.StringVar(&cfg.CFTunnel.TunnelToken, "cf-tunnel-token", cfg.CFTunnel.TunnelToken, "Cloudflare remote-managed tunnel token")
 	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolQUIC, "Cloudflare edge protocol")
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
@@ -171,6 +174,10 @@ func Parse(args []string) (AppConfig, error) {
 		if err := applyConfigFile(&cfg, configPath); err != nil {
 			return AppConfig{}, err
 		}
+	}
+	cfg.CFTunnel.TunnelToken = strings.TrimSpace(cfg.CFTunnel.TunnelToken)
+	for i := range cfg.Tunnels {
+		cfg.Tunnels[i].CFTunnel.TunnelToken = strings.TrimSpace(cfg.Tunnels[i].CFTunnel.TunnelToken)
 	}
 	if err := cfg.Validate(); err != nil {
 		return AppConfig{}, err

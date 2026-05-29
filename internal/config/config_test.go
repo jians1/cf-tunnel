@@ -127,6 +127,84 @@ func TestParseAcceptsCFTunnelRuntimeFlags(t *testing.T) {
 	}
 }
 
+func TestParseTunnelTokenFromFlag(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-tunnel-token=token-from-flag",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if cfg.CFTunnel.TunnelToken != "token-from-flag" {
+		t.Fatalf("unexpected token %q", cfg.CFTunnel.TunnelToken)
+	}
+}
+
+func TestParseTunnelTokenFromEnv(t *testing.T) {
+	t.Setenv("CF_TUNNEL_TOKEN", "token-from-env")
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if cfg.CFTunnel.TunnelToken != "token-from-env" {
+		t.Fatalf("unexpected token %q", cfg.CFTunnel.TunnelToken)
+	}
+}
+
+func TestTunnelTokenFlagOverridesEnv(t *testing.T) {
+	t.Setenv("CF_TUNNEL_TOKEN", "token-from-env")
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-tunnel-token=token-from-flag",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if cfg.CFTunnel.TunnelToken != "token-from-flag" {
+		t.Fatalf("expected flag token to win, got %q", cfg.CFTunnel.TunnelToken)
+	}
+}
+
+func TestParseTunnelTokenTrimsFlagValue(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-tunnel-token= token-from-flag ",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if cfg.CFTunnel.TunnelToken != "token-from-flag" {
+		t.Fatalf("unexpected token %q", cfg.CFTunnel.TunnelToken)
+	}
+}
+
+func TestTunnelTokenStillRequiresTarget(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--cf-tunnel-token=token-from-flag",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected missing target validation error")
+	}
+	if !strings.Contains(err.Error(), "cf-tunnel-target is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestParseRejectsRemovedHAConnectionsFlag(t *testing.T) {
 	t.Parallel()
 

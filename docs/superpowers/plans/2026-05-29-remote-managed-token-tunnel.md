@@ -327,7 +327,7 @@ git commit -m "feat: add host-aware local route matching"
 - Modify: `internal/config/config.go`
 - Modify: `internal/config/config_test.go`
 
-- [ ] **Step 1: Write failing tests for token config**
+- [x] **Step 1: Write failing tests for token config**
 
 Add to `internal/config/config_test.go`:
 
@@ -371,7 +371,7 @@ func TestTunnelTokenFlagOverridesEnv(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -381,7 +381,7 @@ go test ./internal/config -run 'TestParseTunnelToken' -count=1
 
 Expected: FAIL because the flag and field do not exist.
 
-- [ ] **Step 3: Implement token config parsing**
+- [x] **Step 3: Implement token config parsing**
 
 In `internal/config/config.go`, add field:
 
@@ -406,7 +406,7 @@ In `Parse`, add:
 
 Keep `Target` required in phase one even in token mode because local origin routing still needs a default origin.
 
-- [ ] **Step 4: Run config tests**
+- [x] **Step 4: Run config tests**
 
 Run:
 
@@ -416,7 +416,7 @@ go test ./internal/config -count=1
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/config/config.go internal/config/config_test.go
