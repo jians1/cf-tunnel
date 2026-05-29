@@ -13,13 +13,15 @@ case "$PROTO" in
     ;;
 esac
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib.sh"
+
+ROOT_DIR="$(cfqt_root_dir)"
 BASE="${TMPDIR:-/tmp}/cfqt-e2e"
 ORIGIN_DIR="$BASE/origin"
 HTTP_PORT=$((28080 + PROTO_PORT_OFFSET + ROUND))
 WS_PORT=$((20000 + PROTO_PORT_OFFSET + ROUND))
 SOCKS_PORT=$((2080 + PROTO_PORT_OFFSET + ROUND))
-CF_DNS_RESOLVER="${CF_DNS_RESOLVER:-1.1.1.1}"
 CFQT_BIN="$BASE/cfqt"
 SING_BIN="${SING_BOX_BIN:-/root/.local/bin/sing-box}"
 UUID="${SING_BOX_UUID:-ff78bef5-223f-4845-8676-a2780c305ea4}"
@@ -48,7 +50,7 @@ if [[ ! -x "$SING_BIN" ]]; then
 fi
 
 if [[ ! -x "$CFQT_BIN" ]]; then
-  (cd "$ROOT_DIR" && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$CFQT_BIN" ./cmd/app)
+  cfqt_build_binary "$ROOT_DIR" "$CFQT_BIN"
 fi
 
 truncate -s 512M "$ORIGIN_DIR/blob.bin"
@@ -97,36 +99,18 @@ PIDS+=($CFQT_PID)
 ) &
 PIDS+=($!)
 
-URL=""
-for _ in $(seq 1 60); do
-  if grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' "$OUT/cfqt.log" >/dev/null 2>&1; then
-    URL="$(grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' "$OUT/cfqt.log" | tail -n1)"
-    break
-  fi
-  sleep 1
-done
+URL="$(cfqt_wait_url "$OUT/cfqt.log" "" 60 || true)"
+if [[ "$URL" == "rate_limited" ]]; then
+  echo "quick tunnel API rate limited" >&2
+  exit 3
+fi
 if [[ -z "$URL" ]]; then
   echo "failed to obtain quick tunnel url" >&2
   exit 1
 fi
 
 HOST="${URL#https://}"
-EDGE_IP=""
-for _ in $(seq 1 30); do
-  EDGE_IP="$(curl -fsS -H 'accept: application/dns-json' "https://${CF_DNS_RESOLVER}/dns-query?name=${HOST}&type=A" \
-    | python3 -c 'import json,sys; data=json.load(sys.stdin); answers=data.get("Answer") or []; print(next((item["data"] for item in answers if item.get("type")==1), ""))' \
-    2>/dev/null || true)"
-  if [[ -n "$EDGE_IP" ]]; then
-    break
-  fi
-  EDGE_IP="$(curl -fsS -H 'accept: application/dns-json' "https://${CF_DNS_RESOLVER}/dns-query?name=${HOST}&type=AAAA" \
-    | python3 -c 'import json,sys; data=json.load(sys.stdin); answers=data.get("Answer") or []; print(next((item["data"] for item in answers if item.get("type")==28), ""))' \
-    2>/dev/null || true)"
-  if [[ -n "$EDGE_IP" ]]; then
-    break
-  fi
-  sleep 1
-done
+EDGE_IP="$(cfqt_wait_edge_ip "$HOST" 30 || true)"
 if [[ -z "$EDGE_IP" ]]; then
   echo "failed to resolve quick tunnel hostname: $HOST" >&2
   exit 1

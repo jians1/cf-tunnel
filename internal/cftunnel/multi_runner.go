@@ -7,15 +7,19 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
 
+const multiTunnelStartInterval = 5 * time.Second
+
 type MultiRunner struct {
-	runners []tunnelRunner
-	logger  *slog.Logger
-	mu      sync.RWMutex
-	state   map[string]string
+	runners       []tunnelRunner
+	logger        *slog.Logger
+	startInterval time.Duration
+	mu            sync.RWMutex
+	state         map[string]string
 }
 
 type tunnelRunner interface {
@@ -33,9 +37,10 @@ func NewMultiRunner(tunnels []config.NamedTunnelConfig, logger *slog.Logger) (*M
 		runners = append(runners, NewNamedRunner(tunnel.Name, tunnel.CFTunnel, logger))
 	}
 	return &MultiRunner{
-		runners: runners,
-		logger:  logger.With("component", "cftunnel"),
-		state:   make(map[string]string, len(runners)),
+		runners:       runners,
+		logger:        logger.With("component", "cftunnel"),
+		startInterval: multiTunnelStartInterval,
+		state:         make(map[string]string, len(runners)),
 	}, nil
 }
 
@@ -55,7 +60,7 @@ func (r *MultiRunner) Run(ctx context.Context) error {
 	var mu sync.Mutex
 	var runErrs []error
 
-	for _, runner := range r.runners {
+	for i, runner := range r.runners {
 		tunnelRunner := runner
 		r.setState(tunnelRunner.Name(), "starting")
 		wg.Add(1)
@@ -77,6 +82,11 @@ func (r *MultiRunner) Run(ctx context.Context) error {
 			}
 			r.logger.Info("tunnel instance stopped", "tunnel_name", tunnelRunner.Name())
 		}()
+		if i < len(r.runners)-1 && r.startInterval > 0 {
+			if err := waitForStartInterval(groupCtx, r.startInterval); err != nil {
+				break
+			}
+		}
 	}
 	wg.Wait()
 
@@ -84,6 +94,18 @@ func (r *MultiRunner) Run(ctx context.Context) error {
 		return nil
 	}
 	return joinTunnelErrors(runErrs)
+}
+
+func waitForStartInterval(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func joinTunnelErrors(errs []error) error {

@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestParseRequiresTunnelTarget(t *testing.T) {
 	t.Parallel()
@@ -359,5 +363,115 @@ func TestParseRejectsInvalidCFRouteFormat(t *testing.T) {
 				t.Fatal("expected parse error")
 			}
 		})
+	}
+}
+
+func TestParseConfigFileMultiTunnel(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.json")
+	err := os.WriteFile(p, []byte(`{
+		"health_listen": "",
+		"tunnels": [
+			{
+				"name": "alpha",
+				"CFTunnel": {
+					"QuickService": "https://api.trycloudflare.com",
+					"EdgeProtocol": "http2",
+					"Target": "http://127.0.0.1:8081"
+				}
+			},
+			{
+				"name": "beta",
+				"CFTunnel": {
+					"QuickService": "https://api.trycloudflare.com",
+					"EdgeProtocol": "quic",
+					"Target": "ws://127.0.0.1:10000"
+				}
+			}
+		]
+	}`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := Parse([]string{"--config=" + p})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Tunnels) != 2 {
+		t.Fatalf("unexpected tunnel count: %d", len(cfg.Tunnels))
+	}
+	if cfg.Tunnels[0].Name != "alpha" || cfg.Tunnels[1].Name != "beta" {
+		t.Fatalf("unexpected tunnel names: %#v", cfg.Tunnels)
+	}
+}
+
+func TestParseConfigFileOverridesSingleTunnelCLI(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.json")
+	err := os.WriteFile(p, []byte(`{
+		"cf_tunnel": {
+			"QuickService": "https://api.trycloudflare.com",
+			"EdgeProtocol": "http2",
+			"Target": "http://127.0.0.1:9001"
+		}
+	}`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := Parse([]string{
+		"--cf-edge-protocol=quic",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--config=" + p,
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CFTunnel.EdgeProtocol != "http2" {
+		t.Fatalf("expected config file edge protocol override, got: %s", cfg.CFTunnel.EdgeProtocol)
+	}
+	if cfg.CFTunnel.Target != "http://127.0.0.1:9001" {
+		t.Fatalf("expected config file target override, got: %s", cfg.CFTunnel.Target)
+	}
+}
+
+func TestParseConfigFileRejectsDuplicateTunnelName(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.json")
+	err := os.WriteFile(p, []byte(`{
+		"tunnels": [
+			{
+				"name": "dup",
+				"CFTunnel": {
+					"QuickService": "https://api.trycloudflare.com",
+					"EdgeProtocol": "http2",
+					"Target": "http://127.0.0.1:8081"
+				}
+			},
+			{
+				"name": "dup",
+				"CFTunnel": {
+					"QuickService": "https://api.trycloudflare.com",
+					"EdgeProtocol": "http2",
+					"Target": "http://127.0.0.1:8082"
+				}
+			}
+		]
+	}`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	_, err = Parse([]string{"--config=" + p})
+	if err == nil {
+		t.Fatal("expected duplicate tunnel name validation error")
 	}
 }

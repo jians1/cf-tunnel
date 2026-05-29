@@ -157,6 +157,49 @@ Notes:
 - `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply to the default `--cf-tunnel-target` only.
 - Each `--cf-route` target has independent TLS options: append `server_name=...` or `insecure_skip_verify=true` to that route when needed. Without route options, URL host is the TLS server name and certificate verification stays enabled.
 
+## Optional Config File (Multi-Tunnel)
+
+Use `--config=<path>` to load a JSON config file. This is optional and primarily for multi-tunnel setups.
+
+Example:
+
+```json
+{
+  "health_listen": ":9090",
+  "shutdown_timeout": "10s",
+  "tunnels": [
+    {
+      "name": "alpha",
+      "CFTunnel": {
+        "QuickService": "https://api.trycloudflare.com",
+        "EdgeProtocol": "quic",
+        "Target": "http://127.0.0.1:8081"
+      }
+    },
+    {
+      "name": "beta",
+      "CFTunnel": {
+        "QuickService": "https://api.trycloudflare.com",
+        "EdgeProtocol": "http2",
+        "Target": "ws://127.0.0.1:10000"
+      }
+    }
+  ]
+}
+```
+
+Run:
+
+```bash
+go run ./cmd/app --config=./config.json
+```
+
+Compatibility rules:
+
+- Without `--config`, current single-tunnel CLI behavior is unchanged.
+- With `--config`, file values are applied after CLI flags.
+- If `tunnels` is present and non-empty, runtime starts in multi-tunnel mode.
+
 ## Important Flags
 
 ### Global Controls

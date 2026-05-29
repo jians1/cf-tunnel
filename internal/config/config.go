@@ -1,10 +1,12 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -20,6 +22,7 @@ type AppConfig struct {
 	HealthListen    string
 	ShutdownTimeout time.Duration
 	CFTunnel        CFTunnelConfig
+	Tunnels         []NamedTunnelConfig
 }
 
 type CFTunnelConfig struct {
@@ -136,12 +139,14 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 
 func Parse(args []string) (AppConfig, error) {
 	cfg := AppConfig{}
+	var configPath string
 
 	fs := flag.NewFlagSet("cf-quicktunnel-ipv6pool", flag.ContinueOnError)
 	fs.StringVar(&cfg.LogLevel, "log-level", "info", "log level")
 	fs.StringVar(&cfg.LogFormat, "log-format", "text", "log format")
 	fs.StringVar(&cfg.HealthListen, "health-listen", ":9090", "health endpoint listen address")
 	fs.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", 10*time.Second, "maximum time to wait for runners to stop after shutdown starts")
+	fs.StringVar(&configPath, "config", "", "optional JSON config file path")
 
 	cfg.CFTunnel.QuickService = "https://api.trycloudflare.com"
 	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolQUIC, "Cloudflare edge protocol")
@@ -155,6 +160,11 @@ func Parse(args []string) (AppConfig, error) {
 	}
 	if fs.NArg() != 0 {
 		return AppConfig{}, fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
+	}
+	if configPath != "" {
+		if err := applyConfigFile(&cfg, configPath); err != nil {
+			return AppConfig{}, err
+		}
 	}
 	if err := cfg.Validate(); err != nil {
 		return AppConfig{}, err
@@ -170,8 +180,72 @@ func (c AppConfig) Validate() error {
 	if c.ShutdownTimeout <= 0 {
 		return errors.New("shutdown-timeout must be positive")
 	}
+	if len(c.Tunnels) > 0 {
+		return validateNamedTunnels(c.Tunnels)
+	}
 	if err := c.CFTunnel.Validate(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateNamedTunnels(tunnels []NamedTunnelConfig) error {
+	seen := make(map[string]struct{}, len(tunnels))
+	for i, tunnel := range tunnels {
+		name := strings.TrimSpace(tunnel.Name)
+		if name == "" {
+			return fmt.Errorf("tunnels[%d].name is required", i)
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("duplicate tunnel name: %s", name)
+		}
+		seen[name] = struct{}{}
+		if err := tunnel.CFTunnel.Validate(); err != nil {
+			return fmt.Errorf("tunnels[%d] (%s): %w", i, name, err)
+		}
+	}
+	return nil
+}
+
+type fileConfig struct {
+	LogLevel        *string             `json:"log_level"`
+	LogFormat       *string             `json:"log_format"`
+	HealthListen    *string             `json:"health_listen"`
+	ShutdownTimeout *string             `json:"shutdown_timeout"`
+	CFTunnel        *CFTunnelConfig     `json:"cf_tunnel"`
+	Tunnels         []NamedTunnelConfig `json:"tunnels"`
+}
+
+func applyConfigFile(cfg *AppConfig, path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read config file: %w", err)
+	}
+	var fc fileConfig
+	if err := json.Unmarshal(b, &fc); err != nil {
+		return fmt.Errorf("decode config file: %w", err)
+	}
+	if fc.LogLevel != nil {
+		cfg.LogLevel = *fc.LogLevel
+	}
+	if fc.LogFormat != nil {
+		cfg.LogFormat = *fc.LogFormat
+	}
+	if fc.HealthListen != nil {
+		cfg.HealthListen = *fc.HealthListen
+	}
+	if fc.ShutdownTimeout != nil {
+		v, err := time.ParseDuration(*fc.ShutdownTimeout)
+		if err != nil {
+			return fmt.Errorf("parse shutdown_timeout: %w", err)
+		}
+		cfg.ShutdownTimeout = v
+	}
+	if fc.CFTunnel != nil {
+		cfg.CFTunnel = *fc.CFTunnel
+	}
+	if len(fc.Tunnels) > 0 {
+		cfg.Tunnels = append([]NamedTunnelConfig(nil), fc.Tunnels...)
 	}
 	return nil
 }

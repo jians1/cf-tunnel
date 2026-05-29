@@ -236,3 +236,79 @@ func TestMultiRunnerIntegrationFailFastAndAggregate(t *testing.T) {
 		t.Fatal("expected peer tunnel to be canceled on fail-fast")
 	}
 }
+
+func TestMultiRunnerStaggersTunnelStart(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan string, 2)
+	release := make(chan struct{})
+
+	multi := &MultiRunner{
+		runners: []tunnelRunner{
+			fakeTunnelRunner{
+				name: "first",
+				run: func(ctx context.Context) error {
+					started <- "first"
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-release:
+						return nil
+					}
+				},
+			},
+			fakeTunnelRunner{
+				name: "second",
+				run: func(ctx context.Context) error {
+					started <- "second"
+					<-ctx.Done()
+					return ctx.Err()
+				},
+			},
+		},
+		logger:        testLogger(),
+		state:         map[string]string{},
+		startInterval: 50 * time.Millisecond,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- multi.Run(ctx) }()
+
+	select {
+	case got := <-started:
+		if got != "first" {
+			t.Fatalf("unexpected first started tunnel: %s", got)
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("first tunnel did not start")
+	}
+
+	select {
+	case got := <-started:
+		t.Fatalf("second tunnel started before interval elapsed: %s", got)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	select {
+	case got := <-started:
+		if got != "second" {
+			t.Fatalf("unexpected second started tunnel: %s", got)
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("second tunnel did not start after interval")
+	}
+
+	cancel()
+	close(release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected clean shutdown, got: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("multi runner did not stop")
+	}
+}
