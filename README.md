@@ -1,8 +1,8 @@
 # cf-quicktunnel-ipv6pool
 
-Single-binary Go project focused on Cloudflare `TryCloudflare / Quick Tunnel`.
+Single-binary Go project focused on Cloudflare `TryCloudflare / Quick Tunnel` and lightweight remote-managed Tunnel token mode.
 
-The tunnel path is intentionally kept small for personal use: startup requests a real Quick Tunnel, connects to Cloudflare edge with `quic` or `http2`, and proxies traffic to the configured local origin.
+The tunnel path is intentionally kept small for personal use: startup can request a real Quick Tunnel or use a Cloudflare remote-managed tunnel token, connects to Cloudflare edge with `quic` or `http2`, and proxies traffic to the configured local origin.
 
 ## Status
 
@@ -13,6 +13,7 @@ The tunnel path is intentionally kept small for personal use: startup requests a
 - local origin target parsing
 - local reverse proxy for HTTP/HTTPS and WebSocket upgrade
 - full Quick Tunnel main path using `quic` or `http2`
+- remote-managed Cloudflare Tunnel token mode using local routing
 - VLESS over WebSocket origin compatibility through the WebSocket proxy path
 
 ### Verified Externally
@@ -26,7 +27,8 @@ The tunnel path is intentionally kept small for personal use: startup requests a
 
 - Quick Tunnel creation can be rate-limited by `api.trycloudflare.com`.
 - Newly-created `trycloudflare.com` hostnames can have a short DNS or edge convergence window; warm up with small requests before large transfers.
-- This project targets Quick Tunnel and does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
+- This project does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
+- Remote-managed token mode does not download Cloudflare remote ingress rules; local `Target` and `Routes` remain the source of truth.
 - Quick Tunnel currently runs with one HA connection in this implementation.
 
 ## Build
@@ -156,6 +158,54 @@ Notes:
 
 - `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply to the default `--cf-tunnel-target` only.
 - Each `--cf-route` target has independent TLS options: append `server_name=...` or `insecure_skip_verify=true` to that route when needed. Without route options, URL host is the TLS server name and certificate verification stays enabled.
+- `--cf-route` also supports `host=<public-hostname>` to match one Cloudflare Tunnel connector serving multiple public hostnames.
+
+## Formal Cloudflare Tunnel Token Mode
+
+Use a remote-managed Cloudflare Tunnel token when the tunnel is created in Cloudflare Zero Trust:
+
+```bash
+CF_TUNNEL_TOKEN='...' go run ./cmd/app \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=http://127.0.0.1:8080
+```
+
+Or pass the token explicitly:
+
+```bash
+go run ./cmd/app \
+  --cf-tunnel-token='...' \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=http://127.0.0.1:8080
+```
+
+Phase-one token mode does not import Cloudflare remote ingress management. Cloudflare public hostnames route traffic to this connector; local forwarding is still controlled by this project's `Target` and `Routes` configuration.
+
+Multiple public hostnames on one Cloudflare Tunnel should be represented as one tunnel token plus host-aware local routes:
+
+```json
+{
+  "cf_tunnel": {
+    "TunnelToken": "...",
+    "EdgeProtocol": "quic",
+    "Target": "http://127.0.0.1:8080",
+    "Routes": [
+      {
+        "Host": "api.example.com",
+        "Path": "/api/*",
+        "Target": "http://127.0.0.1:9001"
+      },
+      {
+        "Host": "ws.example.com",
+        "Path": "/ws/*",
+        "Target": "ws://127.0.0.1:10000"
+      }
+    ]
+  }
+}
+```
+
+If no `Host` is set on a route, it remains a path-only fallback for any hostname.
 
 ## Optional Config File (Multi-Tunnel)
 
@@ -212,14 +262,16 @@ Compatibility rules:
 ### Tunnel Controls
 
 - `--cf-edge-protocol=quic|http2`
+- `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
 - `--cf-tunnel-target=url`
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
-- `--cf-route=/path=url[,server_name=...][,insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
+- `--cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
 
 ## Current Runtime Behavior
 
-- Normal startup creates a real Quick Tunnel through `api.trycloudflare.com`.
+- Without a tunnel token, normal startup creates a real Quick Tunnel through `api.trycloudflare.com`.
+- With `--cf-tunnel-token` or `CF_TUNNEL_TOKEN`, startup skips the Quick Tunnel API and uses the remote-managed tunnel credentials from the token.
 - Runtime edge address discovery is internal and automatic.
 
 If `api.trycloudflare.com` returns Cloudflare rate limiting such as `429` / `1015`, retry later. That failure is at Quick Tunnel API creation time, not necessarily at the local origin proxy path.

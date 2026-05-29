@@ -931,7 +931,7 @@ git commit -m "feat: run remote managed tunnel from token"
 - Modify: `README.md`
 - Optionally modify: `RELEASE_NOTES.md`
 
-- [ ] **Step 1: Update README with token mode**
+- [x] **Step 1: Update README with token mode**
 
 Add a section after Quick Tunnel examples:
 
@@ -982,7 +982,7 @@ Multiple public hostnames on one Cloudflare Tunnel should be represented as one 
 ```
 ```
 
-- [ ] **Step 2: Update Important Flags**
+- [x] **Step 2: Update Important Flags**
 
 Add:
 
@@ -996,7 +996,7 @@ Add route note:
 - `--cf-route` supports `host=<public-hostname>` as an optional route option.
 ```
 
-- [ ] **Step 3: Run full tests**
+- [x] **Step 3: Run full tests**
 
 Run:
 
@@ -1006,7 +1006,7 @@ go test ./... -count=1
 
 Expected: PASS.
 
-- [ ] **Step 4: Build binary and inspect size**
+- [x] **Step 4: Build binary and inspect size**
 
 Run:
 
@@ -1019,6 +1019,8 @@ Expected: build succeeds. Size should not jump from importing `sing-cloudflared`
 
 - [ ] **Step 5: Optional real token smoke test**
 
+Not run in this pass because no real Cloudflare Tunnel token and configured public hostname were provided.
+
 Only run when a valid Cloudflare Tunnel token and configured public hostname are available:
 
 ```bash
@@ -1030,7 +1032,7 @@ CF_TUNNEL_TOKEN='...' go run ./cmd/app \
 
 Expected: logs show `formal cloudflare tunnel ready`, no Quick Tunnel API request, and requests to the configured public hostname reach the local origin.
 
-- [ ] **Step 6: Commit docs**
+- [x] **Step 6: Commit docs**
 
 ```bash
 git add README.md RELEASE_NOTES.md

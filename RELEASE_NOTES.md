@@ -8,7 +8,9 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 
 - single-binary CLI entrypoint
 - Quick Tunnel request client
+- remote-managed Cloudflare Tunnel token mode
 - local origin target parsing and reverse proxying
+- host-aware local route matching for multiple public hostnames on one connector
 - full Quick Tunnel main path using `quic` or `http2`
 - WebSocket origin proxying for WS-based protocols
 - compact release build using `CGO_ENABLED=0`, `-buildvcs=false`, `-trimpath`, and `-ldflags="-s -w"`
@@ -52,6 +54,7 @@ The main remaining protocol/runtime weight is concentrated in:
 - newly-created Quick Tunnel hostnames can have a short DNS or edge convergence window
 - named tunnels and account login flows are not implemented
 - this implementation currently supports one Quick Tunnel HA connection
+- token mode does not download or apply Cloudflare remote ingress rules; configure local `Target` and `Routes`
 
 ### Recommended Usage
 
@@ -59,6 +62,14 @@ Use normal Quick Tunnel startup directly:
 
 ```bash
 go run ./cmd/app \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=http://127.0.0.1:8080
+```
+
+Or use a remote-managed Cloudflare Tunnel token:
+
+```bash
+CF_TUNNEL_TOKEN='...' go run ./cmd/app \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080
 ```
