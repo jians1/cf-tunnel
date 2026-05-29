@@ -580,7 +580,7 @@ git commit -m "feat: decode remote managed tunnel token"
 - Modify: `internal/cftunnel/runtime/upstream_adapter.go`
 - Modify: `internal/cftunnel/runtime/upstream_adapter_test.go`
 
-- [ ] **Step 1: Write failing session test for token mode**
+- [x] **Step 1: Write failing session test for token mode**
 
 Add to `internal/cftunnel/runtime/session_test.go`:
 
@@ -618,7 +618,7 @@ func TestBuildTokenSession(t *testing.T) {
 
 Add imports for `github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/credentials` and `github.com/google/uuid` if missing.
 
-- [ ] **Step 2: Run session test to verify failure**
+- [x] **Step 2: Run session test to verify failure**
 
 Run:
 
@@ -628,7 +628,7 @@ go test ./internal/cftunnel/runtime -run TestBuildTokenSession -count=1
 
 Expected: FAIL because `BuildTokenSession` does not exist.
 
-- [ ] **Step 3: Implement token session builder and validation split**
+- [x] **Step 3: Implement token session builder and validation split**
 
 In `internal/cftunnel/runtime/session.go`, add:
 
@@ -692,7 +692,7 @@ func BuildTokenSession(cfg tunnelconfig.RuntimeConfig, creds credentials.Credent
 
 Add import for `internal/cftunnel/credentials`.
 
-- [ ] **Step 4: Write failing upstream adapter test for token mode**
+- [x] **Step 4: Write failing upstream adapter test for token mode**
 
 Add to `internal/cftunnel/runtime/upstream_adapter_test.go`:
 
@@ -715,7 +715,7 @@ func TestUpstreamAdapterBindsFormalTunnelWithoutHostname(t *testing.T) {
 }
 ```
 
-- [ ] **Step 5: Run upstream adapter test to verify failure**
+- [x] **Step 5: Run upstream adapter test to verify failure**
 
 Run:
 
@@ -725,7 +725,7 @@ go test ./internal/cftunnel/runtime -run TestUpstreamAdapterBindsFormalTunnelWit
 
 Expected: FAIL because `Bind` still requires Quick Tunnel hostname.
 
-- [ ] **Step 6: Relax upstream adapter validation for non-Quick Tunnel sessions**
+- [x] **Step 6: Relax upstream adapter validation for non-Quick Tunnel sessions**
 
 In `internal/cftunnel/runtime/upstream_adapter.go`, replace Quick Tunnel validation with generic credentials validation:
 
@@ -737,7 +737,7 @@ In `internal/cftunnel/runtime/upstream_adapter.go`, replace Quick Tunnel validat
 
 Keep `QuickTunnelURL: session.Hostname`; it will be empty in token mode.
 
-- [ ] **Step 7: Run runtime tests**
+- [x] **Step 7: Run runtime tests**
 
 Run:
 
@@ -747,7 +747,7 @@ go test ./internal/cftunnel/runtime -count=1
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/cftunnel/config/runtime.go internal/cftunnel/runtime/session.go internal/cftunnel/runtime/session_test.go internal/cftunnel/runtime/upstream_adapter.go internal/cftunnel/runtime/upstream_adapter_test.go

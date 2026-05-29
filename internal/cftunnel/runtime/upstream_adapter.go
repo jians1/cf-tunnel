@@ -22,7 +22,7 @@ func (a *UpstreamAdapter) Bind(session Session) (*UpstreamBinding, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse tunnel id: %w", err)
 	}
-	if err := session.ValidateRequiredQuickTunnelFields(); err != nil {
+	if err := session.ValidateRequiredCredentialFields(); err != nil {
 		return nil, err
 	}
 

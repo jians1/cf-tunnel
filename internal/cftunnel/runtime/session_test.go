@@ -57,6 +57,40 @@ func TestBuildSession(t *testing.T) {
 	}
 }
 
+func TestBuildTokenSession(t *testing.T) {
+	t.Parallel()
+
+	cfg := tunnelconfig.RuntimeConfig{
+		EdgeProtocol:       "quic",
+		HAConnections:      1,
+		QuickTunnelDefault: false,
+		Origin: origin.Target{
+			Raw:      "http://127.0.0.1:8080",
+			Protocol: origin.ProtocolHTTP,
+			URL:      mustURL(t, "http://127.0.0.1:8080"),
+		},
+	}
+	creds := credentials.Credentials{
+		TunnelID:     uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		AccountTag:   "account-tag",
+		TunnelSecret: []byte("secret-value"),
+	}
+
+	session, err := BuildTokenSession(cfg, creds)
+	if err != nil {
+		t.Fatalf("build token session: %v", err)
+	}
+	if session.QuickTunnel {
+		t.Fatal("expected formal tunnel session")
+	}
+	if session.Hostname != "" || session.PublicURL != "" {
+		t.Fatalf("formal token session should not fake public URL: hostname=%q url=%q", session.Hostname, session.PublicURL)
+	}
+	if session.TunnelID != creds.TunnelID.String() {
+		t.Fatalf("unexpected tunnel id %q", session.TunnelID)
+	}
+}
+
 func TestBuildSessionRejectsMissingRequiredFields(t *testing.T) {
 	t.Parallel()
 

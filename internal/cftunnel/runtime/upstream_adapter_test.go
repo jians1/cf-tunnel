@@ -37,6 +37,26 @@ func TestUpstreamAdapterBindHTTP2(t *testing.T) {
 	}
 }
 
+func TestUpstreamAdapterBindsFormalTunnelWithoutHostname(t *testing.T) {
+	t.Parallel()
+
+	session := Session{
+		TunnelID:   "11111111-1111-1111-1111-111111111111",
+		AccountTag: "account-tag",
+		Secret:     []byte("secret-value"),
+		Edge:       EdgeSettings{Protocol: "quic"},
+		Origin:     OriginSettings{RawTarget: "http://127.0.0.1:8080"},
+	}
+
+	binding, err := NewUpstreamAdapter().Bind(session)
+	if err != nil {
+		t.Fatalf("bind upstream: %v", err)
+	}
+	if binding.TunnelProperties.QuickTunnelURL != "" {
+		t.Fatalf("expected no quick tunnel url, got %q", binding.TunnelProperties.QuickTunnelURL)
+	}
+}
+
 func TestUpstreamAdapterRejectsInvalidTunnelID(t *testing.T) {
 	t.Parallel()
 
@@ -70,13 +90,6 @@ func TestUpstreamAdapterRejectsMissingRequiredSessionFields(t *testing.T) {
 				session.Secret = nil
 			},
 			wantErr: "missing tunnel secret",
-		},
-		{
-			name: "hostname",
-			mutate: func(session *Session) {
-				session.Hostname = ""
-			},
-			wantErr: "missing quick tunnel hostname",
 		},
 	}
 
