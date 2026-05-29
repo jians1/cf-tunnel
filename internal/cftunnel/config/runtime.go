@@ -27,7 +27,6 @@ type RuntimeConfig struct {
 func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 	target, err := origin.ParseTarget(
 		cfg.Target,
-		cfg.OriginProtocol,
 		cfg.OriginServerName,
 		cfg.InsecureSkipVerify,
 	)
@@ -35,16 +34,12 @@ func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 		return RuntimeConfig{}, fmt.Errorf("parse origin target: %w", err)
 	}
 
-	haConnections := cfg.HAConnections
-	if haConnections == 0 {
-		haConnections = 1
-	}
 	return RuntimeConfig{
 		EdgeProtocol:        cfg.EdgeProtocol,
 		QuickService:        cfg.QuickService,
 		QuickServiceTimeout: 15 * time.Second,
 		RetryBackoffs:       append([]time.Duration(nil), defaultQuickServiceRetryBackoffs...),
-		HAConnections:       haConnections,
+		HAConnections:       1,
 		Origin:              target,
 		Routes:              append([]appconfig.RouteRule(nil), cfg.Routes...),
 		QuickTunnelDefault:  true,

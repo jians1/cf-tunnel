@@ -9,8 +9,11 @@ import (
 )
 
 type Route struct {
-	Path   string
-	Target string
+	Path                  string
+	Target                string
+	OriginServerName      string
+	InsecureSkipVerify    bool
+	InsecureSkipVerifySet bool
 }
 
 type Router struct {
@@ -29,8 +32,11 @@ func NewRouter(rules []appconfig.RouteRule) (*Router, error) {
 			return nil, fmt.Errorf("build router: rule[%d] path %q: %w", i, rr.Path, err)
 		}
 		route := Route{
-			Path:   normalized,
-			Target: rr.Target,
+			Path:                  normalized,
+			Target:                rr.Target,
+			OriginServerName:      rr.OriginServerName,
+			InsecureSkipVerify:    rr.InsecureSkipVerify,
+			InsecureSkipVerifySet: rr.InsecureSkipVerifySet,
 		}
 		switch kind {
 		case "default":
@@ -106,4 +112,3 @@ func classifyAndNormalizeRulePath(path string) (kind string, normalized string, 
 	}
 	return "exact", path, nil
 }
-

@@ -1,15 +1,11 @@
 package origin
 
-import (
-	"testing"
+import "testing"
 
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
-)
-
-func TestParseTargetHostPortHTTP(t *testing.T) {
+func TestParseTargetHTTPURL(t *testing.T) {
 	t.Parallel()
 
-	target, err := ParseTarget("127.0.0.1:8080", appconfig.ProtocolHTTP, "", false)
+	target, err := ParseTarget("http://127.0.0.1:8080", "", false)
 	if err != nil {
 		t.Fatalf("parse target: %v", err)
 	}
@@ -24,7 +20,7 @@ func TestParseTargetHostPortHTTP(t *testing.T) {
 func TestParseTargetURLWithWSOverride(t *testing.T) {
 	t.Parallel()
 
-	target, err := ParseTarget("https://127.0.0.1:8443/ws", appconfig.ProtocolWSS, "example.com", true)
+	target, err := ParseTarget("wss://127.0.0.1:8443/ws", "example.com", true)
 	if err != nil {
 		t.Fatalf("parse target: %v", err)
 	}

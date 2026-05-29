@@ -29,19 +29,15 @@ func TestNewMultiRunnerBuildsNamedRunners(t *testing.T) {
 		{
 			Name: "alpha",
 			CFTunnel: config.CFTunnelConfig{
-				EdgeProtocol:   config.EdgeProtocolHTTP2,
-				HAConnections:  1,
-				Target:         "127.0.0.1:8081",
-				OriginProtocol: config.ProtocolHTTP,
+				EdgeProtocol: config.EdgeProtocolHTTP2,
+				Target:       "http://127.0.0.1:8081",
 			},
 		},
 		{
 			Name: "beta",
 			CFTunnel: config.CFTunnelConfig{
-				EdgeProtocol:   config.EdgeProtocolHTTP2,
-				HAConnections:  1,
-				Target:         "127.0.0.1:8082",
-				OriginProtocol: config.ProtocolHTTP,
+				EdgeProtocol: config.EdgeProtocolHTTP2,
+				Target:       "http://127.0.0.1:8082",
 			},
 		},
 	}, testLogger())

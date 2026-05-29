@@ -7,8 +7,6 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 ### Included
 
 - single-binary CLI entrypoint
-- IPv6 pool HTTP proxy
-- IPv6 pool SOCKS5 proxy
 - Quick Tunnel request client
 - local origin target parsing and reverse proxying
 - full Quick Tunnel main path using `quic` or `http2`
@@ -45,7 +43,6 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 
 The main remaining protocol/runtime weight is concentrated in:
 
-- `third_party/cloudflared/tunnelrpc/pogs`
 - `third_party/cloudflared/tunnelrpc/proto`
 - `zombiezen.com/go/capnproto2`
 
@@ -62,8 +59,6 @@ Use normal Quick Tunnel startup directly:
 
 ```bash
 go run ./cmd/app \
-  --enable-cf-tunnel \
-  --cf-edge-protocol=auto \
-  --cf-tunnel-target=127.0.0.1:8080 \
-  --cf-origin-protocol=http
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=http://127.0.0.1:8080
 ```

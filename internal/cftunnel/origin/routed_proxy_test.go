@@ -57,3 +57,65 @@ func TestRoutedProxyDispatchByPath(t *testing.T) {
 	}
 }
 
+func TestRoutedProxyRoutesDoNotInheritDefaultTargetTLSOptions(t *testing.T) {
+	t.Parallel()
+
+	defaultTarget := Target{
+		Raw:                "https://127.0.0.1:8443",
+		Protocol:           ProtocolHTTPS,
+		URL:                MustParseURL("https://127.0.0.1:8443"),
+		ServerName:         "default.internal",
+		InsecureSkipVerify: true,
+	}
+
+	p, err := NewRoutedProxy(defaultTarget, []appconfig.RouteRule{
+		{Path: "/api/*", Target: "https://api.internal:9443"},
+	})
+	if err != nil {
+		t.Fatalf("new routed proxy: %v", err)
+	}
+
+	proxy := p.proxyByTarget["/api=https://api.internal:9443,server_name=,insecure_skip_verify=false"]
+	if proxy == nil {
+		t.Fatal("expected route proxy")
+	}
+	if proxy.target.ServerName != "" {
+		t.Fatalf("route unexpectedly inherited server name: %s", proxy.target.ServerName)
+	}
+	if proxy.target.InsecureSkipVerify {
+		t.Fatal("route unexpectedly inherited insecure skip verify")
+	}
+}
+
+func TestRoutedProxyRoutesUseRouteTLSOptions(t *testing.T) {
+	t.Parallel()
+
+	defaultTarget := Target{
+		Raw:      "https://default.internal:8443",
+		Protocol: ProtocolHTTPS,
+		URL:      MustParseURL("https://default.internal:8443"),
+	}
+
+	p, err := NewRoutedProxy(defaultTarget, []appconfig.RouteRule{
+		{
+			Path:               "/api/*",
+			Target:             "https://127.0.0.1:9443",
+			OriginServerName:   "api.internal",
+			InsecureSkipVerify: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new routed proxy: %v", err)
+	}
+
+	proxy := p.proxyByTarget["/api=https://127.0.0.1:9443,server_name=api.internal,insecure_skip_verify=true"]
+	if proxy == nil {
+		t.Fatal("expected route proxy")
+	}
+	if proxy.target.ServerName != "api.internal" {
+		t.Fatalf("unexpected route server name: %s", proxy.target.ServerName)
+	}
+	if !proxy.target.InsecureSkipVerify {
+		t.Fatal("expected route insecure skip verify")
+	}
+}

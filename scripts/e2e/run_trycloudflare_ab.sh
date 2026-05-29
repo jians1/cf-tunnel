@@ -80,10 +80,9 @@ PIDS+=($!)
 
 "$CFQT_BIN" \
   --cf-edge-protocol="$PROTO" \
-  --cf-tunnel-target=127.0.0.1:${HTTP_PORT} \
-  --cf-origin-protocol=http \
+  --cf-tunnel-target=http://127.0.0.1:${HTTP_PORT} \
   --cf-route=/ws=ws://127.0.0.1:${WS_PORT} \
-  --cf-route=/api/*=127.0.0.1:${API_PORT} \
+  --cf-route=/api/*=http://127.0.0.1:${API_PORT} \
   --health-listen= \
   --log-level=info \
   >"$OUT/cfqt.log" 2>&1 &

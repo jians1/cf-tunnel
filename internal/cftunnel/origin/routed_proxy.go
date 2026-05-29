@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/protocol"
+	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
 
 type RoutedProxy struct {
@@ -28,11 +28,14 @@ func NewRoutedProxy(defaultTarget Target, routes []appconfig.RouteRule) (*Routed
 	proxyByTarget := make(map[string]*Proxy, len(routes)+1)
 	proxyByTarget[""] = defaultProxy
 	for i, rr := range routes {
-		target, err := ParseTarget(rr.Target, string(defaultTarget.Protocol), defaultTarget.ServerName, defaultTarget.InsecureSkipVerify)
+		target, err := ParseTarget(rr.Target, rr.OriginServerName, rr.InsecureSkipVerify)
 		if err != nil {
 			return nil, fmt.Errorf("parse route[%d] target: %w", i, err)
 		}
-		key := rr.Target
+		key, err := routeRuleProxyKey(rr)
+		if err != nil {
+			return nil, fmt.Errorf("build route[%d] proxy key: %w", i, err)
+		}
 		if _, ok := proxyByTarget[key]; !ok {
 			proxyByTarget[key] = NewProxy(target)
 		}
@@ -65,8 +68,30 @@ func (p *RoutedProxy) pickProxy(path string) *Proxy {
 	if !ok {
 		return p.defaultProxy
 	}
-	if proxy, ok := p.proxyByTarget[route.Target]; ok {
+	if proxy, ok := p.proxyByTarget[matchedRouteProxyKey(route)]; ok {
 		return proxy
 	}
 	return p.defaultProxy
+}
+
+func routeRuleProxyKey(route appconfig.RouteRule) (string, error) {
+	_, normalized, err := classifyAndNormalizeRulePath(route.Path)
+	if err != nil {
+		return "", err
+	}
+	return routeProxyKey(normalized, route.Target, route.OriginServerName, route.InsecureSkipVerify), nil
+}
+
+func matchedRouteProxyKey(route Route) string {
+	return routeProxyKey(route.Path, route.Target, route.OriginServerName, route.InsecureSkipVerify)
+}
+
+func routeProxyKey(path, target, serverName string, insecureSkipVerify bool) string {
+	return fmt.Sprintf(
+		"%s=%s,server_name=%s,insecure_skip_verify=%t",
+		path,
+		target,
+		serverName,
+		insecureSkipVerify,
+	)
 }

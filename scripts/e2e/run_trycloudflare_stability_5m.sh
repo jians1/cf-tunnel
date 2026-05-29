@@ -77,10 +77,8 @@ PIDS+=($!)
 PIDS+=($!)
 
 "$CFQT_BIN" \
-  --enable-cf-tunnel \
   --cf-edge-protocol="$PROTO" \
-  --cf-tunnel-target=127.0.0.1:${WS_PORT} \
-  --cf-origin-protocol=ws \
+  --cf-tunnel-target=ws://127.0.0.1:${WS_PORT} \
   --health-listen= \
   --log-level=info \
   >"$OUT/cfqt.log" 2>&1 &

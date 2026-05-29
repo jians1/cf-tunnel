@@ -40,46 +40,15 @@ When reporting, always include:
 - Real-link e2e path split validation integrated into benchmark script.
 - `http2/quic` 3-round serial verification with stable checksum and routing checks.
 
-## Next Phase Execution Checklist (Phase B: Multi-Tunnel)
+## Next Phase Execution Checklist (Phase B: Optional Config File)
 
-1. B1 Config Modeling
-- Define multi-tunnel config schema (name + per-tunnel cftunnel config).
-- Enforce unique tunnel name/identifier validation.
-- Keep single-tunnel CLI behavior backward compatible.
-- Status: done.
+1. Decide config-file scope
+- Keep CLI single-tunnel only.
+- Use config file only if multi-tunnel or larger route sets are needed.
 
-2. B2 Runtime Orchestration
-- Refactor single-tunnel runner into reusable per-instance startup unit.
-- Add multi-instance orchestrator to start all tunnels under one lifecycle.
-- Define explicit startup policy when one tunnel fails (fail-fast vs continue).
-- Status: done (policy = fail-fast).
-
-3. B3 Lifecycle and Shutdown
-- Add deterministic shutdown ordering for all tunnel instances.
-- Ensure shared shutdown timeout is enforced and test-covered.
-- Prevent partial-success silent states; surface explicit aggregated errors.
-- Status: partial.
-- Implemented: fail-fast cancellation, wait-for-all goroutines, aggregated error output.
-- Remaining: stronger deterministic shutdown ordering contract and dedicated lifecycle regression cases.
-
-4. B4 Observability
-- Add per-tunnel log fields (`tunnel_name`/`tunnel_id`).
-- Extend health/readiness to expose multi-instance status summary.
-- Status: partial.
-- Implemented: `tunnel_name` log field and `/ready` multi-tunnel summary provider.
-- Remaining: include stable tunnel identifier field and richer readiness dimensions.
-
-5. B5 Verification and Release Gate
-- Unit tests: config parsing/validation and orchestrator lifecycle semantics.
-- Integration smoke: at least 2 tunnels active simultaneously.
-- Real-link regression: single-tunnel mode must keep current throughput/RSS envelope.
-- Status: in progress.
-- Implemented: config + orchestrator unit tests and full `go test ./...` pass.
-- Remaining:
-  - add 2-tunnel simultaneous integration smoke
-  - run serial real-link regression:
-    - `bash scripts/e2e/run_trycloudflare_ab.sh http2 1`
-    - `bash scripts/e2e/run_trycloudflare_ab.sh quic 1`
+2. Preserve current runtime behavior
+- Do not reintroduce complex multi-tunnel CLI syntax.
+- Keep single-tunnel CLI backward compatible.
 
 ## Guardrails (Still Active)
 

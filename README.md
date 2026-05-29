@@ -73,8 +73,7 @@ Example run:
 docker run --rm \
   cf-quicktunnel-ipv6pool:0.1.0-prototype \
   --cf-edge-protocol=quic \
-  --cf-tunnel-target=127.0.0.1:8080 \
-  --cf-origin-protocol=http \
+  --cf-tunnel-target=http://127.0.0.1:8080 \
   --health-listen=
 ```
 
@@ -91,17 +90,6 @@ This currently performs:
 1. `go test ./...`
 2. compact release binary build into `dist/`
 3. Docker image build
-
-Optional multi-tunnel real-link regression (disabled by default):
-
-```bash
-CI_E2E_MULTI=1 ./scripts/ci.sh
-```
-
-When enabled, CI additionally runs:
-
-1. `scripts/e2e/run_trycloudflare_multi_tunnel_real.sh http2 1`
-2. `scripts/e2e/run_trycloudflare_multi_tunnel_real.sh quic 1`
 
 ## E2E A/B Test
 
@@ -134,8 +122,7 @@ Run a local HTTP origin through Quick Tunnel:
 ```bash
 go run ./cmd/app \
   --cf-edge-protocol=quic \
-  --cf-tunnel-target=127.0.0.1:8080 \
-  --cf-origin-protocol=http
+  --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
 Force a specific Cloudflare edge transport:
@@ -143,8 +130,7 @@ Force a specific Cloudflare edge transport:
 ```bash
 go run ./cmd/app \
   --cf-edge-protocol=quic \
-  --cf-tunnel-target=127.0.0.1:8080 \
-  --cf-origin-protocol=http
+  --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
 For a WebSocket origin such as VLESS over WS:
@@ -152,8 +138,7 @@ For a WebSocket origin such as VLESS over WS:
 ```bash
 go run ./cmd/app \
   --cf-edge-protocol=quic \
-  --cf-tunnel-target=127.0.0.1:10000 \
-  --cf-origin-protocol=ws
+  --cf-tunnel-target=ws://127.0.0.1:10000
 ```
 
 Path-based backend split (repeat `--cf-route`):
@@ -161,24 +146,16 @@ Path-based backend split (repeat `--cf-route`):
 ```bash
 go run ./cmd/app \
   --cf-edge-protocol=quic \
-  --cf-tunnel-target=127.0.0.1:8080 \
-  --cf-origin-protocol=http \
-  --cf-route=/api/*=127.0.0.1:9001 \
-  --cf-route=/ws/*=ws://127.0.0.1:10000
-```
-
-Multi-tunnel mode (repeat `--cf-tunnel`):
-
-```bash
-go run ./cmd/app \
-  --cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http,edge=http2 \
-  --cf-tunnel=name=t2,target=127.0.0.1:10000,origin=ws,edge=quic
+  --cf-tunnel-target=http://127.0.0.1:8080 \
+  --cf-route=/api/*=http://127.0.0.1:9001 \
+  --cf-route=/ws/*=ws://127.0.0.1:10000 \
+  --cf-route=/secure/*=https://127.0.0.1:9443,server_name=secure.internal
 ```
 
 Notes:
 
-- In multi-tunnel mode, do not mix single-tunnel flags such as `--cf-tunnel-target`, `--cf-origin-protocol`, `--cf-route`.
-- When `--health-listen` is enabled, `/ready` returns a multi-tunnel summary string in multi mode.
+- `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply to the default `--cf-tunnel-target` only.
+- Each `--cf-route` target has independent TLS options: append `server_name=...` or `insecure_skip_verify=true` to that route when needed. Without route options, URL host is the TLS server name and certificate verification stays enabled.
 
 ## Important Flags
 
@@ -191,21 +168,16 @@ Notes:
 
 ### Tunnel Controls
 
-- `--cf-quick-service=https://api.trycloudflare.com`
 - `--cf-edge-protocol=quic|http2`
-- `--cf-ha-connections=1`
-- `--cf-tunnel-target=host:port|url`
-- `--cf-origin-protocol=auto|http|https|ws|wss`
+- `--cf-tunnel-target=url`
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
-- `--cf-route=/path=host:port|url` (repeatable, supports exact `/health` and prefix `/api/*`)
-- `--cf-tunnel=name=<name>,target=<host:port|url>,origin=<auto|http|https|ws|wss>[,edge=<quic|http2>][,quick=<url>][,ha=1][,server_name=<name>][,insecure_skip_verify=true|false]` (repeatable)
+- `--cf-route=/path=url[,server_name=...][,insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
 
 ## Current Runtime Behavior
 
 - Normal startup creates a real Quick Tunnel through `api.trycloudflare.com`.
 - Runtime edge address discovery is internal and automatic.
-- Quick Tunnel currently supports `--cf-ha-connections=1` only; larger values are rejected.
 
 If `api.trycloudflare.com` returns Cloudflare rate limiting such as `429` / `1015`, retry later. That failure is at Quick Tunnel API creation time, not necessarily at the local origin proxy path.
 

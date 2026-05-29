@@ -16,10 +16,5 @@ echo "[2/3] Building release binary"
 echo "[3/3] Building Docker image ${IMAGE_TAG}"
 docker build -t "${IMAGE_TAG}" "${ROOT_DIR}"
 
-if [[ "${CI_E2E_MULTI:-0}" == "1" ]]; then
-  echo "[optional] Running multi-tunnel real-link e2e (http2/quic)"
-  "${ROOT_DIR}/scripts/e2e/run_trycloudflare_multi_tunnel_real.sh" http2 1
-  "${ROOT_DIR}/scripts/e2e/run_trycloudflare_multi_tunnel_real.sh" quic 1
-fi
 
 echo "CI pipeline completed"

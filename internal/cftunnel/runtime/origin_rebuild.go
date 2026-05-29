@@ -13,7 +13,6 @@ func (s Session) OriginTarget() (origin.Target, error) {
 
 	return origin.ParseTarget(
 		s.Origin.URL,
-		string(s.Origin.Protocol),
 		s.Origin.ServerName,
 		s.Origin.InsecureSkipVerify,
 	)

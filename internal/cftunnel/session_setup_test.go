@@ -17,9 +17,8 @@ func TestPrepareQuickTunnelSessionWithMockReservation(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	prepared, err := prepareQuickTunnelSessionWith(context.Background(), config.CFTunnelConfig{
-		EdgeProtocol:   config.EdgeProtocolHTTP2,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: config.ProtocolHTTP,
+		EdgeProtocol: config.EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	}, logger, mockQuickTunnelReservationFunc())
 	if err != nil {
 		t.Fatalf("prepare session: %v", err)
@@ -37,9 +36,8 @@ func TestPrepareQuickTunnelSessionWithCarriesQuickServiceOptions(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	_, err := prepareQuickTunnelSessionWith(context.Background(), config.CFTunnelConfig{
-		EdgeProtocol:   config.EdgeProtocolHTTP2,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: config.ProtocolHTTP,
+		EdgeProtocol: config.EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	}, logger, func(_ context.Context, runtimeConfig tunnelconfig.RuntimeConfig) (*api.QuickTunnelReservation, error) {
 		if runtimeConfig.QuickServiceTimeout != 15*time.Second {
 			t.Fatalf("unexpected quick service timeout: %s", runtimeConfig.QuickServiceTimeout)

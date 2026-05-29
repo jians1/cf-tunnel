@@ -15,8 +15,7 @@ func TestParseAcceptsShutdownTimeout(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := Parse([]string{
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--shutdown-timeout=750ms",
 		"--health-listen=",
 	})
@@ -32,8 +31,7 @@ func TestParseRejectsNonPositiveShutdownTimeout(t *testing.T) {
 	t.Parallel()
 
 	_, err := Parse([]string{
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--shutdown-timeout=0s",
 		"--health-listen=",
 	})
@@ -42,7 +40,7 @@ func TestParseRejectsNonPositiveShutdownTimeout(t *testing.T) {
 	}
 }
 
-func TestParseRequiresOriginProtocolForHostPortTarget(t *testing.T) {
+func TestParseRejectsHostPortTunnelTarget(t *testing.T) {
 	t.Parallel()
 
 	_, err := Parse([]string{
@@ -54,32 +52,16 @@ func TestParseRequiresOriginProtocolForHostPortTarget(t *testing.T) {
 	}
 }
 
-func TestParseAcceptsHostPortTargetWithExplicitOriginProtocol(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := Parse([]string{
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
-		"--health-listen=",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.CFTunnel.OriginProtocol != ProtocolHTTP {
-		t.Fatalf("unexpected origin protocol: %s", cfg.CFTunnel.OriginProtocol)
-	}
-}
-
-func TestParseRejectsIncompatibleOriginOverride(t *testing.T) {
+func TestParseRejectsRemovedOriginProtocolFlag(t *testing.T) {
 	t.Parallel()
 
 	_, err := Parse([]string{
-		"--cf-tunnel-target=https://127.0.0.1:8443",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--cf-origin-protocol=http",
 		"--health-listen=",
 	})
 	if err == nil {
-		t.Fatal("expected validation error")
+		t.Fatal("expected removed flag to be rejected")
 	}
 }
 
@@ -101,8 +83,10 @@ func TestParseRejectsRemovedCFTunnelDebugFlags(t *testing.T) {
 		"--cf-quic-edge-address=198.51.100.10:7844",
 		"--cf-quic-edge-discovery",
 		"--cf-quic-edge-ip-version=6",
+		"--cf-quick-service=https://example.com",
 		"--cf-quick-service-timeout=3s",
 		"--cf-quick-service-retry-backoff=10ms,20ms",
+		"--cf-tunnel=name=t1,target=http://127.0.0.1:8081",
 	}
 
 	for _, flag := range removed {
@@ -111,8 +95,7 @@ func TestParseRejectsRemovedCFTunnelDebugFlags(t *testing.T) {
 
 			_, err := Parse([]string{
 				"--cf-edge-protocol=http2",
-				"--cf-tunnel-target=127.0.0.1:8080",
-				"--cf-origin-protocol=http",
+				"--cf-tunnel-target=http://127.0.0.1:8080",
 				flag,
 				"--health-listen=",
 			})
@@ -127,36 +110,29 @@ func TestParseAcceptsCFTunnelRuntimeFlags(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := Parse([]string{
-		"--cf-quick-service=https://example.com",
 		"--cf-edge-protocol=http2",
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
-		"--cf-ha-connections=1",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--health-listen=",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.CFTunnel.QuickService != "https://example.com" {
+	if cfg.CFTunnel.QuickService != "https://api.trycloudflare.com" {
 		t.Fatalf("unexpected quick service: %s", cfg.CFTunnel.QuickService)
-	}
-	if cfg.CFTunnel.HAConnections != 1 {
-		t.Fatalf("unexpected ha connections: %d", cfg.CFTunnel.HAConnections)
 	}
 }
 
-func TestParseRejectsQuickTunnelHAConnectionsAboveOne(t *testing.T) {
+func TestParseRejectsRemovedHAConnectionsFlag(t *testing.T) {
 	t.Parallel()
 
 	_, err := Parse([]string{
 		"--cf-edge-protocol=http2",
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
-		"--cf-ha-connections=2",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-ha-connections=1",
 		"--health-listen=",
 	})
 	if err == nil {
-		t.Fatal("expected validation error")
+		t.Fatal("expected removed flag to be rejected")
 	}
 }
 
@@ -165,8 +141,7 @@ func TestParseRejectsAutoEdgeProtocol(t *testing.T) {
 
 	_, err := Parse([]string{
 		"--cf-edge-protocol=auto",
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--health-listen=",
 	})
 	if err == nil {
@@ -179,8 +154,7 @@ func TestParseDefaultRoutesIsEmpty(t *testing.T) {
 
 	cfg, err := Parse([]string{
 		"--cf-edge-protocol=http2",
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--health-listen=",
 	})
 	if err != nil {
@@ -195,10 +169,8 @@ func TestCFTunnelValidateRouteRequiresPathAndTarget(t *testing.T) {
 	t.Parallel()
 
 	base := CFTunnelConfig{
-		EdgeProtocol:   EdgeProtocolHTTP2,
-		HAConnections:  1,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: ProtocolHTTP,
+		EdgeProtocol: EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	}
 
 	tests := []struct {
@@ -235,10 +207,8 @@ func TestCFTunnelValidateRoutePathGrammar(t *testing.T) {
 	t.Parallel()
 
 	base := CFTunnelConfig{
-		EdgeProtocol:   EdgeProtocolHTTP2,
-		HAConnections:  1,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: ProtocolHTTP,
+		EdgeProtocol: EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	}
 
 	valid := []RouteRule{
@@ -277,10 +247,8 @@ func TestCFTunnelValidateRouteRejectsDuplicateRules(t *testing.T) {
 	t.Parallel()
 
 	base := CFTunnelConfig{
-		EdgeProtocol:   EdgeProtocolHTTP2,
-		HAConnections:  1,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: ProtocolHTTP,
+		EdgeProtocol: EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	}
 
 	tests := []struct {
@@ -320,9 +288,8 @@ func TestParseAcceptsRepeatedCFRouteFlags(t *testing.T) {
 
 	cfg, err := Parse([]string{
 		"--cf-edge-protocol=http2",
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
-		"--cf-route=/api/*=127.0.0.1:9001",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=http://127.0.0.1:9001",
 		"--cf-route=/ws/*=ws://127.0.0.1:10000",
 		"--health-listen=",
 	})
@@ -332,11 +299,40 @@ func TestParseAcceptsRepeatedCFRouteFlags(t *testing.T) {
 	if len(cfg.CFTunnel.Routes) != 2 {
 		t.Fatalf("unexpected routes len: %d", len(cfg.CFTunnel.Routes))
 	}
-	if cfg.CFTunnel.Routes[0].Path != "/api/*" || cfg.CFTunnel.Routes[0].Target != "127.0.0.1:9001" {
+	if cfg.CFTunnel.Routes[0].Path != "/api/*" || cfg.CFTunnel.Routes[0].Target != "http://127.0.0.1:9001" {
 		t.Fatalf("unexpected first route: %#v", cfg.CFTunnel.Routes[0])
 	}
 	if cfg.CFTunnel.Routes[1].Path != "/ws/*" || cfg.CFTunnel.Routes[1].Target != "ws://127.0.0.1:10000" {
 		t.Fatalf("unexpected second route: %#v", cfg.CFTunnel.Routes[1])
+	}
+}
+
+func TestParseAcceptsCFRouteTLSOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-edge-protocol=http2",
+		"--cf-tunnel-target=https://127.0.0.1:8080",
+		"--cf-origin-server-name=default.internal",
+		"--cf-origin-insecure-skip-verify",
+		"--cf-route=/api/*=https://127.0.0.1:9001,server_name=api.internal,insecure_skip_verify=true",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("unexpected routes len: %d", len(cfg.CFTunnel.Routes))
+	}
+	route := cfg.CFTunnel.Routes[0]
+	if route.Target != "https://127.0.0.1:9001" {
+		t.Fatalf("unexpected route target: %s", route.Target)
+	}
+	if route.OriginServerName != "api.internal" {
+		t.Fatalf("unexpected route server name: %s", route.OriginServerName)
+	}
+	if !route.InsecureSkipVerify {
+		t.Fatal("expected route insecure skip verify")
 	}
 }
 
@@ -355,8 +351,7 @@ func TestParseRejectsInvalidCFRouteFormat(t *testing.T) {
 			t.Parallel()
 			_, err := Parse([]string{
 				"--cf-edge-protocol=http2",
-				"--cf-tunnel-target=127.0.0.1:8080",
-				"--cf-origin-protocol=http",
+				"--cf-tunnel-target=http://127.0.0.1:8080",
 				flag,
 				"--health-listen=",
 			})
@@ -364,66 +359,5 @@ func TestParseRejectsInvalidCFRouteFormat(t *testing.T) {
 				t.Fatal("expected parse error")
 			}
 		})
-	}
-}
-
-func TestParseAcceptsMultiTunnelFlags(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := Parse([]string{
-		"--cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http,edge=http2",
-		"--cf-tunnel=name=t2,target=https://127.0.0.1:8443,origin=https,quick=https://example.com",
-		"--health-listen=",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(cfg.Tunnels) != 2 {
-		t.Fatalf("unexpected tunnel count: %d", len(cfg.Tunnels))
-	}
-	if cfg.Tunnels[0].Name != "t1" {
-		t.Fatalf("unexpected first tunnel name: %s", cfg.Tunnels[0].Name)
-	}
-	if cfg.Tunnels[1].CFTunnel.QuickService != "https://example.com" {
-		t.Fatalf("unexpected quick service: %s", cfg.Tunnels[1].CFTunnel.QuickService)
-	}
-}
-
-func TestParseRejectsMultiTunnelMissingRequiredFields(t *testing.T) {
-	t.Parallel()
-
-	_, err := Parse([]string{
-		"--cf-tunnel=name=t1,target=127.0.0.1:8081",
-		"--health-listen=",
-	})
-	if err == nil {
-		t.Fatal("expected parse error")
-	}
-}
-
-func TestParseRejectsDuplicateTunnelNames(t *testing.T) {
-	t.Parallel()
-
-	_, err := Parse([]string{
-		"--cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http",
-		"--cf-tunnel=name=T1,target=127.0.0.1:8082,origin=http",
-		"--health-listen=",
-	})
-	if err == nil {
-		t.Fatal("expected duplicate name validation error")
-	}
-}
-
-func TestParseRejectsMixedSingleAndMultiTunnelFlags(t *testing.T) {
-	t.Parallel()
-
-	_, err := Parse([]string{
-		"--cf-tunnel-target=127.0.0.1:8080",
-		"--cf-origin-protocol=http",
-		"--cf-tunnel=name=t1,target=127.0.0.1:8081,origin=http",
-		"--health-listen=",
-	})
-	if err == nil {
-		t.Fatal("expected mixed mode validation error")
 	}
 }

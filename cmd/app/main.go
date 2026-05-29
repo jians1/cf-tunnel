@@ -28,19 +28,7 @@ func main() {
 		healthRunner = health.NewRunner(cfg.HealthListen, logger)
 		runners = append(runners, healthRunner)
 	}
-	if len(cfg.Tunnels) > 0 {
-		multiRunner, err := cftunnel.NewMultiRunner(cfg.Tunnels, logger)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "config error: %v\n", err)
-			os.Exit(2)
-		}
-		if healthRunner != nil {
-			healthRunner.SetReadySummaryProvider(multiRunner.ReadinessSummary)
-		}
-		runners = append(runners, multiRunner)
-	} else {
-		runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
-	}
+	runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
 
 	if err := appRuntime.RunWithOptions(ctx, logger, appRuntime.Options{
 		ShutdownTimeout: cfg.ShutdownTimeout,
