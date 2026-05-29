@@ -123,6 +123,7 @@ The application forwards traffic from Cloudflare tunnel endpoints to configured 
 - Local and package-level tests pass with `go test ./...` in the last recorded verification cycle.
 - Real-link e2e validation has passed for both `http2` and `quic`.
 - Path-based routing checks have passed in e2e with `path_routing_check=pass`.
+- Formal tunnel token smoke validation has passed with a real Cloudflare Tunnel token and configured public hostname.
 - RSS stayed in the tens-of-MiB range in recorded serial rounds.
 
 ## Active Construction Plan

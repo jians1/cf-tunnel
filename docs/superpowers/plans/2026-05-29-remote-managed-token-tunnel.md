@@ -312,7 +312,7 @@ go test ./internal/config ./internal/cftunnel/origin -count=1
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/config/config.go internal/config/config_test.go internal/cftunnel/origin/router.go internal/cftunnel/origin/router_test.go internal/cftunnel/origin/routed_proxy.go
@@ -1017,11 +1017,11 @@ ls -lh /tmp/cf-quicktunnel-ipv6pool
 
 Expected: build succeeds. Size should not jump from importing `sing-cloudflared`; only standard library and already-used uuid are involved.
 
-- [ ] **Step 5: Optional real token smoke test**
+- [x] **Step 5: Optional real token smoke test**
 
-Not run in this pass because no real Cloudflare Tunnel token and configured public hostname were provided.
+Completed with a real Cloudflare Tunnel token and configured public hostname.
 
-Only run when a valid Cloudflare Tunnel token and configured public hostname are available:
+Reference command:
 
 ```bash
 CF_TUNNEL_TOKEN='...' go run ./cmd/app \
