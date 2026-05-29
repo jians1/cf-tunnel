@@ -172,6 +172,44 @@ func TestProxyPreservesWebsocketUpgradeHeaders(t *testing.T) {
 	}
 }
 
+func TestProxyWebsocketOriginErrorDoesNotExposeInternalError(t *testing.T) {
+	t.Parallel()
+
+	target := Target{
+		Raw:                  "ws://127.0.0.1:1",
+		Protocol:             ProtocolWS,
+		URL:                  MustParseURL("http://127.0.0.1:1"),
+		WebsocketUpgradeMode: true,
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/chat", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do websocket request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("unexpected status: %d body=%q", resp.StatusCode, string(body))
+	}
+	if strings.Contains(string(body), "127.0.0.1:1") || strings.Contains(strings.ToLower(string(body)), "connect") {
+		t.Fatalf("response exposed internal origin error: %q", string(body))
+	}
+}
+
 func TestNewTransportUsesConnectionPoolDefaults(t *testing.T) {
 	t.Parallel()
 

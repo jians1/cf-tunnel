@@ -28,45 +28,33 @@ PIDS+=($!)
 
 cfqt_build_binary "$ROOT_DIR" "$BIN"
 
-cat > "$OUT/single.json" <<'JSON'
-{
-  "log_format": "json",
-  "health_listen": "",
-  "cf_tunnel": {
-    "QuickService": "https://api.trycloudflare.com",
-    "EdgeProtocol": "quic",
-    "Target": "http://127.0.0.1:18081"
-  }
-}
-JSON
+cat > "$OUT/single.yaml" <<'YAML'
+log_format: json
+health_listen: ""
+cf_tunnel:
+  quick_service: https://api.trycloudflare.com
+  edge_protocol: quic
+  target: http://127.0.0.1:18081
+YAML
 
-cat > "$OUT/multi.json" <<'JSON'
-{
-  "log_format": "json",
-  "health_listen": "",
-  "tunnels": [
-    {
-      "name": "alpha",
-      "CFTunnel": {
-        "QuickService": "https://api.trycloudflare.com",
-        "EdgeProtocol": "quic",
-        "Target": "http://127.0.0.1:18081"
-      }
-    },
-    {
-      "name": "beta",
-      "CFTunnel": {
-        "QuickService": "https://api.trycloudflare.com",
-        "EdgeProtocol": "http2",
-        "Target": "http://127.0.0.1:18082"
-      }
-    }
-  ]
-}
-JSON
+cat > "$OUT/multi.yaml" <<'YAML'
+log_format: json
+health_listen: ""
+tunnels:
+  - name: alpha
+    cf_tunnel:
+      quick_service: https://api.trycloudflare.com
+      edge_protocol: quic
+      target: http://127.0.0.1:18081
+  - name: beta
+    cf_tunnel:
+      quick_service: https://api.trycloudflare.com
+      edge_protocol: http2
+      target: http://127.0.0.1:18082
+YAML
 
 # single
-"$BIN" --config="$OUT/single.json" >"$OUT/single-app.log" 2>&1 &
+"$BIN" --config="$OUT/single.yaml" >"$OUT/single-app.log" 2>&1 &
 APP1=$!
 PIDS+=($APP1)
 
@@ -86,7 +74,7 @@ kill "$APP1" 2>/dev/null || true
 wait "$APP1" 2>/dev/null || true
 
 # multi
-"$BIN" --config="$OUT/multi.json" >"$OUT/multi-app.log" 2>&1 &
+"$BIN" --config="$OUT/multi.yaml" >"$OUT/multi-app.log" 2>&1 &
 APP2=$!
 PIDS+=($APP2)
 

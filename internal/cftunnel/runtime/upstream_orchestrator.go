@@ -37,7 +37,7 @@ func NewUpstreamOrchestrator(originProxy OriginProxy, session Session) (*Upstrea
 	}
 
 	configJSON, err := json.Marshal(upstreamOrchestratorConfig{
-		QuickTunnel: true,
+		QuickTunnel: session.QuickTunnel,
 		Origin: upstreamOrchestratorOrigin{
 			URL:                  session.Origin.URL,
 			Protocol:             string(session.Origin.Protocol),

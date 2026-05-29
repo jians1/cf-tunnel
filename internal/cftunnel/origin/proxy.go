@@ -63,7 +63,7 @@ func (p *Proxy) proxyWebsocket(w http.ResponseWriter, req *http.Request) {
 
 	resp, err := p.transport.RoundTrip(outReq)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, "websocket origin unavailable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
