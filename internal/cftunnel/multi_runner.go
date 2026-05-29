@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
 )
 
 const multiTunnelStartInterval = 5 * time.Second
@@ -32,16 +33,20 @@ func NewMultiRunner(tunnels []config.NamedTunnelConfig, logger *slog.Logger) (*M
 		return nil, errors.New("no tunnel instances configured")
 	}
 
-	runners := make([]tunnelRunner, 0, len(tunnels))
-	for _, tunnel := range tunnels {
-		runners = append(runners, NewNamedRunner(tunnel.Name, tunnel.CFTunnel, logger))
-	}
-	return &MultiRunner{
-		runners:       runners,
+	multi := &MultiRunner{
 		logger:        logger.With("component", "cftunnel"),
 		startInterval: multiTunnelStartInterval,
-		state:         make(map[string]string, len(runners)),
-	}, nil
+		state:         make(map[string]string, len(tunnels)),
+	}
+	for _, tunnel := range tunnels {
+		name := tunnel.Name
+		if strings.TrimSpace(name) == "" {
+			name = "cftunnel"
+		}
+		readiness := newTunnelReadinessWithCallback(name, multi.setState)
+		multi.runners = append(multi.runners, newNamedRunnerWithReadiness(name, tunnel.CFTunnel, logger, readiness))
+	}
+	return multi, nil
 }
 
 func (r *MultiRunner) Name() string {
@@ -126,14 +131,18 @@ func (r *MultiRunner) setState(name, status string) {
 }
 
 func (r *MultiRunner) ReadinessSummary() string {
+	return r.ReadyStatus().Summary
+}
+
+func (r *MultiRunner) ReadyStatus() health.ReadyStatus {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if len(r.runners) == 0 {
-		return "mode=multi total=0 running=0 failed=0 details=[]"
+		return health.ReadyStatus{Ready: false, Summary: "mode=multi total=0 ready=0 failed=0 details=[]"}
 	}
 
 	total := len(r.runners)
-	running := 0
+	readyCount := 0
 	failed := 0
 	details := make([]string, 0, total)
 	for _, runner := range r.runners {
@@ -142,13 +151,22 @@ func (r *MultiRunner) ReadinessSummary() string {
 		if status == "" {
 			status = "pending"
 		}
-		if status == "starting" {
-			running++
+		if status == "ready" {
+			readyCount++
 		}
 		if status == "failed" {
 			failed++
 		}
 		details = append(details, fmt.Sprintf("%s:%s", name, status))
 	}
-	return fmt.Sprintf("mode=multi total=%d running=%d failed=%d details=[%s]", total, running, failed, strings.Join(details, ","))
+	return health.ReadyStatus{
+		Ready: readyCount == total,
+		Summary: fmt.Sprintf(
+			"mode=multi total=%d ready=%d failed=%d details=[%s]",
+			total,
+			readyCount,
+			failed,
+			strings.Join(details, ","),
+		),
+	}
 }

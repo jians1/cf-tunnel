@@ -50,14 +50,18 @@ func NewQUICRuntime(session Session, logger *slog.Logger) (*QUICRuntime, error) 
 
 func NewQUICRuntimeWithOptions(session Session, logger *slog.Logger, options QUICRuntimeOptions) (*QUICRuntime, error) {
 	if options.DialConfig != nil {
-		return newQUICRuntimeWithEdgeDialConfig(session, logger, options.DialConfig)
+		return newQUICRuntimeWithEdgeDialConfig(session, logger, options)
 	}
 	return nil, errMissingQUICDialConfig
 }
 
-func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dialConfig *QUICDialConfig) (*QUICRuntime, error) {
+func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, options QUICRuntimeOptions) (*QUICRuntime, error) {
+	dialConfig := options.DialConfig
 	if dialConfig == nil {
 		return nil, fmt.Errorf("nil quic dial config")
+	}
+	if options.ConnectedFuse == nil {
+		options.ConnectedFuse = noopConnectedFuse{}
 	}
 
 	log := newZeroLoggerFromSlog(logger)
@@ -113,7 +117,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, dial
 		return nil, err
 	}
 	controlStreamHandler := NewControlStream(runtimeControlStreamOptions{
-		ConnectedFuse:      noopConnectedFuse{},
+		ConnectedFuse:      options.ConnectedFuse,
 		TunnelProperties:   binding.TunnelProperties,
 		ConnIndex:          0,
 		EdgeAddress:        net.IP(edgeAddr.Addr().AsSlice()),

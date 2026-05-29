@@ -50,11 +50,15 @@ func buildRunners(cfg config.AppConfig, logger *slog.Logger) ([]appRuntime.Runne
 			return nil, err
 		}
 		if healthRunner != nil {
-			healthRunner.SetReadySummaryProvider(multi.ReadinessSummary)
+			healthRunner.SetReadyProvider(multi.ReadyStatus)
 		}
 		runners = append(runners, multi)
 		return runners, nil
 	}
-	runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
+	tunnelRunner := cftunnel.NewRunner(cfg.CFTunnel, logger)
+	if healthRunner != nil {
+		healthRunner.SetReadyProvider(tunnelRunner.ReadyStatus)
+	}
+	runners = append(runners, tunnelRunner)
 	return runners, nil
 }

@@ -10,8 +10,15 @@ import (
 type Runner struct {
 	listen string
 	logger *slog.Logger
-	ready  func() string
+	ready  ReadyProvider
 }
+
+type ReadyStatus struct {
+	Ready   bool
+	Summary string
+}
+
+type ReadyProvider func() ReadyStatus
 
 func NewRunner(listen string, logger *slog.Logger) *Runner {
 	return &Runner{
@@ -21,14 +28,28 @@ func NewRunner(listen string, logger *slog.Logger) *Runner {
 }
 
 func (r *Runner) SetReadySummaryProvider(fn func() string) {
+	r.ready = func() ReadyStatus {
+		return ReadyStatus{Ready: true, Summary: fn()}
+	}
+}
+
+func (r *Runner) SetReadyProvider(fn ReadyProvider) {
 	r.ready = fn
 }
 
 func (r *Runner) ReadySummary() string {
+	return r.ReadyStatus().Summary
+}
+
+func (r *Runner) ReadyStatus() ReadyStatus {
 	if r.ready != nil {
-		return r.ready()
+		status := r.ready()
+		if status.Summary == "" {
+			status.Summary = "not ready"
+		}
+		return status
 	}
-	return "ready"
+	return ReadyStatus{Ready: true, Summary: "ready"}
 }
 
 func (r *Runner) Name() string {
@@ -42,8 +63,13 @@ func (r *Runner) Run(ctx context.Context) error {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(r.ReadySummary()))
+		status := r.ReadyStatus()
+		if status.Ready {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		_, _ = w.Write([]byte(status.Summary))
 	})
 
 	server := &http.Server{

@@ -27,6 +27,7 @@ type QUICRuntimeOptions struct {
 	EdgeAddressProvider EdgeAddressProvider
 	DialTimeout         time.Duration
 	DialConfig          *QUICDialConfig
+	ConnectedFuse       ConnectedFuse
 }
 
 func NewInstance(session Session, logger *slog.Logger) (*Instance, error) {

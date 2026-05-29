@@ -103,11 +103,60 @@ func TestMultiRunnerReadinessSummary(t *testing.T) {
 	}
 
 	got := multi.ReadinessSummary()
-	if !strings.Contains(got, "mode=multi total=2 running=1 failed=1") {
+	if !strings.Contains(got, "mode=multi total=2 ready=0 failed=1") {
 		t.Fatalf("unexpected summary header: %s", got)
 	}
 	if !strings.Contains(got, "a:starting") || !strings.Contains(got, "b:failed") {
 		t.Fatalf("unexpected summary details: %s", got)
+	}
+}
+
+func TestMultiRunnerReadyStatusRequiresAllTunnelsReady(t *testing.T) {
+	t.Parallel()
+
+	multi := &MultiRunner{
+		runners: []tunnelRunner{
+			fakeTunnelRunner{name: "a", run: func(context.Context) error { return nil }},
+			fakeTunnelRunner{name: "b", run: func(context.Context) error { return nil }},
+		},
+		state: map[string]string{
+			"a": "ready",
+			"b": "starting",
+		},
+	}
+
+	status := multi.ReadyStatus()
+	if status.Ready {
+		t.Fatalf("expected multi runner not ready: %#v", status)
+	}
+	if !strings.Contains(status.Summary, "mode=multi total=2 ready=1 failed=0") {
+		t.Fatalf("unexpected summary header: %s", status.Summary)
+	}
+	if !strings.Contains(status.Summary, "a:ready") || !strings.Contains(status.Summary, "b:starting") {
+		t.Fatalf("unexpected summary details: %s", status.Summary)
+	}
+}
+
+func TestMultiRunnerReadyStatusAllReady(t *testing.T) {
+	t.Parallel()
+
+	multi := &MultiRunner{
+		runners: []tunnelRunner{
+			fakeTunnelRunner{name: "a", run: func(context.Context) error { return nil }},
+			fakeTunnelRunner{name: "b", run: func(context.Context) error { return nil }},
+		},
+		state: map[string]string{
+			"a": "ready",
+			"b": "ready",
+		},
+	}
+
+	status := multi.ReadyStatus()
+	if !status.Ready {
+		t.Fatalf("expected multi runner ready: %#v", status)
+	}
+	if !strings.Contains(status.Summary, "mode=multi total=2 ready=2 failed=0") {
+		t.Fatalf("unexpected summary header: %s", status.Summary)
 	}
 }
 

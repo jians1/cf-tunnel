@@ -44,7 +44,7 @@ func TestMainPathWithMockQuickTunnelReservation(t *testing.T) {
 func TestBuildHTTP2ServerOptionsDefaultsToEdgeDiscovery(t *testing.T) {
 	t.Parallel()
 
-	opts := buildHTTP2ServerOptions(tunnelRuntimeConfig(t), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	opts := buildHTTP2ServerOptions(tunnelRuntimeConfig(t), slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 
 	if opts.DialAddress != "" {
 		t.Fatalf("unexpected http2 dial address: %s", opts.DialAddress)
@@ -60,7 +60,7 @@ func TestBuildHTTP2ServerOptionsDefaultsToEdgeDiscovery(t *testing.T) {
 func TestBuildQUICRuntimeOptionsDefaultsToEdgeDiscovery(t *testing.T) {
 	t.Parallel()
 
-	opts := buildQUICRuntimeOptions(config.CFTunnelConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	opts := buildQUICRuntimeOptions(config.CFTunnelConfig{}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 
 	if opts.DialAddress != "" {
 		t.Fatalf("unexpected quic dial address: %s", opts.DialAddress)

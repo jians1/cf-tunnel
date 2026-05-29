@@ -4,7 +4,7 @@
 
 Build a single-binary Go application for lightweight Cloudflare tunnel forwarding.
 
-The application forwards traffic from Cloudflare tunnel endpoints to configured local origin targets. The current baseline supports Quick Tunnel, and the active construction plan adds first-stage formal Cloudflare Tunnel token mode while preserving the local routing layer.
+The application forwards traffic from Cloudflare tunnel endpoints to configured local origin targets. The current baseline supports Quick Tunnel and first-stage formal Cloudflare Tunnel token mode, and the active construction plan makes `/ready` reflect real Cloudflare edge registration readiness.
 
 ## Product Scope
 
@@ -22,6 +22,7 @@ The application forwards traffic from Cloudflare tunnel endpoints to configured 
 - Unified logging
 - Unified graceful shutdown
 - Optional health endpoint
+- Real tunnel readiness endpoint
 
 ### Out of Scope
 
@@ -46,6 +47,7 @@ The application forwards traffic from Cloudflare tunnel endpoints to configured 
 - One shared lifecycle manager
 - Single-tunnel runner with Quick Tunnel and token-mode session paths
 - Optional health runner
+- Shared readiness contract for single-tunnel and multi-tunnel modes
 
 ### Module Boundaries
 
@@ -75,6 +77,7 @@ The application forwards traffic from Cloudflare tunnel endpoints to configured 
   - HTTP/HTTPS/WS/WSS handling
 - `internal/health`
   - optional liveness/readiness endpoint
+  - `/ready` converts structured tunnel readiness into `200 OK` or `503 Service Unavailable`
 
 ## CLI Contract
 
@@ -106,6 +109,8 @@ The application forwards traffic from Cloudflare tunnel endpoints to configured 
 - `--cf-route` targets use independent TLS options: URL host is the default TLS server name and certificate verification defaults to enabled unless the route specifies otherwise.
 - Route precedence is deterministic: host-specific matches before path-only fallback, with exact > longest prefix > default inside each group.
 - Invalid or duplicate route rules fail fast at startup.
+- `/live` returns `200 OK` while the health server is alive.
+- `/ready` returns `200 OK` only when every configured tunnel has completed edge registration; pending, starting, failed, stopped, or exited tunnels return `503 Service Unavailable`.
 
 ## Execution Status (2026-05-29)
 
@@ -128,22 +133,21 @@ The application forwards traffic from Cloudflare tunnel endpoints to configured 
 
 ## Active Construction Plan
 
-The active plan is `docs/superpowers/plans/2026-05-29-remote-managed-token-tunnel.md`.
+The active plan is `docs/superpowers/plans/2026-05-29-readiness-contract.md`.
 
-### Remote Managed Token Tunnel
+### Readiness Contract
 
 #### Goal
 
-Add first-stage formal Cloudflare Tunnel support using a remote-managed tunnel token while keeping this project's local Host/Path routing layer and avoiding new heavy `cloudflared` or `sing-cloudflared` dependency chains.
+Make `/ready` report real tunnel readiness for single-tunnel and multi-tunnel modes instead of treating startup or a static summary string as ready.
 
 #### Remaining Scope
 
-- Add optional Host matching to local route rules.
-- Add token config entry through `--cf-tunnel-token` and `CF_TUNNEL_TOKEN`.
-- Decode remote-managed tunnel tokens into runtime credentials.
-- Build token-mode runtime sessions without requiring Quick Tunnel hostname/public URL.
-- Make runner startup skip Quick Tunnel reservation API when token mode is active.
-- Update README and release notes with token-mode limits.
+- Add a structured readiness provider in `internal/health`.
+- Track single tunnel lifecycle states and mark ready from runtime registration.
+- Aggregate multi-tunnel readiness with `ready` and `failed` counts.
+- Wire health readiness for single-tunnel and multi-tunnel startup paths.
+- Document `/live` versus `/ready` semantics.
 
 ## Risks and Controls
 

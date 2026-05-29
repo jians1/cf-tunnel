@@ -99,6 +99,91 @@ func TestRunnerReadyUsesSummaryProvider(t *testing.T) {
 	}
 }
 
+func TestRunnerReadyReturnsServiceUnavailableWhenProviderNotReady(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	listen := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	runner := NewRunner(listen, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	runner.SetReadyProvider(func() ReadyStatus {
+		return ReadyStatus{Ready: false, Summary: "mode=single total=1 ready=0 failed=0 details=[cftunnel:starting]"}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("runner run: %v", err)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("health runner did not stop")
+		}
+	}()
+
+	waitForHealthStatus(t, "http://"+listen+"/live", http.StatusOK)
+	resp, err := http.Get("http://" + listen + "/ready")
+	if err != nil {
+		t.Fatalf("get ready: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read ready body: %v", err)
+	}
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("unexpected ready status: %d body=%s", resp.StatusCode, string(body))
+	}
+	if !strings.Contains(string(body), "cftunnel:starting") {
+		t.Fatalf("unexpected ready body: %s", string(body))
+	}
+}
+
+func TestRunnerReadyReturnsOKWhenProviderReady(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	listen := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	runner := NewRunner(listen, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	runner.SetReadyProvider(func() ReadyStatus {
+		return ReadyStatus{Ready: true, Summary: "mode=single total=1 ready=1 failed=0 details=[cftunnel:ready]"}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("runner run: %v", err)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("health runner did not stop")
+		}
+	}()
+
+	waitForHealthStatus(t, "http://"+listen+"/ready", http.StatusOK)
+}
+
 func waitForHealth(t *testing.T, url string) {
 	t.Helper()
 
@@ -114,4 +199,21 @@ func waitForHealth(t *testing.T, url string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("health endpoint did not become ready: %s", url)
+}
+
+func waitForHealthStatus(t *testing.T, url string, status int) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(url)
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == status {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("health endpoint did not return %d: %s", status, url)
 }

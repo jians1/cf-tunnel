@@ -275,6 +275,20 @@ Compatibility rules:
 
 If `api.trycloudflare.com` returns Cloudflare rate limiting such as `429` / `1015`, retry later. That failure is at Quick Tunnel API creation time, not necessarily at the local origin proxy path.
 
+## Health Endpoints
+
+When `--health-listen` is non-empty, the app exposes:
+
+- `/live`: process liveness. Returns `200 OK` while the health server is running.
+- `/ready`: tunnel readiness. Returns `200 OK` only when every configured tunnel has completed edge registration. Returns `503 Service Unavailable` while tunnels are pending, starting, failed, stopped, or exited.
+
+Readiness response bodies are concise text summaries:
+
+```text
+mode=single total=1 ready=0 failed=0 details=[cftunnel:starting]
+mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
+```
+
 ## Release
 
 - Version file: [VERSION](/root/cf-quicktunnel-ipv6pool/VERSION)
