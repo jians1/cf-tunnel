@@ -303,4 +303,4 @@ Effect:
 ## Decision Record
 
 - Keep this document as architectural rationale for extraction boundaries.
-- Track current execution status in `NEXT_STEPS.md` instead of adding new action lists here.
+- Track current execution status in `docs/superpowers/plans/2026-05-29-remote-managed-token-tunnel-progress.csv` instead of adding new action lists here.

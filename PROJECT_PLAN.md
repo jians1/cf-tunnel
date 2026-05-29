@@ -2,9 +2,9 @@
 
 ## Goal
 
-Build a single-binary Go application focused on Cloudflare `TryCloudflare / Quick Tunnel`.
+Build a single-binary Go application for lightweight Cloudflare tunnel forwarding.
 
-The application forwards traffic from a real Quick Tunnel endpoint to configured local origin targets. It supports single-tunnel mode with optional path-based backend routing.
+The application forwards traffic from Cloudflare tunnel endpoints to configured local origin targets. The current baseline supports Quick Tunnel, and the active construction plan adds first-stage formal Cloudflare Tunnel token mode while preserving the local routing layer.
 
 ## Product Scope
 
@@ -13,10 +13,12 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
 - Single Go binary
 - CLI flag based startup model
 - Cloudflare Quick Tunnel support
+- First-stage formal Cloudflare Tunnel token support
 - Edge transport selection: `quic | http2`
 - Origin scheme selection through full target URLs: `http | https | ws | wss`
 - Local reverse proxy to configured targets
 - Path-based backend routing for single-tunnel mode
+- Host-aware backend routing for formal tunnel public hostname fan-out
 - Unified logging
 - Unified graceful shutdown
 - Optional health endpoint
@@ -24,12 +26,13 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
 ### Out of Scope
 
 - IPv6 pool outbound proxy
-- Named Tunnel management
 - Cloudflare account login flows
+- Tunnel creation, deletion, and account management
 - Access, DNS, metrics, updater, diagnostic subcommands from `cloudflared`
 - Embedded `sing-box`
 - Web UI
 - Dynamic route or tunnel hot reload
+- Cloudflare remote ingress download, parsing, or hot reload
 - Cross-tunnel load balancing
 
 ## Current Architecture
@@ -41,7 +44,7 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
 - One shared logger
 - One shared signal handler
 - One shared lifecycle manager
-- Single-tunnel runner
+- Single-tunnel runner with Quick Tunnel and token-mode session paths
 - Optional health runner
 
 ### Module Boundaries
@@ -60,7 +63,9 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
   - signal handling
   - shutdown orchestration
 - `internal/cftunnel`
-  - quick tunnel runner
+  - tunnel runner
+  - quick tunnel reservation path
+  - formal tunnel token session path
   - edge transport selection
   - origin connector
 - `internal/cftunnel/origin`
@@ -78,9 +83,11 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
 ```text
 --cf-edge-protocol=quic|http2
 --cf-tunnel-target=http://127.0.0.1:8080
+--cf-tunnel-token=
 --cf-origin-server-name=
 --cf-origin-insecure-skip-verify=false
 --cf-route=/api/*=http://127.0.0.1:9001
+--cf-route=/api/*=http://127.0.0.1:9001,host=api.example.com
 --cf-route=/secure/*=https://127.0.0.1:9443,server_name=secure.internal
 --health-listen=:9090
 --log-level=info
@@ -92,10 +99,12 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
 
 - `--cf-tunnel-target` is required in single-tunnel mode.
 - `--cf-tunnel-target` must be a full URL with scheme and host.
+- `--cf-tunnel-token` or `CF_TUNNEL_TOKEN` enables formal tunnel token mode.
 - `--cf-route` supports exact paths such as `/health`, prefix paths such as `/api/*`, and default `/`.
+- `--cf-route` may include `host=example.com`; host-specific routes take precedence over path-only fallback routes.
 - `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply only to the default `--cf-tunnel-target`.
 - `--cf-route` targets use independent TLS options: URL host is the default TLS server name and certificate verification defaults to enabled unless the route specifies otherwise.
-- Route precedence is deterministic: exact > longest prefix > default.
+- Route precedence is deterministic: host-specific matches before path-only fallback, with exact > longest prefix > default inside each group.
 - Invalid or duplicate route rules fail fast at startup.
 
 ## Execution Status (2026-05-29)
@@ -118,17 +127,22 @@ The application forwards traffic from a real Quick Tunnel endpoint to configured
 
 ## Active Construction Plan
 
-### Phase B: Configuration File Evaluation
+The active plan is `docs/superpowers/plans/2026-05-29-remote-managed-token-tunnel.md`.
+
+### Remote Managed Token Tunnel
 
 #### Goal
 
-Evaluate an optional configuration file for complex topologies without reintroducing complex multi-tunnel CLI syntax.
+Add first-stage formal Cloudflare Tunnel support using a remote-managed tunnel token while keeping this project's local Host/Path routing layer and avoiding new heavy `cloudflared` or `sing-cloudflared` dependency chains.
 
 #### Remaining Scope
 
-- Keep the CLI focused on single Quick Tunnel startup.
-- Decide whether a config file is needed for future multi-tunnel use.
-- If added, keep config-file semantics separate from the current CLI contract.
+- Add optional Host matching to local route rules.
+- Add token config entry through `--cf-tunnel-token` and `CF_TUNNEL_TOKEN`.
+- Decode remote-managed tunnel tokens into runtime credentials.
+- Build token-mode runtime sessions without requiring Quick Tunnel hostname/public URL.
+- Make runner startup skip Quick Tunnel reservation API when token mode is active.
+- Update README and release notes with token-mode limits.
 
 ## Risks and Controls
 
@@ -137,7 +151,7 @@ Evaluate an optional configuration file for complex topologies without reintrodu
 - Network benchmarks are noisy.
   - Control: use serial runs and report the fixed RSS/throughput fields from the e2e scripts.
 - Scope expansion risk.
-  - Control: keep Phase B hardening separate from optimization or feature work.
+  - Control: keep token-mode phase one separate from remote ingress management, dynamic reload, and optimization work.
 
 ## Testing Plan
 
@@ -154,9 +168,13 @@ Evaluate an optional configuration file for complex topologies without reintrodu
 - Quick Tunnel with local HTTP target
 - Quick Tunnel with local WS target
 - path-based split routing through a real link
+- host-aware local routing
+- token-mode session construction
 - protocol verification for `http2` and `quic`
 
 ### Manual Verification
 
 - run app with single Quick Tunnel mode
 - verify public `trycloudflare.com` URLs forward to their configured local targets
+- run app with a formal tunnel token
+- verify configured Cloudflare public hostnames fan out through local Host/Path routes
