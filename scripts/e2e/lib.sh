@@ -13,11 +13,19 @@ cfqt_build_binary() {
 cfqt_extract_url() {
   local log="$1"
   local selector="${2:-}"
+  local line=""
   if [[ -n "$selector" ]]; then
-    grep "$selector" "$log" | grep 'cftunnel startup summary' | tail -n1 | sed -n 's/.*"quick_tunnel_url":"\([^"]*\)".*/\1/p'
+    line="$(grep "$selector" "$log" | grep 'cftunnel startup summary' | tail -n1 || true)"
   else
-    grep 'cftunnel startup summary' "$log" | tail -n1 | sed -n 's/.*"quick_tunnel_url":"\([^"]*\)".*/\1/p'
+    line="$(grep 'cftunnel startup summary' "$log" | tail -n1 || true)"
   fi
+  if [[ -z "$line" ]]; then
+    return 0
+  fi
+  printf '%s\n' "$line" \
+    | sed -n -e 's/.*"quick_tunnel_url":"\([^"]*\)".*/\1/p' \
+             -e 's/.*quick_tunnel_url=\([^[:space:]]*\).*/\1/p' \
+    | head -n1
 }
 
 cfqt_detect_rate_limit() {
@@ -83,7 +91,26 @@ cfqt_curl_https_resolved() {
   local url="$1"
   local ip="$2"
   local host="${url#https://}"
+  host="${host%%/*}"
   curl -fsSL --max-time 10 --resolve "${host}:443:${ip}" "$url"
+}
+
+cfqt_curl_https_resolved_retry() {
+  local url="$1"
+  local ip="$2"
+  local attempts="${3:-30}"
+  local delay_seconds="${4:-2}"
+  local body=""
+
+  for _ in $(seq 1 "$attempts"); do
+    body="$(cfqt_curl_https_resolved "$url" "$ip" 2>/dev/null || true)"
+    if [[ -n "$body" ]]; then
+      echo "$body"
+      return 0
+    fi
+    sleep "$delay_seconds"
+  done
+  return 1
 }
 
 cfqt_check_http_body() {

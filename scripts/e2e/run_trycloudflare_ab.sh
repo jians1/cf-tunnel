@@ -167,11 +167,13 @@ if [[ "$WARMED" -ne 1 ]]; then
   exit 1
 fi
 
-if [[ "$(curl -fsS "${URL}/api/ping.txt")" != "api-ok" ]]; then
+API_BODY="$(cfqt_curl_https_resolved_retry "${URL}/api/ping.txt" "$EDGE_IP" 30 2 || true)"
+if [[ "$API_BODY" != "api-ok" ]]; then
   echo "path-routing check failed: /api/* did not hit api backend" >&2
   exit 1
 fi
-if [[ "$(curl -fsS "${URL}/default.txt")" != "default-ok" ]]; then
+DEFAULT_BODY="$(cfqt_curl_https_resolved_retry "${URL}/default.txt" "$EDGE_IP" 30 2 || true)"
+if [[ "$DEFAULT_BODY" != "default-ok" ]]; then
   echo "path-routing check failed: default route did not hit default backend" >&2
   exit 1
 fi

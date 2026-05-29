@@ -170,9 +170,13 @@ END_TS=$((START_TS + TEST_SECONDS))
 PROBE_TOTAL=0
 PROBE_SUCCESS=0
 PROBE_FAIL=0
+PROBE_FAIL_DNS=0
+PROBE_FAIL_HTTP=0
 DOWNLOAD_TOTAL=0
 DOWNLOAD_SUCCESS=0
 DOWNLOAD_FAIL=0
+DOWNLOAD_FAIL_DNS=0
+DOWNLOAD_FAIL_HTTP=0
 NEXT_DOWNLOAD_TS=$((START_TS + DOWNLOAD_EVERY_SECONDS))
 echo "soak" > "$PHASE_FILE"
 
@@ -183,6 +187,11 @@ while [[ "$(date +%s)" -lt "$END_TS" ]]; do
     PROBE_SUCCESS=$((PROBE_SUCCESS + 1))
   else
     PROBE_FAIL=$((PROBE_FAIL + 1))
+    if cfqt_wait_edge_ip "$HOST" 1 >/dev/null 2>&1; then
+      PROBE_FAIL_HTTP=$((PROBE_FAIL_HTTP + 1))
+    else
+      PROBE_FAIL_DNS=$((PROBE_FAIL_DNS + 1))
+    fi
   fi
 
   if [[ "$(date +%s)" -ge "$NEXT_DOWNLOAD_TS" ]]; then
@@ -192,6 +201,11 @@ while [[ "$(date +%s)" -lt "$END_TS" ]]; do
       DOWNLOAD_SUCCESS=$((DOWNLOAD_SUCCESS + 1))
     else
       DOWNLOAD_FAIL=$((DOWNLOAD_FAIL + 1))
+      if cfqt_wait_edge_ip "$HOST" 1 >/dev/null 2>&1; then
+        DOWNLOAD_FAIL_HTTP=$((DOWNLOAD_FAIL_HTTP + 1))
+      else
+        DOWNLOAD_FAIL_DNS=$((DOWNLOAD_FAIL_DNS + 1))
+      fi
     fi
     NEXT_DOWNLOAD_TS=$((NEXT_DOWNLOAD_TS + DOWNLOAD_EVERY_SECONDS))
   fi
@@ -206,6 +220,11 @@ if [[ "$DOWNLOAD_TOTAL" -lt 3 ]]; then
       DOWNLOAD_SUCCESS=$((DOWNLOAD_SUCCESS + 1))
     else
       DOWNLOAD_FAIL=$((DOWNLOAD_FAIL + 1))
+      if cfqt_wait_edge_ip "$HOST" 1 >/dev/null 2>&1; then
+        DOWNLOAD_FAIL_HTTP=$((DOWNLOAD_FAIL_HTTP + 1))
+      else
+        DOWNLOAD_FAIL_DNS=$((DOWNLOAD_FAIL_DNS + 1))
+      fi
     fi
   done
 fi
@@ -231,11 +250,15 @@ probe_interval_seconds=${PROBE_INTERVAL_SECONDS}
 probes_total=${PROBE_TOTAL}
 probes_success=${PROBE_SUCCESS}
 probes_fail=${PROBE_FAIL}
+probes_fail_dns=${PROBE_FAIL_DNS}
+probes_fail_http=${PROBE_FAIL_HTTP}
 probe_fail_rate_percent=${PROBE_FAIL_RATE}
 download_interval_seconds=${DOWNLOAD_EVERY_SECONDS}
 downloads_total=${DOWNLOAD_TOTAL}
 downloads_success=${DOWNLOAD_SUCCESS}
 downloads_fail=${DOWNLOAD_FAIL}
+downloads_fail_dns=${DOWNLOAD_FAIL_DNS}
+downloads_fail_http=${DOWNLOAD_FAIL_HTTP}
 rss_ready_kb=${RSS_READY_KB}
 rss_warm_kb=${RSS_WARM_KB}
 peak_rss_kb=${PEAK_RSS_KB}
