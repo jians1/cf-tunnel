@@ -8,16 +8,14 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	cfdtunnelrpc "github.com/cloudflare/cloudflared/tunnelrpc"
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type HTTP2Server struct {
-	connection *cfdconnection.HTTP2Connection
-	edgeConn   net.Conn
-	closeFn    func() error
+	connection interface {
+		Serve(context.Context) error
+	}
+	edgeConn net.Conn
+	closeFn  func() error
 }
 
 func NewHTTP2Server(prepared *PreparedRuntime, logger *slog.Logger) (*HTTP2Server, error) {
@@ -59,34 +57,30 @@ func NewHTTP2ServerWithHandler(prepared *PreparedRuntime, logger *slog.Logger, h
 		return nil, fmt.Errorf("build http2 connection options: %w", err)
 	}
 	zlog := newZeroLoggerFromSlog(logger)
-	observer := cfdconnection.NewObserver(&zlog, &zlog)
 	controlStreamHandler := options.ControlStreamHandler
 	if controlStreamHandler == nil {
 		if options.RegistrationClientFunc != nil && options.TunnelProperties != nil {
-			controlStreamHandler = cfdconnection.NewControlStream(
-				observer,
+			controlStreamHandler = NewControlStream(runtimeControlStreamOptions{
 				options.ConnectedFuse,
 				options.TunnelProperties,
 				options.ConnIndex,
 				options.EdgeAddress,
-				func(ctx context.Context, rw io.ReadWriteCloser, timeout time.Duration) cfdtunnelrpc.RegistrationClient {
+				func(ctx context.Context, rw io.ReadWriteCloser, timeout time.Duration) registrationClient {
 					return options.RegistrationClientFunc(ctx, rw, timeout)
 				},
 				options.RegisterTimeout,
 				options.GracefulShutdownC,
 				options.GracePeriod,
-				cfdconnection.HTTP2,
-			)
+			})
 		} else {
 			controlStreamHandler = fakeControlStreamHandler{}
 		}
 	}
 
-	http2Conn := cfdconnection.NewHTTP2Connection(
+	http2Conn := NewRuntimeHTTP2Connection(
 		cfdConn,
 		orchestrator,
 		connOptions,
-		observer,
 		options.ConnIndex,
 		controlStreamHandler,
 		&zlog,
@@ -115,7 +109,7 @@ func (s *HTTP2Server) EdgeConn() net.Conn {
 
 type fakeControlStreamHandler struct{}
 
-func (fakeControlStreamHandler) ServeControlStream(_ context.Context, _ io.ReadWriteCloser, _ *tunnelpogs.ConnectionOptions, _ cfdconnection.TunnelConfigJSONGetter) error {
+func (fakeControlStreamHandler) ServeControlStream(_ context.Context, _ io.ReadWriteCloser, _ *runtimeConnectionOptions, _ TunnelConfigJSONGetter) error {
 	return nil
 }
 

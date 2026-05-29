@@ -217,6 +217,71 @@ func TestCopyAndCloseCopiesWithBufferPool(t *testing.T) {
 	}
 }
 
+func TestCopyAndCloseUsesCloseWriteWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	dst := &recordingHalfWriteCloser{}
+	errC := make(chan error, 1)
+
+	copyAndClose(errC, dst, strings.NewReader("payload"))
+
+	if err := <-errC; err != nil {
+		t.Fatalf("copy and close: %v", err)
+	}
+	if got := dst.String(); got != "payload" {
+		t.Fatalf("unexpected copied payload: %q", got)
+	}
+	if !dst.closedWrite {
+		t.Fatal("expected destination write side to be closed")
+	}
+	if dst.closed {
+		t.Fatal("did not expect full close when close write is available")
+	}
+}
+
+func TestProxyWebsocketStreamsWaitsForBothDirections(t *testing.T) {
+	t.Parallel()
+
+	upstream := &recordingHalfDuplexConn{
+		readC: make(chan []byte, 1),
+		doneC: make(chan struct{}),
+	}
+	var downstream bytes.Buffer
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- proxyWebsocketStreams(&downstream, upstream, strings.NewReader("request"))
+	}()
+
+	select {
+	case err := <-errC:
+		t.Fatalf("proxy returned before upstream response finished: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	if got := upstream.String(); got != "request" {
+		t.Fatalf("unexpected upstream request payload: %q", got)
+	}
+	if !upstream.closedWrite {
+		t.Fatal("expected upstream write side to be closed")
+	}
+
+	upstream.readC <- []byte("response")
+	close(upstream.doneC)
+
+	select {
+	case err := <-errC:
+		if err != nil {
+			t.Fatalf("proxy websocket streams: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy did not return after both directions finished")
+	}
+	if got := downstream.String(); got != "response" {
+		t.Fatalf("unexpected downstream response payload: %q", got)
+	}
+}
+
 func TestCopyWithWebsocketBufferCopiesPayload(t *testing.T) {
 	t.Parallel()
 
@@ -290,5 +355,48 @@ type recordingWriteCloser struct {
 
 func (w *recordingWriteCloser) Close() error {
 	w.closed = true
+	return nil
+}
+
+type recordingHalfWriteCloser struct {
+	recordingWriteCloser
+	closedWrite bool
+}
+
+func (w *recordingHalfWriteCloser) CloseWrite() error {
+	w.closedWrite = true
+	return nil
+}
+
+type recordingHalfDuplexConn struct {
+	writeBuf    bytes.Buffer
+	closedWrite bool
+	readC       chan []byte
+	doneC       chan struct{}
+}
+
+func (c *recordingHalfDuplexConn) String() string {
+	return c.writeBuf.String()
+}
+
+func (c *recordingHalfDuplexConn) Write(p []byte) (int, error) {
+	return c.writeBuf.Write(p)
+}
+
+func (c *recordingHalfDuplexConn) Read(p []byte) (int, error) {
+	select {
+	case payload := <-c.readC:
+		return copy(p, payload), nil
+	case <-c.doneC:
+		return 0, io.EOF
+	}
+}
+
+func (c *recordingHalfDuplexConn) Close() error {
+	return nil
+}
+
+func (c *recordingHalfDuplexConn) CloseWrite() error {
+	c.closedWrite = true
 	return nil
 }

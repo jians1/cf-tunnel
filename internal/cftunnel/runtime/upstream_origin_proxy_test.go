@@ -7,12 +7,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"strings"
 	"testing"
 	"time"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	cfdtracing "github.com/cloudflare/cloudflared/tracing"
 )
 
 func TestUpstreamOriginProxyProxyHTTP(t *testing.T) {
@@ -28,8 +26,7 @@ func TestUpstreamOriginProxyProxyHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	logger := newTestZeroLogger()
-	tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+	tr := NewTracedRequest(req)
 
 	resp := newMockResponseWriter()
 	if err := proxy.ProxyHTTP(resp, tr, false); err != nil {
@@ -42,6 +39,34 @@ func TestUpstreamOriginProxyProxyHTTP(t *testing.T) {
 		t.Fatalf("unexpected header: %q", got)
 	}
 	if got := string(resp.body.String()); got != "proxied" {
+		t.Fatalf("unexpected body: %q", got)
+	}
+}
+
+func TestUpstreamOriginProxyWritesHeadersOnceForMultipleBodyWrites(t *testing.T) {
+	t.Parallel()
+
+	proxy := NewUpstreamOriginProxy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "6")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("abc"))
+		_, _ = w.Write([]byte("def"))
+	}))
+
+	req, err := http.NewRequest(http.MethodGet, "http://example.test/demo", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	tr := NewTracedRequest(req)
+
+	resp := newMockResponseWriter()
+	if err := proxy.ProxyHTTP(resp, tr, false); err != nil {
+		t.Fatalf("proxy http: %v", err)
+	}
+	if resp.headerWrites != 1 {
+		t.Fatalf("unexpected response header writes: %d", resp.headerWrites)
+	}
+	if got := string(resp.body.String()); got != "abcdef" {
 		t.Fatalf("unexpected body: %q", got)
 	}
 }
@@ -74,10 +99,9 @@ func TestUpstreamOriginProxyRestoresWebsocketUpgradeHeaders(t *testing.T) {
 				t.Fatalf("new request: %v", err)
 			}
 			if tc.internal {
-				req.Header.Set(cfdconnection.InternalUpgradeHeader, cfdconnection.WebsocketUpgrade)
+				req.Header.Set(InternalUpgradeHeader, WebsocketUpgrade)
 			}
-			logger := newTestZeroLogger()
-			tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+			tr := NewTracedRequest(req)
 
 			resp := newMockResponseWriter()
 			if err := proxy.ProxyHTTP(resp, tr, tc.websocket); err != nil {
@@ -105,8 +129,7 @@ func TestUpstreamOriginProxyWritesSwitchingProtocolsBeforeWebsocketHijack(t *tes
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	logger := newTestZeroLogger()
-	tr := cfdtracing.NewTracedHTTPRequest(req, 0, &logger)
+	tr := NewTracedRequest(req)
 
 	resp := newMockResponseWriter()
 	if err := proxy.ProxyHTTP(resp, tr, true); err != nil {
@@ -158,7 +181,7 @@ func TestUpstreamOriginProxyProxyTCPForwardsBytes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		proxyDone <- proxy.ProxyTCP(ctx, rwa, &cfdconnection.TCPRequest{Dest: listener.Addr().String()})
+		proxyDone <- proxy.ProxyTCP(ctx, rwa, &TCPRequest{Dest: listener.Addr().String()})
 	}()
 
 	select {
@@ -199,10 +222,93 @@ func TestUpstreamOriginProxyProxyTCPForwardsBytes(t *testing.T) {
 	}
 }
 
+func TestUpstreamOriginProxyProxyTCPReturnsAfterOriginSideClosesWrite(t *testing.T) {
+	t.Parallel()
+
+	proxy := NewUpstreamOriginProxy(http.NotFoundHandler())
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	originDone := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			originDone <- err
+			return
+		}
+		defer conn.Close()
+
+		tcpConn, ok := conn.(*net.TCPConn)
+		if !ok {
+			originDone <- errors.New("accepted non-tcp connection")
+			return
+		}
+		if err := tcpConn.CloseWrite(); err != nil {
+			originDone <- err
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+		originDone <- nil
+	}()
+
+	blockedReader := &blockingReader{}
+	rwa := &observedReadWriteAcker{
+		reader: blockedReader,
+		writer: io.Discard,
+		ackC:   make(chan struct{}),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	proxyDone := make(chan error, 1)
+	go func() {
+		proxyDone <- proxy.ProxyTCP(ctx, rwa, &TCPRequest{Dest: listener.Addr().String()})
+	}()
+
+	select {
+	case <-rwa.ackC:
+	case err := <-proxyDone:
+		t.Fatalf("proxy tcp returned before acknowledging connection: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy tcp did not acknowledge connection")
+	}
+
+	select {
+	case err := <-proxyDone:
+		if err != nil {
+			t.Fatalf("proxy tcp: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("proxy tcp did not return after origin closed write side")
+	}
+
+	if reads := rwa.readCalls.Load(); reads == 0 {
+		t.Fatal("expected blocked reader to be used")
+	}
+	if closed := blockedReader.closed.Load(); closed == 0 {
+		t.Fatal("expected blocked reader to be closed to release background copy")
+	}
+
+	select {
+	case err := <-originDone:
+		if err != nil {
+			t.Fatalf("origin: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("origin did not finish")
+	}
+}
+
 type mockResponseWriter struct {
-	header http.Header
-	status int
-	body   strings.Builder
+	header       http.Header
+	status       int
+	body         strings.Builder
+	headerWrites int
 }
 
 func newMockResponseWriter() *mockResponseWriter {
@@ -222,6 +328,7 @@ func (m *mockResponseWriter) WriteHeader(statusCode int) {
 }
 
 func (m *mockResponseWriter) WriteRespHeaders(status int, header http.Header) error {
+	m.headerWrites++
 	m.status = status
 	m.header = cloneHeader(header)
 	return nil
@@ -252,5 +359,55 @@ func newMockReadWriteAcker(conn net.Conn) *mockReadWriteAcker {
 
 func (m *mockReadWriteAcker) AckConnection(_ string) error {
 	close(m.ackC)
+	return nil
+}
+
+type observedReadWriteAcker struct {
+	reader io.ReadCloser
+	writer io.Writer
+	ackC   chan struct{}
+
+	readCalls atomic.Int32
+}
+
+func (o *observedReadWriteAcker) Read(p []byte) (int, error) {
+	o.readCalls.Add(1)
+	return o.reader.Read(p)
+}
+
+func (o *observedReadWriteAcker) Write(p []byte) (int, error) {
+	return o.writer.Write(p)
+}
+
+func (o *observedReadWriteAcker) AckConnection(_ string) error {
+	close(o.ackC)
+	return nil
+}
+
+func (o *observedReadWriteAcker) CloseRead() error {
+	return o.reader.Close()
+}
+
+type blockingReader struct {
+	wait   chan struct{}
+	closed atomic.Int32
+}
+
+func (r *blockingReader) Read([]byte) (int, error) {
+	if r.wait == nil {
+		r.wait = make(chan struct{})
+	}
+	<-r.wait
+	return 0, io.EOF
+}
+
+func (r *blockingReader) Close() error {
+	if r.closed.Add(1) != 1 {
+		return nil
+	}
+	if r.wait == nil {
+		r.wait = make(chan struct{})
+	}
+	close(r.wait)
 	return nil
 }

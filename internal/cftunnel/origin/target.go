@@ -2,11 +2,7 @@ package origin
 
 import (
 	"fmt"
-	"net"
 	"net/url"
-	"strings"
-
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
 
 type Protocol string
@@ -27,76 +23,45 @@ type Target struct {
 	WebsocketUpgradeMode bool
 }
 
-func ParseTarget(rawTarget, originProtocol, serverName string, insecureSkipVerify bool) (Target, error) {
+func ParseTarget(rawTarget, serverName string, insecureSkipVerify bool) (Target, error) {
 	if rawTarget == "" {
 		return Target{}, fmt.Errorf("empty target")
 	}
 
-	if strings.Contains(rawTarget, "://") {
-		u, err := url.Parse(rawTarget)
-		if err != nil {
-			return Target{}, fmt.Errorf("parse target url: %w", err)
-		}
-		if u.Host == "" {
-			return Target{}, fmt.Errorf("target url must include host")
-		}
-
-		proto, err := resolveURLProtocol(u.Scheme, originProtocol)
-		if err != nil {
-			return Target{}, err
-		}
-		return Target{
-			Raw:                  rawTarget,
-			Protocol:             proto,
-			URL:                  normalizeURL(u, proto),
-			ServerName:           serverName,
-			InsecureSkipVerify:   insecureSkipVerify,
-			WebsocketUpgradeMode: proto == ProtocolWS || proto == ProtocolWSS,
-		}, nil
+	u, err := url.Parse(rawTarget)
+	if err != nil {
+		return Target{}, fmt.Errorf("parse target url: %w", err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return Target{}, fmt.Errorf("target must be a full URL with scheme and host")
 	}
 
-	host, port, err := net.SplitHostPort(rawTarget)
-	if err != nil || host == "" || port == "" {
-		return Target{}, fmt.Errorf("target must be a full URL or host:port")
-	}
-
-	proto, err := resolveProtocol(originProtocol)
+	proto, err := resolveProtocol(u.Scheme)
 	if err != nil {
 		return Target{}, err
-	}
-	u := &url.URL{
-		Scheme: schemeForProtocol(proto),
-		Host:   net.JoinHostPort(host, port),
 	}
 	return Target{
 		Raw:                  rawTarget,
 		Protocol:             proto,
-		URL:                  u,
+		URL:                  normalizeURL(u, proto),
 		ServerName:           serverName,
 		InsecureSkipVerify:   insecureSkipVerify,
 		WebsocketUpgradeMode: proto == ProtocolWS || proto == ProtocolWSS,
 	}, nil
 }
 
-func resolveURLProtocol(targetScheme, originProtocol string) (Protocol, error) {
-	if originProtocol != "" && originProtocol != appconfig.ProtocolAuto {
-		return resolveProtocol(originProtocol)
-	}
-	return resolveProtocol(targetScheme)
-}
-
 func resolveProtocol(v string) (Protocol, error) {
 	switch v {
-	case appconfig.ProtocolHTTP:
+	case "http":
 		return ProtocolHTTP, nil
-	case appconfig.ProtocolHTTPS:
+	case "https":
 		return ProtocolHTTPS, nil
-	case appconfig.ProtocolWS:
+	case "ws":
 		return ProtocolWS, nil
-	case appconfig.ProtocolWSS:
+	case "wss":
 		return ProtocolWSS, nil
 	default:
-		return "", fmt.Errorf("unsupported origin protocol: %s", v)
+		return "", fmt.Errorf("unsupported target scheme: %s", v)
 	}
 }
 

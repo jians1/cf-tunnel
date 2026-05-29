@@ -14,6 +14,10 @@ type BridgeRunner struct {
 }
 
 func NewBridgeRunner(session Session, logger *slog.Logger) *BridgeRunner {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &BridgeRunner{
 		session: session,
 		logger:  logger.With("component", "cftunnel-runtime"),

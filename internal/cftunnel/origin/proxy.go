@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
+	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/protocol"
 )
 
 const websocketCopyBufferSize = 32 * 1024
@@ -87,13 +87,10 @@ func (p *Proxy) proxyWebsocket(w http.ResponseWriter, req *http.Request) {
 	}
 	defer clientConn.Close()
 
-	errC := make(chan error, 2)
-	go copyAndClose(errC, backConn, clientConn)
-	go copyAndClose(errC, clientConn, backConn)
-	<-errC
+	_ = proxyWebsocketStreams(clientConn, backConn, clientConn)
 }
 
-func (p *Proxy) ProxyWebsocket(w cfdconnection.ResponseWriter, req *http.Request) error {
+func (p *Proxy) ProxyWebsocket(w protocol.ResponseWriter, req *http.Request) error {
 	outReq := req.Clone(req.Context())
 	outReq.Body = nil
 	outReq.ContentLength = 0
@@ -119,13 +116,7 @@ func (p *Proxy) ProxyWebsocket(w cfdconnection.ResponseWriter, req *http.Request
 		return fmt.Errorf("websocket origin response body is not writable")
 	}
 
-	errC := make(chan error, 2)
-	go copyAndClose(errC, backConn, req.Body)
-	go func() {
-		_, err := copyWithWebsocketBuffer(w, backConn)
-		errC <- err
-	}()
-	return <-errC
+	return proxyWebsocketStreams(w, backConn, req.Body)
 }
 
 func rewriteRequest(req *http.Request, target Target) {
@@ -163,8 +154,36 @@ func cloneHeader(src http.Header) http.Header {
 
 func copyAndClose(errC chan<- error, dst io.WriteCloser, src io.Reader) {
 	_, err := copyWithWebsocketBuffer(dst, src)
-	_ = dst.Close()
+	_ = closeWriteOrClose(dst)
 	errC <- err
+}
+
+func proxyWebsocketStreams(downstream io.Writer, upstream io.ReadWriteCloser, requestBody io.Reader) error {
+	errC := make(chan error, 2)
+	go copyAndClose(errC, upstream, requestBody)
+	go func() {
+		_, err := copyWithWebsocketBuffer(downstream, upstream)
+		errC <- err
+	}()
+
+	var firstErr error
+	for i := 0; i < 2; i++ {
+		if err := <-errC; err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+type closeWriter interface {
+	CloseWrite() error
+}
+
+func closeWriteOrClose(dst io.WriteCloser) error {
+	if cw, ok := dst.(closeWriter); ok {
+		return cw.CloseWrite()
+	}
+	return dst.Close()
 }
 
 func copyWithWebsocketBuffer(dst io.Writer, src io.Reader) (int64, error) {

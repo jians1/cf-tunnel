@@ -18,10 +18,8 @@ func TestMainPathWithMockQuickTunnelReservation(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.CFTunnelConfig{
-		Enabled:        true,
-		EdgeProtocol:   config.EdgeProtocolHTTP2,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: config.ProtocolHTTP,
+		EdgeProtocol: config.EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	}
 
 	prepared, err := prepareQuickTunnelSessionWith(context.Background(), cfg, logger, mockQuickTunnelReservationFunc())
@@ -78,10 +76,8 @@ func TestBuildQUICRuntimeOptionsDefaultsToEdgeDiscovery(t *testing.T) {
 func tunnelRuntimeConfig(t *testing.T) tunnelconfig.RuntimeConfig {
 	t.Helper()
 	cfg, err := tunnelconfig.Normalize(config.CFTunnelConfig{
-		Enabled:        true,
-		EdgeProtocol:   config.EdgeProtocolHTTP2,
-		Target:         "127.0.0.1:8080",
-		OriginProtocol: config.ProtocolHTTP,
+		EdgeProtocol: config.EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:8080",
 	})
 	if err != nil {
 		t.Fatalf("normalize: %v", err)

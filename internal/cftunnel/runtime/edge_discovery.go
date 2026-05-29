@@ -1,14 +1,37 @@
 package runtime
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
 	"strconv"
+	"time"
+)
 
-	cfdedgediscovery "github.com/cloudflare/cloudflared/edgediscovery"
-	"github.com/cloudflare/cloudflared/edgediscovery/allregions"
-	"github.com/rs/zerolog"
+const (
+	edgeSRVProto          = "tcp"
+	edgeSRVName           = "argotunnel.com"
+	edgeSRVService        = "v2-origintunneld"
+	edgeDOTServerName     = "cloudflare-dns.com"
+	edgeDOTServerAddr     = "1.1.1.1:853"
+	edgeDOTTimeout        = 15 * time.Second
+	edgeResolveMinRegions = 2
+)
+
+var (
+	netLookupSRV      = net.LookupSRV
+	netLookupIP       = net.LookupIP
+	fallbackLookupSRV = lookupSRVWithDOT
+)
+
+type EdgeIPVersion int8
+
+const (
+	EdgeIPAuto     EdgeIPVersion = 2
+	EdgeIPv4Only   EdgeIPVersion = 4
+	EdgeIPv6Only   EdgeIPVersion = 6
 )
 
 type EdgeAddressProvider interface {
@@ -40,16 +63,15 @@ func (p StaticEdgeAddressProvider) ResolveQUICAddress() (string, error) {
 
 type CloudflareEdgeAddressProvider struct {
 	Region    string
-	IPVersion allregions.ConfigIPVersion
-	logger    *zerolog.Logger
+	IPVersion EdgeIPVersion
+	logger    *slog.Logger
 }
 
-func NewCloudflareEdgeAddressProvider(region string, ipVersion allregions.ConfigIPVersion, logger *slog.Logger) *CloudflareEdgeAddressProvider {
-	zlog := newZeroLoggerFromSlog(logger)
+func NewCloudflareEdgeAddressProvider(region string, ipVersion EdgeIPVersion, logger *slog.Logger) *CloudflareEdgeAddressProvider {
 	return &CloudflareEdgeAddressProvider{
 		Region:    region,
 		IPVersion: ipVersion,
-		logger:    &zlog,
+		logger:    logger,
 	}
 }
 
@@ -58,7 +80,7 @@ func (p *CloudflareEdgeAddressProvider) ResolveHTTP2Address() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return net.JoinHostPort(addr.TCP.IP.String(), strconv.Itoa(addr.TCP.Port)), nil
+	return net.JoinHostPort(addr.IP.String(), strconv.Itoa(addr.Port)), nil
 }
 
 func (p *CloudflareEdgeAddressProvider) ResolveQUICAddress() (string, error) {
@@ -66,26 +88,87 @@ func (p *CloudflareEdgeAddressProvider) ResolveQUICAddress() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if addr.UDP == nil {
-		return "", fmt.Errorf("edge discovery returned empty udp address")
-	}
-	return net.JoinHostPort(addr.UDP.IP.String(), strconv.Itoa(addr.UDP.Port)), nil
+	return net.JoinHostPort(addr.IP.String(), strconv.Itoa(addr.Port)), nil
 }
 
-func (p *CloudflareEdgeAddressProvider) resolveEdgeAddr() (*allregions.EdgeAddr, error) {
+func (p *CloudflareEdgeAddressProvider) resolveEdgeAddr() (*net.TCPAddr, error) {
 	if p == nil {
 		return nil, fmt.Errorf("nil cloudflare edge address provider")
 	}
-	edge, err := cfdedgediscovery.ResolveEdge(p.logger, p.Region, p.IPVersion)
+
+	service := edgeRegionalServiceName(p.Region)
+	_, records, err := netLookupSRV(service, edgeSRVProto, edgeSRVName)
 	if err != nil {
-		return nil, err
+		_, records, err = fallbackLookupSRV(service, edgeSRVProto, edgeSRVName)
+		if err != nil {
+			return nil, fmt.Errorf("lookup edge srv records: %w", err)
+		}
 	}
-	addr, err := edge.GetAddrForRPC()
+	if len(records) < edgeResolveMinRegions {
+		return nil, fmt.Errorf("expected at least %d edge regions, got %d", edgeResolveMinRegions, len(records))
+	}
+
+	for _, record := range records {
+		addr, err := p.resolveRecord(record)
+		if err != nil {
+			return nil, err
+		}
+		if addr != nil {
+			return addr, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no usable edge address for ip version %d", p.IPVersion)
+}
+
+func (p *CloudflareEdgeAddressProvider) resolveRecord(record *net.SRV) (*net.TCPAddr, error) {
+	ips, err := netLookupIP(record.Target)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolve edge ip for %s: %w", record.Target, err)
 	}
-	if addr == nil {
-		return nil, fmt.Errorf("edge discovery returned empty address")
+	for _, ip := range ips {
+		if edgeIPMatchesVersion(ip, p.IPVersion) {
+			return &net.TCPAddr{IP: ip, Port: int(record.Port)}, nil
+		}
 	}
-	return addr, nil
+	return nil, nil
+}
+
+func edgeRegionalServiceName(region string) string {
+	if region == "" {
+		return edgeSRVService
+	}
+	return region + "-" + edgeSRVService
+}
+
+func edgeIPMatchesVersion(ip net.IP, version EdgeIPVersion) bool {
+	isIPv4 := ip.To4() != nil
+	switch version {
+	case EdgeIPv4Only:
+		return isIPv4
+	case EdgeIPv6Only:
+		return !isIPv4
+	case EdgeIPAuto:
+		return true
+	default:
+		return true
+	}
+}
+
+func lookupSRVWithDOT(service, proto, name string) (string, []*net.SRV, error) {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			conn, err := dialer.DialContext(ctx, "tcp", edgeDOTServerAddr)
+			if err != nil {
+				return nil, err
+			}
+			return tls.Client(conn, &tls.Config{ServerName: edgeDOTServerName}), nil
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), edgeDOTTimeout)
+	defer cancel()
+	return resolver.LookupSRV(ctx, service, proto, name)
 }

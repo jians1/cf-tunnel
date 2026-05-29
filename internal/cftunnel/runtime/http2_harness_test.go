@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"sync"
 	"testing"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
 )
 
 func TestHTTP2HarnessServeHTTP(t *testing.T) {
@@ -19,9 +17,6 @@ func TestHTTP2HarnessServeHTTP(t *testing.T) {
 		t.Fatalf("prepare runtime: %v", err)
 	}
 
-	log := newTestZeroLogger()
-	observer := cfdconnection.NewObserver(&log, &log)
-	_ = observer
 	server, err := NewHTTP2ServerWithHandler(prepared, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Upstream", "ok")
 		w.WriteHeader(http.StatusAccepted)
@@ -64,7 +59,7 @@ func TestHTTP2HarnessServeHTTP(t *testing.T) {
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
 	}
-	headerPairs, err := cfdconnection.DeserializeHeaders(resp.Header.Get(cfdconnection.CanonicalResponseUserHeaders))
+	headerPairs, err := DeserializeHeaders(resp.Header.Get(CanonicalResponseUserHeaders))
 	if err != nil {
 		t.Fatalf("deserialize response user headers: %v", err)
 	}
@@ -77,6 +72,27 @@ func TestHTTP2HarnessServeHTTP(t *testing.T) {
 
 	cancel()
 	wg.Wait()
+}
+
+func TestHTTP2ServerUsesRuntimeHTTP2Connection(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "http2")
+	prepared, err := PrepareRuntime(session)
+	if err != nil {
+		t.Fatalf("prepare runtime: %v", err)
+	}
+
+	server, err := NewHTTP2ServerWithHandler(prepared, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}), HTTP2ServerOptions{})
+	if err != nil {
+		t.Fatalf("new http2 server: %v", err)
+	}
+
+	if _, ok := server.connection.(*RuntimeHTTP2Connection); !ok {
+		t.Fatalf("expected runtime http2 connection, got %T", server.connection)
+	}
 }
 
 func TestHTTP2HarnessConfigurationGetter(t *testing.T) {
@@ -102,7 +118,7 @@ func TestHTTP2HarnessConfigurationGetter(t *testing.T) {
 	}
 }
 
-func findHeader(headers []cfdconnection.HTTPHeader, name string) string {
+func findHeader(headers []HTTPHeader, name string) string {
 	for _, h := range headers {
 		if h.Name == name {
 			return h.Value

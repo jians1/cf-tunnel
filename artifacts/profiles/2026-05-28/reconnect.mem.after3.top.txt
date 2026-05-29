@@ -1,0 +1,70 @@
+File: runtime.test
+Build ID: ec6e64c944b2105f0a7e05b5d547245cce0ba885
+Type: alloc_space
+Time: 2026-05-28 12:11:44 CST
+Showing nodes accounting for 11057.80kB, 100% of 11057.80kB total
+      flat  flat%   sum%        cum   cum%
+ 1536.62kB 13.90% 13.90%  2048.62kB 18.53%  testing.(*T).Run
+ 1184.27kB 10.71% 24.61%  1184.27kB 10.71%  runtime/pprof.StartCPUProfile
+ 1025.50kB  9.27% 33.88%  1537.51kB 13.90%  crypto/x509.parseCertificate
+ 1024.05kB  9.26% 43.14%  1024.05kB  9.26%  internal/sync.newEntryNode[go.shape.interface {},go.shape.interface {}] (inline)
+  902.59kB  8.16% 51.30%  1553.21kB 14.05%  compress/flate.NewWriter (inline)
+  650.62kB  5.88% 57.19%   650.62kB  5.88%  compress/flate.(*compressor).init
+  632.14kB  5.72% 62.90%   632.14kB  5.72%  os.readFileContents
+  516.01kB  4.67% 67.57%   516.01kB  4.67%  hash/crc32.slicingMakeTable
+  513.50kB  4.64% 72.21%   513.50kB  4.64%  crypto/x509.(*CertPool).addCertFunc (inline)
+  512.23kB  4.63% 76.85%   512.23kB  4.63%  runtime.mallocgc
+  512.20kB  4.63% 81.48%   512.20kB  4.63%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin.newTransport (inline)
+  512.02kB  4.63% 86.11%   512.02kB  4.63%  encoding/pem.Decode
+  512.02kB  4.63% 90.74%   512.02kB  4.63%  log/slog.argsToAttrSlice
+  512.01kB  4.63% 95.37%   512.01kB  4.63%  crypto/x509.parseName
+  512.01kB  4.63%   100%   512.01kB  4.63%  strings.genSplit
+         0     0%   100%  2069.22kB 18.71%  compress/gzip.(*Writer).Write
+         0     0%   100%  2563.03kB 23.18%  crypto/x509.(*CertPool).AppendCertsFromPEM
+         0     0%   100%  1537.51kB 13.90%  crypto/x509.ParseCertificate
+         0     0%   100%  3195.17kB 28.90%  crypto/x509.SystemCertPool
+         0     0%   100%  3195.17kB 28.90%  crypto/x509.initSystemRoots
+         0     0%   100%  3195.17kB 28.90%  crypto/x509.loadSystemRoots
+         0     0%   100%  3195.17kB 28.90%  crypto/x509.systemRootsPool
+         0     0%   100%   512.20kB  4.63%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin.NewProxy
+         0     0%   100%  3707.38kB 33.53%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*BridgeRunner).Run
+         0     0%   100%   512.02kB  4.63%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewBridgeRunner
+         0     0%   100%  3707.38kB 33.53%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewInstanceWithRuntimeOptions
+         0     0%   100%  3707.38kB 33.53%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.PrepareRuntime
+         0     0%   100%  4731.42kB 42.79%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestBridgeRunnerQUICUsesConfiguredEdgeDial
+         0     0%   100%  3195.17kB 28.90%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.buildEdgeTLSConfigs
+         0     0%   100%  3195.17kB 28.90%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool
+         0     0%   100%  3195.17kB 28.90%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool.func1
+         0     0%   100%  3195.17kB 28.90%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.newEdgeTLSConfig
+         0     0%   100%   516.01kB  4.67%  hash/crc32.Update (inline)
+         0     0%   100%   516.01kB  4.67%  hash/crc32.archInitIEEE (inline)
+         0     0%   100%   516.01kB  4.67%  hash/crc32.init.OnceFunc.func4
+         0     0%   100%   516.01kB  4.67%  hash/crc32.init.OnceFunc.func4.1
+         0     0%   100%   516.01kB  4.67%  hash/crc32.init.func2
+         0     0%   100%   516.01kB  4.67%  hash/crc32.update
+         0     0%   100%  1024.05kB  9.26%  internal/sync.(*HashTrieMap[go.shape.interface {},go.shape.interface {}]).Store (inline)
+         0     0%   100%  1024.05kB  9.26%  internal/sync.(*HashTrieMap[go.shape.interface {},go.shape.interface {}]).Swap
+         0     0%   100%   512.02kB  4.63%  log/slog.(*Logger).With
+         0     0%   100%  3744.92kB 33.87%  main.main
+         0     0%   100%   632.14kB  5.72%  os.ReadFile
+         0     0%   100%  3744.92kB 33.87%  runtime.main
+         0     0%   100%   512.23kB  4.63%  runtime.malg
+         0     0%   100%   512.23kB  4.63%  runtime.newobject
+         0     0%   100%   512.23kB  4.63%  runtime.newproc.func1
+         0     0%   100%   512.23kB  4.63%  runtime.newproc1
+         0     0%   100%   512.23kB  4.63%  runtime.systemstack
+         0     0%   100%  2069.22kB 18.71%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  2069.22kB 18.71%  runtime/pprof.profileWriter
+         0     0%   100%   512.01kB  4.63%  strings.Split (inline)
+         0     0%   100%  1024.05kB  9.26%  sync.(*Map).Store (inline)
+         0     0%   100%  3711.18kB 33.56%  sync.(*Once).Do (partial-inline)
+         0     0%   100%  3711.18kB 33.56%  sync.(*Once).doSlow
+         0     0%   100%  3744.92kB 33.87%  testing.(*M).Run
+         0     0%   100%  1184.27kB 10.71%  testing.(*M).before
+         0     0%   100%   512.02kB  4.63%  testing.(*T).Parallel
+         0     0%   100%   512.01kB  4.63%  testing.(*matcher).fullName
+         0     0%   100%  2560.65kB 23.16%  testing.runTests
+         0     0%   100%  2048.62kB 18.53%  testing.runTests.func1
+         0     0%   100%  7292.07kB 65.95%  testing.tRunner
+         0     0%   100%   512.02kB  4.63%  testing.tRunner.func1
+         0     0%   100%  1184.27kB 10.71%  testing/internal/testdeps.TestDeps.StartCPUProfile

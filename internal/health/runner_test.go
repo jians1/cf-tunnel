@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -39,6 +40,55 @@ func TestRunnerStopsPromptlyWithOpenClientConnection(t *testing.T) {
 
 	cancel()
 
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runner run: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("health runner did not stop promptly after context cancellation")
+	}
+}
+
+func TestRunnerReadyUsesSummaryProvider(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	listen := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	runner := NewRunner(listen, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	runner.SetReadySummaryProvider(func() string {
+		return "mode=multi total=2 running=2 failed=0"
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Run(ctx)
+	}()
+
+	waitForHealth(t, "http://"+listen+"/ready")
+
+	resp, err := http.Get("http://" + listen + "/ready")
+	if err != nil {
+		t.Fatalf("get ready: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read ready body: %v", err)
+	}
+	if !strings.Contains(string(body), "mode=multi total=2") {
+		t.Fatalf("unexpected ready body: %s", string(body))
+	}
+
+	cancel()
 	select {
 	case err := <-done:
 		if err != nil {

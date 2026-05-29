@@ -1,0 +1,4 @@
+case,mean_kb,min_kb,max_kb,range_pct
+forwarding,2956.65,2560.36,3600.45,35.18
+reconnect,7961.54,4609.17,10484.18,73.79
+registration,12843.77,8713.90,15890.21,55.87

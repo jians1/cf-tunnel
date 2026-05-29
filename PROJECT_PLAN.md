@@ -2,14 +2,9 @@
 
 ## Goal
 
-Build a single-binary Go application with two independent runtime features:
+Build a single-binary Go application focused on Cloudflare `TryCloudflare / Quick Tunnel`.
 
-1. Cloudflare `TryCloudflare / Quick Tunnel`
-2. `IPv6 pool` outbound proxy service
-
-Both features must be switchable independently through CLI boolean flags, and may run together in one process.
-
-This project does not embed `sing-box` logic. For the Cloudflare tunnel feature, the application only needs to forward to a configured local target through `--cf-tunnel-target`.
+The application forwards traffic from a real Quick Tunnel endpoint to configured local origin targets. It supports single-tunnel mode with optional path-based backend routing.
 
 ## Product Scope
 
@@ -18,27 +13,26 @@ This project does not embed `sing-box` logic. For the Cloudflare tunnel feature,
 - Single Go binary
 - CLI flag based startup model
 - Cloudflare Quick Tunnel support
-- Edge transport selection: `auto | quic | http2`
-- Origin protocol selection: `auto | http | https | ws | wss`
-- Local reverse proxy to configured target
-- Independent IPv6 pool HTTP proxy
-- Independent IPv6 pool SOCKS5 proxy
+- Edge transport selection: `quic | http2`
+- Origin scheme selection through full target URLs: `http | https | ws | wss`
+- Local reverse proxy to configured targets
+- Path-based backend routing for single-tunnel mode
 - Unified logging
 - Unified graceful shutdown
 - Optional health endpoint
 
 ### Out of Scope
 
+- IPv6 pool outbound proxy
 - Named Tunnel management
 - Cloudflare account login flows
 - Access, DNS, metrics, updater, diagnostic subcommands from `cloudflared`
 - Embedded `sing-box`
-- Complex config file formats in phase 1
 - Web UI
+- Dynamic route or tunnel hot reload
+- Cross-tunnel load balancing
 
-## Target Architecture
-
-The application should be a thin host around two isolated runners.
+## Current Architecture
 
 ### Process Model
 
@@ -47,396 +41,122 @@ The application should be a thin host around two isolated runners.
 - One shared logger
 - One shared signal handler
 - One shared lifecycle manager
-- Two optional runners started based on flags
+- Single-tunnel runner
+- Optional health runner
 
 ### Module Boundaries
 
 - `cmd/app`
   - entrypoint
   - flag parsing
-  - config validation
   - lifecycle bootstrap
 - `internal/config`
-  - flag-backed config structs
+  - config structs
   - defaults
   - validation
 - `internal/logging`
   - logger initialization
 - `internal/runtime`
   - signal handling
-  - errgroup / shutdown orchestration
+  - shutdown orchestration
 - `internal/cftunnel`
   - quick tunnel runner
   - edge transport selection
   - origin connector
-  - cloudflare integration adapter
 - `internal/cftunnel/origin`
-  - local target parsing
+  - target parsing
+  - route matching
   - reverse proxy behavior
   - HTTP/HTTPS/WS/WSS handling
-- `internal/ipv6pool`
-  - HTTP proxy server
-  - SOCKS5 proxy server
-  - IPv6 address selection strategy
-  - outbound dialer
 - `internal/health`
   - optional liveness/readiness endpoint
 
-## Recommended Source Strategy
-
-### Cloudflare Tunnel
-
-Do not fully reimplement the Cloudflare tunnel protocol.
-
-Recommended approach:
-
-- fork or vendor the minimum required logic from `cloudflared`
-- keep only the Quick Tunnel path and required shared tunnel core
-- preserve only `quic` and `http2` edge transport support
-- remove unrelated command, management, update, and platform layers
-
-Rationale:
-
-- lower protocol compatibility risk
-- smaller maintenance burden than a clean-room implementation
-- still allows substantial size reduction compared with full `cloudflared`
-
-### IPv6 Pool
-
-Use `go-proxy-ipv6-pool` as the reference implementation boundary.
-
-Recommended approach:
-
-- reimplement the small IPv6 pool feature set inside `internal/ipv6pool`
-- keep it isolated from tunnel logic
-- avoid directly coupling its CLI or global state into the application core
-
-Rationale:
-
-- the feature is comparatively small
-- internalizing it yields cleaner lifecycle and logging integration
-- easier to maintain a single binary and a single config model
-
 ## CLI Contract
 
-Use boolean feature toggles and flat flags.
-
-### Core Flags
+### Single-Tunnel Mode
 
 ```text
---enable-cf-tunnel
---cf-edge-protocol=auto
+--cf-edge-protocol=quic|http2
 --cf-tunnel-target=http://127.0.0.1:8080
---cf-origin-protocol=auto
 --cf-origin-server-name=
 --cf-origin-insecure-skip-verify=false
-
---enable-ipv6-pool
---ipv6-pool-http=:3128
---ipv6-pool-socks5=:3129
---ipv6-pool-bind-interface=
---ipv6-pool-cidr=
---ipv6-pool-strategy=random
-
+--cf-route=/api/*=http://127.0.0.1:9001
+--cf-route=/secure/*=https://127.0.0.1:9443,server_name=secure.internal
 --health-listen=:9090
 --log-level=info
 --log-format=text
+--shutdown-timeout=10s
 ```
 
 ### Validation Rules
 
-- if `--enable-cf-tunnel=true`, `--cf-tunnel-target` is required
-- `--cf-tunnel-target` must be either `host:port` or a full URL
-- if `--enable-ipv6-pool=true`, at least one of `--ipv6-pool-http` or `--ipv6-pool-socks5` must be set
-- if neither feature is enabled, exit with validation error
-- if `--cf-origin-protocol=auto`, infer from target scheme
-- if target has no scheme, require explicit `--cf-origin-protocol`
-- if `https` or `wss` is used and custom SNI is needed, accept `--cf-origin-server-name`
-- if target has a scheme, explicit `--cf-origin-protocol` may only be used as an override and must remain compatible with the target format
-- if `--enable-ipv6-pool=true`, require at least one of `--ipv6-pool-cidr` or `--ipv6-pool-bind-interface`
+- `--cf-tunnel-target` is required in single-tunnel mode.
+- `--cf-tunnel-target` must be a full URL with scheme and host.
+- `--cf-route` supports exact paths such as `/health`, prefix paths such as `/api/*`, and default `/`.
+- `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply only to the default `--cf-tunnel-target`.
+- `--cf-route` targets use independent TLS options: URL host is the default TLS server name and certificate verification defaults to enabled unless the route specifies otherwise.
+- Route precedence is deterministic: exact > longest prefix > default.
+- Invalid or duplicate route rules fail fast at startup.
 
-## Config Model
+## Execution Status (2026-05-29)
 
-Suggested Go structs:
+### Completed
 
-```go
-type AppConfig struct {
-	LogLevel     string
-	LogFormat    string
-	HealthListen string
-	CFTunnel     CFTunnelConfig
-	IPv6Pool     IPv6PoolConfig
-}
+- Quick Tunnel request client and real tunnel startup.
+- Edge protocol support for `quic` and `http2`.
+- HTTP/HTTPS and WebSocket origin proxying.
+- Path-based backend routing for HTTP and WebSocket traffic.
+- Route validation and deterministic router precedence.
+- Real-link path split validation integrated into the benchmark script.
 
-type CFTunnelConfig struct {
-	Enabled                bool
-	EdgeProtocol           string
-	Target                 string
-	OriginProtocol         string
-	OriginServerName       string
-	InsecureSkipVerify     bool
-}
+### Current Verified Baseline
 
-type IPv6PoolConfig struct {
-	Enabled       bool
-	HTTPListen    string
-	SOCKS5Listen  string
-	BindInterface string
-	CIDR          string
-	Strategy      string
-}
-```
+- Local and package-level tests pass with `go test ./...` in the last recorded verification cycle.
+- Real-link e2e validation has passed for both `http2` and `quic`.
+- Path-based routing checks have passed in e2e with `path_routing_check=pass`.
+- RSS stayed in the tens-of-MiB range in recorded serial rounds.
 
-## Runner Behavior
+## Active Construction Plan
 
-### Cloudflare Tunnel Runner
+### Phase B: Configuration File Evaluation
 
-Responsibilities:
+#### Goal
 
-- create or request Quick Tunnel
-- select edge transport: `auto`, `quic`, or `http2`
-- forward ingress traffic to the configured local target
-- support HTTP and WebSocket style origin forwarding
-- expose assigned public tunnel URL in logs
-- shut down cleanly on process signal
+Evaluate an optional configuration file for complex topologies without reintroducing complex multi-tunnel CLI syntax.
 
-Non-responsibilities:
+#### Remaining Scope
 
-- managing `sing-box`
-- origin service discovery
-- advanced multi-origin routing in phase 1
+- Keep the CLI focused on single Quick Tunnel startup.
+- Decide whether a config file is needed for future multi-tunnel use.
+- If added, keep config-file semantics separate from the current CLI contract.
 
-### IPv6 Pool Runner
+## Risks and Controls
 
-Responsibilities:
-
-- start HTTP proxy if configured
-- start SOCKS5 proxy if configured
-- select outbound IPv6 source addresses from configured pool
-- keep implementation independent from Cloudflare tunnel flow
-- shut down cleanly on process signal
-
-## Reverse Proxy Requirements
-
-The origin side should support:
-
-- plain HTTP upstream
-- HTTPS upstream
-- WebSocket upgrade forwarding over HTTP upstream
-- secure WebSocket upgrade forwarding over HTTPS upstream
-
-Implementation notes:
-
-- prefer a standard reverse-proxy pattern for HTTP/HTTPS
-- explicitly preserve `Upgrade` and WebSocket headers
-- keep TLS settings isolated to the origin dialer
-- do not implement a separate standalone WebSocket proxy stack unless HTTP upgrade forwarding proves insufficient
-- avoid premature support for complex load balancing
-
-## Health and Observability
-
-Phase 1 should include simple operational visibility.
-
-Recommended endpoints:
-
-- `/live`
-- `/ready`
-
-Recommended logs:
-
-- enabled feature summary at startup
-- quick tunnel assigned URL
-- selected edge transport
-- configured origin target
-- IPv6 pool listeners
-- fatal runner errors
-
-## Binary Size Strategy
-
-Main size drivers:
-
-- Go runtime
-- TLS stack
-- HTTP/2
-- QUIC
-- Cloudflare tunnel core
-
-Expected ranges:
-
-- minimal tunnel-only build: roughly `10-18 MB`
-- tunnel + IPv6 pool: roughly `12-20 MB`
-
-Optimization steps:
-
-- remove unused `cloudflared` packages
-- strip symbols with `-ldflags="-s -w"`
-- disable debug assets and unused commands
-- evaluate UPX only after functional stabilization
-
-## Implementation Phases
-
-### Phase 0: Source Analysis
-
-- inspect `cloudflared` package graph for Quick Tunnel path
-- identify minimum packages required for:
-  - quick tunnel registration
-  - edge session establishment
-  - `quic/http2` support
-  - local origin proxying
-- inspect `go-proxy-ipv6-pool` behavior and isolate reusable concepts
-
-Deliverable:
-
-- dependency map
-- keep/remove package list
-
-### Phase 1: Project Skeleton
-
-- create Go module
-- add `cmd/app`
-- add config, logging, runtime, health scaffolding
-- define flag contract and validation
-
-Deliverable:
-
-- runnable empty host process with validated flags
-
-### Phase 2: IPv6 Pool Integration
-
-- implement internal HTTP proxy
-- implement internal SOCKS5 proxy
-- implement IPv6 source selection logic
-- wire graceful shutdown and logs
-
-Deliverable:
-
-- standalone IPv6 pool mode works
-
-### Phase 3: Quick Tunnel Integration
-
-- vendor or port minimal Cloudflare tunnel core
-- implement Quick Tunnel startup path
-- support `auto/quic/http2`
-- proxy requests to configured local target
-- print allocated tunnel hostname
-
-Deliverable:
-
-- standalone Quick Tunnel mode works
-
-### Phase 4: Combined Mode
-
-- run both runners in one process
-- ensure independent startup and failure behavior
-- define policy:
-  - fail-fast if one enabled runner cannot start
-  - in phase 1, terminate whole process on fatal runner error
-  - keep room for a future isolated failure policy if deployment needs partial service survival
-
-Deliverable:
-
-- both features can be enabled together
-
-### Phase 5: Hardening
-
-- improve error messages
-- add readiness semantics
-- test signal handling
-- test TLS origin options
-- test WebSocket proxy path
-- trim dependencies and binary size
-
-Deliverable:
-
-- release candidate
+- Route rule conflicts may create ambiguous behavior.
+  - Control: strict validation and deterministic precedence.
+- Network benchmarks are noisy.
+  - Control: use serial runs and report the fixed RSS/throughput fields from the e2e scripts.
+- Scope expansion risk.
+  - Control: keep Phase B hardening separate from optimization or feature work.
 
 ## Testing Plan
 
 ### Unit Tests
 
 - config validation
-- protocol inference
-- origin target parsing
-- IPv6 selection logic
+- target parsing
+- target URL parsing
+- route matching and proxy behavior
+- cftunnel runtime/session behavior
 
-### Integration Tests
+### Integration / E2E
 
-- quick tunnel enabled with local HTTP target
-- quick tunnel enabled with local WS target
-- IPv6 pool HTTP proxy outbound through selected IPv6
-- IPv6 pool SOCKS5 outbound through selected IPv6
-- combined mode startup and shutdown
+- Quick Tunnel with local HTTP target
+- Quick Tunnel with local WS target
+- path-based split routing through a real link
+- protocol verification for `http2` and `quic`
 
 ### Manual Verification
 
-- run only tunnel mode
-- run only IPv6 pool mode
-- run both together
-- verify tunnel URL forwards to target
-- verify proxy egress uses IPv6 addresses from pool
-
-## Risk Register
-
-### Risk 1: Cloudflare Internal Coupling
-
-Quick Tunnel behavior is tightly coupled to upstream `cloudflared` internals and may change.
-
-Mitigation:
-
-- keep adaptation layer thin
-- track upstream changes
-- avoid clean-room protocol reimplementation
-
-### Risk 2: Binary Size Drift
-
-Keeping too much of `cloudflared` will prevent meaningful size reduction.
-
-Mitigation:
-
-- actively prune command and admin layers
-- review dependency graph before implementation settles
-
-### Risk 3: WebSocket Proxy Edge Cases
-
-WS/WSS proxying often fails if header handling is too generic.
-
-Mitigation:
-
-- test upgrade handling explicitly
-- keep a dedicated origin adapter for WS/WSS behavior
-
-### Risk 4: IPv6 Environment Variance
-
-IPv6 pool behavior depends on host networking and address availability.
-
-Mitigation:
-
-- require explicit CIDR or interface settings
-- fail clearly when the pool cannot be built
-
-### Risk 5: Target Format Ambiguity
-
-Origin target parsing can become error-prone if `host:port`, URL form, and explicit origin protocol overrides are not validated consistently.
-
-Mitigation:
-
-- validate target format before runner startup
-- treat scheme-less targets and URL targets differently
-- keep `cf-origin-protocol` override rules explicit
-
-## Decisions Locked In
-
-- one binary
-- no subcommands
-- feature activation through boolean flags
-- `cf-tunnel-target` is the only origin target input for the tunnel feature
-- `sing-box` is out of scope for this project and treated as an external local upstream
-- Cloudflare tunnel and IPv6 pool remain internally independent
-
-## Immediate Next Tasks
-
-1. Create the Go module and directory skeleton.
-2. Write the config structs and CLI flag parser.
-3. Build validation and startup orchestration.
-4. Analyze `cloudflared` Quick Tunnel dependency graph.
-5. Reimplement the IPv6 pool feature set inside `internal/ipv6pool`.
+- run app with single Quick Tunnel mode
+- verify public `trycloudflare.com` URLs forward to their configured local targets

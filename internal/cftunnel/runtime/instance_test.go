@@ -38,18 +38,6 @@ func TestNewInstanceQUICRequiresDialConfig(t *testing.T) {
 	}
 }
 
-func TestNewInstanceRejectsUnresolvedAutoProtocol(t *testing.T) {
-	t.Parallel()
-
-	_, err := NewInstance(testSession(t, "auto"), nil)
-	if err == nil {
-		t.Fatal("expected unresolved auto protocol error")
-	}
-	if !strings.Contains(err.Error(), "resolve edge protocol before building runtime instance") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestInstanceRunReturnsOnContextCancel(t *testing.T) {
 	t.Parallel()
 

@@ -2,10 +2,11 @@ package runtime
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
+	"sync"
 
-	cfdtlsconfig "github.com/cloudflare/cloudflared/tlsconfig"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
 )
 
@@ -21,13 +22,22 @@ type PreparedRuntime struct {
 	EdgeTLSByProto map[string]*tls.Config
 }
 
+var (
+	edgeRootCAPoolOnce sync.Once
+	edgeRootCAPool     *x509.CertPool
+	edgeRootCAPoolErr  error
+)
+
 func PrepareRuntime(session Session) (*PreparedRuntime, error) {
 	originTarget, err := session.OriginTarget()
 	if err != nil {
 		return nil, fmt.Errorf("rebuild origin target: %w", err)
 	}
 
-	proxy := origin.NewProxy(originTarget)
+	proxy, err := origin.NewRoutedProxy(originTarget, session.Origin.Routes)
+	if err != nil {
+		return nil, fmt.Errorf("build routed origin proxy: %w", err)
+	}
 	edgeTLS, err := buildEdgeTLSConfigs(session.Edge.Protocol)
 	if err != nil {
 		return nil, err
@@ -41,48 +51,62 @@ func PrepareRuntime(session Session) (*PreparedRuntime, error) {
 }
 
 func buildEdgeTLSConfigs(selected string) (map[string]*tls.Config, error) {
-	switch selected {
-	case "quic":
+	protocol, err := ParseEdgeProtocol(selected)
+	if err != nil {
+		return nil, err
+	}
+
+	switch protocol {
+	case EdgeProtocol(edgeProtocolQUIC):
 		cfg, err := newEdgeTLSConfig(edgeServerNameQUIC, []string{edgeALPNQUIC})
 		if err != nil {
 			return nil, err
 		}
 		return map[string]*tls.Config{"quic": cfg}, nil
-	case "http2":
+	case EdgeProtocol(edgeProtocolHTTP2):
 		cfg, err := newEdgeTLSConfig(edgeServerNameHTTP2, nil)
 		if err != nil {
 			return nil, err
 		}
 		return map[string]*tls.Config{"http2": cfg}, nil
-	case "auto":
-		fallthrough
-	case "":
-		quicCfg, err := newEdgeTLSConfig(edgeServerNameQUIC, []string{edgeALPNQUIC})
-		if err != nil {
-			return nil, err
-		}
-		http2Cfg, err := newEdgeTLSConfig(edgeServerNameHTTP2, nil)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]*tls.Config{
-			"quic":  quicCfg,
-			"http2": http2Cfg,
-		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported edge protocol: %s", selected)
 	}
 }
 
 func newEdgeTLSConfig(serverName string, nextProtos []string) (*tls.Config, error) {
-	cfg, err := cfdtlsconfig.CreateTunnelConfig("", serverName)
+	rootCAs, err := edgeTLSRootCAPool()
 	if err != nil {
 		return nil, err
 	}
-	cfg.MinVersion = tls.VersionTLS12
-	cfg.CurvePreferences = []tls.CurveID{tls.CurveP256}
+
+	cfg := &tls.Config{
+		ServerName:       serverName,
+		RootCAs:          rootCAs,
+		MinVersion:       tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{tls.CurveP256},
+	}
 	if len(nextProtos) > 0 {
 		cfg.NextProtos = append([]string(nil), nextProtos...)
 	}
 	return cfg, nil
+}
+
+func edgeTLSRootCAPool() (*x509.CertPool, error) {
+	edgeRootCAPoolOnce.Do(func() {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			edgeRootCAPoolErr = fmt.Errorf("load system root CAs: %w", err)
+			return
+		}
+		if !pool.AppendCertsFromPEM([]byte(cloudflareRootCAPEM)) {
+			edgeRootCAPoolErr = fmt.Errorf("load cloudflare root CAs")
+			return
+		}
+		edgeRootCAPool = pool
+	})
+	if edgeRootCAPoolErr != nil {
+		return nil, edgeRootCAPoolErr
+	}
+	return edgeRootCAPool, nil
 }

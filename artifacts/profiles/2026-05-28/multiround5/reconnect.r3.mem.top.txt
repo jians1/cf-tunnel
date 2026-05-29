@@ -1,0 +1,36 @@
+File: runtime.test
+Build ID: ec6e64c944b2105f0a7e05b5d547245cce0ba885
+Type: alloc_space
+Time: 2026-05-28 12:21:49 CST
+Showing nodes accounting for 6898.76kB, 100% of 6898.76kB total
+      flat  flat%   sum%        cum   cum%
+ 1264.28kB 18.33% 18.33%  1264.28kB 18.33%  os.readFileContents
+ 1025.19kB 14.86% 33.19%  1025.19kB 14.86%  encoding/pem.Decode
+ 1024.03kB 14.84% 48.03%  1024.03kB 14.84%  crypto/x509.parseName
+  512.75kB  7.43% 55.46%  1536.78kB 22.28%  crypto/x509.parseCertificate
+  512.20kB  7.42% 62.89%   512.20kB  7.42%  testing.(*T).Run
+  512.12kB  7.42% 70.31%  5874.44kB 85.15%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.NewInstanceWithRuntimeOptions
+  512.12kB  7.42% 77.73%   512.12kB  7.42%  testing.callerName
+  512.04kB  7.42% 85.16%   512.04kB  7.42%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin.NewProxy
+  512.02kB  7.42% 92.58%  4850.29kB 70.31%  crypto/x509.loadSystemRoots
+  512.01kB  7.42%   100%  3073.98kB 44.56%  crypto/x509.(*CertPool).AppendCertsFromPEM
+         0     0%   100%  1536.78kB 22.28%  crypto/x509.ParseCertificate
+         0     0%   100%  4850.29kB 70.31%  crypto/x509.SystemCertPool
+         0     0%   100%  4850.29kB 70.31%  crypto/x509.initSystemRoots
+         0     0%   100%  4850.29kB 70.31%  crypto/x509.systemRootsPool
+         0     0%   100%  5874.44kB 85.15%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.(*BridgeRunner).Run
+         0     0%   100%  5362.32kB 77.73%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.PrepareRuntime
+         0     0%   100%  5874.44kB 85.15%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.TestBridgeRunnerQUICUsesConfiguredEdgeDial
+         0     0%   100%  4850.29kB 70.31%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.buildEdgeTLSConfigs
+         0     0%   100%  4850.29kB 70.31%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool
+         0     0%   100%  4850.29kB 70.31%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.edgeTLSRootCAPool.func1
+         0     0%   100%  4850.29kB 70.31%  github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime.newEdgeTLSConfig
+         0     0%   100%  1024.32kB 14.85%  main.main
+         0     0%   100%  1264.28kB 18.33%  os.ReadFile
+         0     0%   100%  1024.32kB 14.85%  runtime.main
+         0     0%   100%  4850.29kB 70.31%  sync.(*Once).Do (inline)
+         0     0%   100%  4850.29kB 70.31%  sync.(*Once).doSlow
+         0     0%   100%  1024.32kB 14.85%  testing.(*M).Run
+         0     0%   100%  1024.32kB 14.85%  testing.runTests
+         0     0%   100%   512.20kB  7.42%  testing.runTests.func1
+         0     0%   100%  6898.76kB   100%  testing.tRunner

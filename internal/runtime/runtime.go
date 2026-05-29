@@ -9,8 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 )
 
 type Options struct {
@@ -34,37 +32,49 @@ func RunWithOptions(ctx context.Context, logger *slog.Logger, opts Options, runn
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	group, groupCtx := errgroup.WithContext(ctx)
+	groupCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	type runnerResult struct {
+		name string
+		err  error
+	}
+	results := make(chan runnerResult, len(runners))
 	for _, runner := range runners {
 		r := runner
-		group.Go(func() error {
+		go func() {
 			logger.Info("starting runner", "runner", r.Name())
-			if err := r.Run(groupCtx); err != nil && !errors.Is(err, context.Canceled) {
-				return fmt.Errorf("%s: %w", r.Name(), err)
+			err := r.Run(groupCtx)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				err = fmt.Errorf("%s: %w", r.Name(), err)
+				cancel()
 			}
 			logger.Info("runner stopped", "runner", r.Name())
-			return nil
-		})
+			results <- runnerResult{name: r.Name(), err: err}
+		}()
 	}
 
-	done := make(chan error, 1)
-	go func() {
-		done <- group.Wait()
-	}()
-
-	if opts.ShutdownTimeout <= 0 {
-		return <-done
-	}
-
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
+	timerStarted := false
+	var timeout <-chan time.Time
+	var firstErr error
+	completed := 0
+	for completed < len(runners) {
 		select {
-		case err := <-done:
-			return err
-		case <-time.After(opts.ShutdownTimeout):
+		case result := <-results:
+			completed++
+			if firstErr == nil && result.err != nil {
+				firstErr = result.err
+			}
+		case <-ctx.Done():
+			if opts.ShutdownTimeout <= 0 {
+				continue
+			}
+			if !timerStarted {
+				timeout = time.After(opts.ShutdownTimeout)
+				timerStarted = true
+			}
+		case <-timeout:
 			return fmt.Errorf("shutdown timeout after %s", opts.ShutdownTimeout)
 		}
 	}
+	return firstErr
 }

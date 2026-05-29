@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/ipv6pool"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/logging"
 	appRuntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/runtime"
 )
@@ -23,15 +23,10 @@ func main() {
 	logger := logging.New(cfg.LogLevel, cfg.LogFormat)
 	ctx := context.Background()
 
-	var runners []appRuntime.Runner
-	if cfg.HealthListen != "" {
-		runners = append(runners, health.NewRunner(cfg.HealthListen, logger))
-	}
-	if cfg.CFTunnel.Enabled {
-		runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
-	}
-	if cfg.IPv6Pool.Enabled {
-		runners = append(runners, ipv6pool.NewRunner(cfg.IPv6Pool, logger))
+	runners, err := buildRunners(cfg, logger)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(2)
 	}
 
 	if err := appRuntime.RunWithOptions(ctx, logger, appRuntime.Options{
@@ -40,4 +35,26 @@ func main() {
 		logger.Error("application stopped with error", "error", err)
 		os.Exit(1)
 	}
+}
+
+func buildRunners(cfg config.AppConfig, logger *slog.Logger) ([]appRuntime.Runner, error) {
+	var runners []appRuntime.Runner
+	var healthRunner *health.Runner
+	if cfg.HealthListen != "" {
+		healthRunner = health.NewRunner(cfg.HealthListen, logger)
+		runners = append(runners, healthRunner)
+	}
+	if len(cfg.Tunnels) > 0 {
+		multi, err := cftunnel.NewMultiRunner(cfg.Tunnels, logger)
+		if err != nil {
+			return nil, err
+		}
+		if healthRunner != nil {
+			healthRunner.SetReadySummaryProvider(multi.ReadinessSummary)
+		}
+		runners = append(runners, multi)
+		return runners, nil
+	}
+	runners = append(runners, cftunnel.NewRunner(cfg.CFTunnel, logger))
+	return runners, nil
 }

@@ -16,4 +16,5 @@ echo "[2/3] Building release binary"
 echo "[3/3] Building Docker image ${IMAGE_TAG}"
 docker build -t "${IMAGE_TAG}" "${ROOT_DIR}"
 
+
 echo "CI pipeline completed"

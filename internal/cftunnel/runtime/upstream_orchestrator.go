@@ -3,36 +3,54 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
-
-	cfdconnection "github.com/cloudflare/cloudflared/connection"
-	tunnelpogs "github.com/cloudflare/cloudflared/tunnelrpc/pogs"
 )
 
 type UpstreamOrchestrator struct {
-	originProxy cfdconnection.OriginProxy
+	originProxy OriginProxy
 	configJSON  []byte
 }
 
-func NewUpstreamOrchestrator(originProxy cfdconnection.OriginProxy, session Session) (*UpstreamOrchestrator, error) {
+type upstreamOrchestratorConfig struct {
+	QuickTunnel bool                           `json:"quick_tunnel"`
+	Origin      upstreamOrchestratorOrigin     `json:"origin"`
+	Edge        upstreamOrchestratorEdge       `json:"edge"`
+	Hostname    string                         `json:"hostname"`
+	URL         string                         `json:"url"`
+}
+
+type upstreamOrchestratorOrigin struct {
+	URL                  string `json:"url"`
+	Protocol             string `json:"protocol"`
+	ServerName           string `json:"server_name"`
+	InsecureSkipVerify   bool   `json:"insecure_skip_verify"`
+	WebsocketUpgradeMode bool   `json:"websocket_upgrade_mode"`
+}
+
+type upstreamOrchestratorEdge struct {
+	Protocol      string `json:"protocol"`
+	HAConnections int    `json:"ha_connections"`
+}
+
+func NewUpstreamOrchestrator(originProxy OriginProxy, session Session) (*UpstreamOrchestrator, error) {
 	if originProxy == nil {
 		return nil, fmt.Errorf("nil upstream origin proxy")
 	}
 
-	configJSON, err := json.Marshal(map[string]any{
-		"quick_tunnel": true,
-		"origin": map[string]any{
-			"url":                    session.Origin.URL,
-			"protocol":               string(session.Origin.Protocol),
-			"server_name":            session.Origin.ServerName,
-			"insecure_skip_verify":   session.Origin.InsecureSkipVerify,
-			"websocket_upgrade_mode": session.Origin.WebsocketUpgradeMode,
+	configJSON, err := json.Marshal(upstreamOrchestratorConfig{
+		QuickTunnel: true,
+		Origin: upstreamOrchestratorOrigin{
+			URL:                  session.Origin.URL,
+			Protocol:             string(session.Origin.Protocol),
+			ServerName:           session.Origin.ServerName,
+			InsecureSkipVerify:   session.Origin.InsecureSkipVerify,
+			WebsocketUpgradeMode: session.Origin.WebsocketUpgradeMode,
 		},
-		"edge": map[string]any{
-			"protocol":       session.Edge.Protocol,
-			"ha_connections": session.HAConnections,
+		Edge: upstreamOrchestratorEdge{
+			Protocol:      session.Edge.Protocol,
+			HAConnections: session.HAConnections,
 		},
-		"hostname": session.Hostname,
-		"url":      session.PublicURL,
+		Hostname: session.Hostname,
+		URL:      session.PublicURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal orchestrator config: %w", err)
@@ -44,8 +62,8 @@ func NewUpstreamOrchestrator(originProxy cfdconnection.OriginProxy, session Sess
 	}, nil
 }
 
-func (o *UpstreamOrchestrator) UpdateConfig(version int32, _ []byte) *tunnelpogs.UpdateConfigurationResponse {
-	return &tunnelpogs.UpdateConfigurationResponse{
+func (o *UpstreamOrchestrator) UpdateConfig(version int32, _ []byte) *runtimeUpdateConfigurationResponse {
+	return &runtimeUpdateConfigurationResponse{
 		LastAppliedVersion: version,
 	}
 }
@@ -54,6 +72,6 @@ func (o *UpstreamOrchestrator) GetConfigJSON() ([]byte, error) {
 	return append([]byte(nil), o.configJSON...), nil
 }
 
-func (o *UpstreamOrchestrator) GetOriginProxy() (cfdconnection.OriginProxy, error) {
+func (o *UpstreamOrchestrator) GetOriginProxy() (OriginProxy, error) {
 	return o.originProxy, nil
 }

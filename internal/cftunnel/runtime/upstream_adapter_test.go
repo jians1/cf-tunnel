@@ -16,8 +16,8 @@ func TestUpstreamAdapterBindQUIC(t *testing.T) {
 	if binding.Credentials.AccountTag != "acct" {
 		t.Fatalf("unexpected account tag: %s", binding.Credentials.AccountTag)
 	}
-	if binding.TunnelProperties.QuickTunnelUrl != "demo.trycloudflare.com" {
-		t.Fatalf("unexpected quick tunnel url: %s", binding.TunnelProperties.QuickTunnelUrl)
+	if binding.TunnelProperties.QuickTunnelURL != "demo.trycloudflare.com" {
+		t.Fatalf("unexpected quick tunnel url: %s", binding.TunnelProperties.QuickTunnelURL)
 	}
 	if got := binding.ProtocolSelector.Current().String(); got != "quic" {
 		t.Fatalf("unexpected protocol: %s", got)

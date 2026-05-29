@@ -41,6 +41,10 @@ func NewInstanceWithOptions(session Session, logger *slog.Logger, http2Options H
 
 func NewInstanceWithRuntimeOptions(session Session, logger *slog.Logger, options InstanceOptions) (*Instance, error) {
 	http2Options := options.HTTP2
+	edgeProtocol, err := ParseEdgeProtocol(session.Edge.Protocol)
+	if err != nil {
+		return nil, fmt.Errorf("resolve edge protocol before building runtime instance: %w", err)
+	}
 
 	prepared, err := PrepareRuntime(session)
 	if err != nil {
@@ -59,7 +63,7 @@ func NewInstanceWithRuntimeOptions(session Session, logger *slog.Logger, options
 		UpstreamBinding: binding,
 	}
 
-	if session.Edge.Protocol == "http2" {
+	if edgeProtocol == EdgeProtocol(edgeProtocolHTTP2) {
 		http2Options.TunnelProperties = binding.TunnelProperties
 		if http2Options.DialConfig == nil && (http2Options.DialAddress != "" || http2Options.EdgeAddressProvider != nil) {
 			dialConfig, err := NewHTTP2DialConfigWithProvider(
@@ -81,7 +85,7 @@ func NewInstanceWithRuntimeOptions(session Session, logger *slog.Logger, options
 		instance.HTTP2Server = server
 	}
 
-	if session.Edge.Protocol == "quic" {
+	if edgeProtocol == EdgeProtocol(edgeProtocolQUIC) {
 		if options.QUIC.DialConfig == nil && (options.QUIC.DialAddress != "" || options.QUIC.EdgeAddressProvider != nil) {
 			dialConfig, err := NewQUICDialConfigWithProvider(
 				prepared,
@@ -100,10 +104,6 @@ func NewInstanceWithRuntimeOptions(session Session, logger *slog.Logger, options
 			return nil, fmt.Errorf("build quic runtime: %w", err)
 		}
 		instance.QUICRuntime = quicRuntime
-	}
-
-	if session.Edge.Protocol != "http2" && session.Edge.Protocol != "quic" {
-		return nil, fmt.Errorf("resolve edge protocol before building runtime instance: %s", session.Edge.Protocol)
 	}
 
 	return instance, nil
