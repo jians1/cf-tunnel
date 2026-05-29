@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/api"
 	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
+	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/credentials"
 	tunnelruntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
 )
@@ -25,13 +27,7 @@ func prepareQuickTunnelSession(
 	cfg config.CFTunnelConfig,
 	logger *slog.Logger,
 ) (*preparedSession, error) {
-	return prepareQuickTunnelSessionWith(ctx, cfg, logger, func(ctx context.Context, runtimeConfig tunnelconfig.RuntimeConfig) (*api.QuickTunnelReservation, error) {
-		client := api.NewClientWithOptions(runtimeConfig.QuickService, buildUserAgent(), api.ClientOptions{
-			Timeout:       runtimeConfig.QuickServiceTimeout,
-			RetryBackoffs: runtimeConfig.RetryBackoffs,
-		})
-		return client.CreateQuickTunnel(ctx)
-	})
+	return prepareQuickTunnelSessionWith(ctx, cfg, logger, defaultQuickTunnelReservation)
 }
 
 func prepareQuickTunnelSessionWith(
@@ -44,7 +40,58 @@ func prepareQuickTunnelSessionWith(
 	if err != nil {
 		return nil, fmt.Errorf("normalize cftunnel config: %w", err)
 	}
+	return prepareQuickTunnelSessionFromRuntime(ctx, runtimeConfig, reserve)
+}
 
+func prepareTunnelSession(
+	ctx context.Context,
+	cfg config.CFTunnelConfig,
+	logger *slog.Logger,
+) (*preparedSession, error) {
+	return prepareTunnelSessionWith(ctx, cfg, logger, defaultQuickTunnelReservation)
+}
+
+func prepareTunnelSessionWith(
+	ctx context.Context,
+	cfg config.CFTunnelConfig,
+	_ *slog.Logger,
+	reserve quickTunnelReservationFunc,
+) (*preparedSession, error) {
+	runtimeConfig, err := tunnelconfig.Normalize(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("normalize cftunnel config: %w", err)
+	}
+	if strings.TrimSpace(cfg.TunnelToken) != "" {
+		creds, err := credentials.ParseTunnelToken(cfg.TunnelToken)
+		if err != nil {
+			return nil, fmt.Errorf("parse tunnel token: %w", err)
+		}
+		session, err := tunnelruntime.BuildTokenSession(runtimeConfig, creds)
+		if err != nil {
+			return nil, fmt.Errorf("build formal tunnel runtime session: %w", err)
+		}
+		return &preparedSession{
+			runtimeConfig: runtimeConfig,
+			session:       session,
+		}, nil
+	}
+
+	return prepareQuickTunnelSessionFromRuntime(ctx, runtimeConfig, reserve)
+}
+
+func defaultQuickTunnelReservation(ctx context.Context, runtimeConfig tunnelconfig.RuntimeConfig) (*api.QuickTunnelReservation, error) {
+	client := api.NewClientWithOptions(runtimeConfig.QuickService, buildUserAgent(), api.ClientOptions{
+		Timeout:       runtimeConfig.QuickServiceTimeout,
+		RetryBackoffs: runtimeConfig.RetryBackoffs,
+	})
+	return client.CreateQuickTunnel(ctx)
+}
+
+func prepareQuickTunnelSessionFromRuntime(
+	ctx context.Context,
+	runtimeConfig tunnelconfig.RuntimeConfig,
+	reserve quickTunnelReservationFunc,
+) (*preparedSession, error) {
 	reservation, err := reserve(ctx, runtimeConfig)
 	if err != nil {
 		if api.IsRateLimitedError(err) {

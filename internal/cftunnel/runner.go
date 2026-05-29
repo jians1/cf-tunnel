@@ -42,12 +42,12 @@ func (r *Runner) Name() string {
 }
 
 func (r *Runner) Run(ctx context.Context) error {
-	prepared, err := prepareQuickTunnelSession(ctx, r.cfg, r.logger)
+	prepared, err := prepareTunnelSession(ctx, r.cfg, r.logger)
 	if err != nil {
 		return err
 	}
 
-	logQuickTunnelSummary(r.logger, formatProtocol(r.cfg.EdgeProtocol), prepared.session)
+	logTunnelSummary(r.logger, formatProtocol(r.cfg.EdgeProtocol), prepared.session)
 
 	bridge := tunnelruntime.NewBridgeRunner(prepared.session, r.logger)
 	bridge.SetHTTP2Options(buildHTTP2ServerOptions(prepared.runtimeConfig, r.logger))

@@ -2,6 +2,8 @@ package cftunnel
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -29,6 +31,41 @@ func TestPrepareQuickTunnelSessionWithMockReservation(t *testing.T) {
 	if prepared.session.Hostname != "demo.trycloudflare.com" {
 		t.Fatalf("unexpected hostname: %s", prepared.session.Hostname)
 	}
+}
+
+func TestPrepareSessionWithTokenSkipsQuickTunnelReservation(t *testing.T) {
+	t.Parallel()
+
+	token := testTunnelToken(t)
+	called := false
+	prepared, err := prepareTunnelSessionWith(context.Background(), config.CFTunnelConfig{
+		TunnelToken:  token,
+		EdgeProtocol: config.EdgeProtocolQUIC,
+		Target:       "http://127.0.0.1:8080",
+	}, slog.Default(), func(context.Context, tunnelconfig.RuntimeConfig) (*api.QuickTunnelReservation, error) {
+		called = true
+		return nil, errors.New("reservation should not be called")
+	})
+	if err != nil {
+		t.Fatalf("prepare token session: %v", err)
+	}
+	if called {
+		t.Fatal("quick tunnel reservation was called in token mode")
+	}
+	if prepared.session.QuickTunnel {
+		t.Fatal("expected formal tunnel session")
+	}
+	if prepared.reservation != nil {
+		t.Fatal("expected no quick tunnel reservation")
+	}
+}
+
+func testTunnelToken(t *testing.T) string {
+	t.Helper()
+
+	secret := base64.StdEncoding.EncodeToString([]byte("secret-value"))
+	raw := `{"a":"account-tag","t":"11111111-1111-1111-1111-111111111111","s":"` + secret + `"}`
+	return base64.StdEncoding.EncodeToString([]byte(raw))
 }
 
 func TestPrepareQuickTunnelSessionWithCarriesQuickServiceOptions(t *testing.T) {

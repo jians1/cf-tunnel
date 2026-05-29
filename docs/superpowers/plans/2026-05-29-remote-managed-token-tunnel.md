@@ -764,7 +764,7 @@ git commit -m "feat: build formal tunnel sessions from token credentials"
 - Modify: `internal/cftunnel/runner.go`
 - Modify: `internal/cftunnel/summary.go`
 
-- [ ] **Step 1: Write failing session setup test that token skips Quick Tunnel API**
+- [x] **Step 1: Write failing session setup test that token skips Quick Tunnel API**
 
 Add to `internal/cftunnel/session_setup_test.go`:
 
@@ -801,7 +801,7 @@ func testTunnelToken(t *testing.T) string {
 
 Add imports `encoding/base64` and `errors` if missing.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run:
 
@@ -811,7 +811,7 @@ go test ./internal/cftunnel -run TestPrepareSessionWithTokenSkipsQuickTunnelRese
 
 Expected: FAIL because `prepareTunnelSessionWith` does not exist.
 
-- [ ] **Step 3: Rename setup function and add token branch**
+- [x] **Step 3: Rename setup function and add token branch**
 
 In `internal/cftunnel/session_setup.go`:
 
@@ -856,7 +856,7 @@ func prepareTunnelSessionWith(ctx context.Context, cfg config.CFTunnelConfig, lo
 
 Use local helper names that fit the file. Import `strings` and `internal/cftunnel/credentials`.
 
-- [ ] **Step 4: Update runner to use generic preparation**
+- [x] **Step 4: Update runner to use generic preparation**
 
 In `internal/cftunnel/runner.go`, replace:
 
@@ -872,7 +872,7 @@ with:
 
 Replace summary call with a generic summary helper from the next step.
 
-- [ ] **Step 5: Update summary for formal tunnel mode**
+- [x] **Step 5: Update summary for formal tunnel mode**
 
 In `internal/cftunnel/summary.go`, preserve existing Quick Tunnel output. Add:
 
@@ -896,7 +896,7 @@ Use this in `runner.go`:
 	logTunnelSummary(r.logger, formatProtocol(r.cfg.EdgeProtocol), prepared.session)
 ```
 
-- [ ] **Step 6: Run cftunnel tests**
+- [x] **Step 6: Run cftunnel tests**
 
 Run:
 
@@ -906,7 +906,7 @@ go test ./internal/cftunnel -count=1
 
 Expected: PASS.
 
-- [ ] **Step 7: Run broader affected tests**
+- [x] **Step 7: Run broader affected tests**
 
 Run:
 
@@ -916,7 +916,7 @@ go test ./internal/config ./internal/cftunnel/... ./cmd/app -count=1
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/cftunnel/session_setup.go internal/cftunnel/session_setup_test.go internal/cftunnel/runner.go internal/cftunnel/summary.go
