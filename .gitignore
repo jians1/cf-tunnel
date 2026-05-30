@@ -12,6 +12,12 @@
 *.log
 *.pid
 
+# Local development planning and profiling artifacts
+/PROJECT_PLAN.md
+/CFTUNNEL_ANALYSIS.md
+/docs/superpowers/plans/
+/artifacts/profiles/
+
 # Editor and OS files
 .DS_Store
 *.swp
