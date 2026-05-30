@@ -7,7 +7,7 @@ OUT_DIR="${ROOT_DIR}/dist"
 
 GOOS_VALUE="${GOOS:-linux}"
 GOARCH_VALUE="${GOARCH:-amd64}"
-BIN_NAME="cf-quicktunnel-ipv6pool"
+BIN_NAME="cf-tunnel"
 OUT_PATH="${OUT_DIR}/${BIN_NAME}-${VERSION}-${GOOS_VALUE}-${GOARCH_VALUE}"
 SHA_PATH="${OUT_PATH}.sha256"
 MANIFEST_PATH="${OUT_DIR}/${BIN_NAME}-${VERSION}-${GOOS_VALUE}-${GOARCH_VALUE}.manifest.txt"

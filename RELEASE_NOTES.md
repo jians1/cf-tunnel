@@ -1,8 +1,8 @@
 # Release Notes
 
-## 0.1.0-prototype
+## 0.1.0
 
-This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
+This is the first usable release candidate of `cf-tunnel`.
 
 ### Included
 
@@ -27,7 +27,7 @@ This is the first usable release candidate of `cf-quicktunnel-ipv6pool`.
 - `256MiB` file downloads through both Quick Tunnel and remote-managed token tunnel with matching SHA256
 - `256MiB` RSS smoke: token tunnel peak `21,484 KB`, Quick Tunnel peak `22,676 KB`
 - dependency-trimmed runtime still passes real `http2` and `quic` end-to-end regression checks
-- release binary size is `10,256,546 bytes` for `linux/amd64`
+- release binary size is `10,260,642 bytes` for `linux/amd64`
 
 ### Dependency Trimming Included
 

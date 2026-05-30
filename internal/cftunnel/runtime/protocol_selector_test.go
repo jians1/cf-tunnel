@@ -29,4 +29,3 @@ func TestParseEdgeProtocolRejectsUnsupportedValue(t *testing.T) {
 		t.Fatal("expected unsupported protocol error")
 	}
 }
-

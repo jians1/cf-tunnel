@@ -3,11 +3,11 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/api"
-	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/credentials"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/api"
+	tunnelconfig "github.com/jians1/cf-tunnel/internal/cftunnel/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/credentials"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/origin"
+	appconfig "github.com/jians1/cf-tunnel/internal/config"
 )
 
 type Session struct {

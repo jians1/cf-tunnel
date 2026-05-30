@@ -3,16 +3,16 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
-	"flag"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/logging"
-	appRuntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/runtime"
+	"github.com/jians1/cf-tunnel/internal/cftunnel"
+	"github.com/jians1/cf-tunnel/internal/config"
+	"github.com/jians1/cf-tunnel/internal/health"
+	"github.com/jians1/cf-tunnel/internal/logging"
+	appRuntime "github.com/jians1/cf-tunnel/internal/runtime"
 )
 
 func main() {

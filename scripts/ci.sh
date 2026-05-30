@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(tr -d '\n' < "${ROOT_DIR}/VERSION")"
-IMAGE_TAG="cf-quicktunnel-ipv6pool:${VERSION}"
+IMAGE_TAG="cf-tunnel:${VERSION}"
 
 cd "${ROOT_DIR}"
 

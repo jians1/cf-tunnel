@@ -11,11 +11,11 @@ type UpstreamOrchestrator struct {
 }
 
 type upstreamOrchestratorConfig struct {
-	QuickTunnel bool                           `json:"quick_tunnel"`
-	Origin      upstreamOrchestratorOrigin     `json:"origin"`
-	Edge        upstreamOrchestratorEdge       `json:"edge"`
-	Hostname    string                         `json:"hostname"`
-	URL         string                         `json:"url"`
+	QuickTunnel bool                       `json:"quick_tunnel"`
+	Origin      upstreamOrchestratorOrigin `json:"origin"`
+	Edge        upstreamOrchestratorEdge   `json:"edge"`
+	Hostname    string                     `json:"hostname"`
+	URL         string                     `json:"url"`
 }
 
 type upstreamOrchestratorOrigin struct {

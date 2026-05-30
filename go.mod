@@ -1,4 +1,4 @@
-module github.com/deanxv/cf-quicktunnel-ipv6pool
+module github.com/jians1/cf-tunnel
 
 go 1.26.3
 

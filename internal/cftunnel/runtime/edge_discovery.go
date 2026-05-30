@@ -29,9 +29,9 @@ var (
 type EdgeIPVersion int8
 
 const (
-	EdgeIPAuto     EdgeIPVersion = 2
-	EdgeIPv4Only   EdgeIPVersion = 4
-	EdgeIPv6Only   EdgeIPVersion = 6
+	EdgeIPAuto   EdgeIPVersion = 2
+	EdgeIPv4Only EdgeIPVersion = 4
+	EdgeIPv6Only EdgeIPVersion = 6
 )
 
 type EdgeAddressProvider interface {

@@ -189,7 +189,7 @@ func Parse(args []string) (AppConfig, error) {
 	cfg := AppConfig{}
 	var configPath string
 
-	fs := flag.NewFlagSet("cf-quicktunnel-ipv6pool", flag.ContinueOnError)
+	fs := flag.NewFlagSet("cf-tunnel", flag.ContinueOnError)
 	fs.Usage = func() {
 		writeUsage(fs.Output(), fs.Name())
 	}

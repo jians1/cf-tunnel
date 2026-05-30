@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
+	"github.com/jians1/cf-tunnel/internal/config"
+	"github.com/jians1/cf-tunnel/internal/health"
 )
 
 func TestBuildRunnersWiresHealthReadySummaryForMultiTunnel(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"strings"
 
-	tunnelruntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime"
+	tunnelruntime "github.com/jians1/cf-tunnel/internal/cftunnel/runtime"
 )
 
 func logTunnelSummary(logger *slog.Logger, requestedProtocol string, session tunnelruntime.Session) {

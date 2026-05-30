@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	tunnelconfig "github.com/jians1/cf-tunnel/internal/cftunnel/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/runtime"
+	"github.com/jians1/cf-tunnel/internal/config"
 )
 
 func TestMainPathWithMockQuickTunnelReservation(t *testing.T) {

@@ -10,7 +10,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
   go build -trimpath -ldflags="-s -w" \
-  -o /out/cf-quicktunnel-ipv6pool ./cmd/app
+  -o /out/cf-tunnel ./cmd/app
 
 FROM debian:bookworm-slim
 
@@ -19,6 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /out/cf-quicktunnel-ipv6pool /usr/local/bin/cf-quicktunnel-ipv6pool
+COPY --from=builder /out/cf-tunnel /usr/local/bin/cf-tunnel
 
-ENTRYPOINT ["/usr/local/bin/cf-quicktunnel-ipv6pool"]
+ENTRYPOINT ["/usr/local/bin/cf-tunnel"]

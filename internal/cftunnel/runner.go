@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
-	tunnelruntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
+	tunnelconfig "github.com/jians1/cf-tunnel/internal/cftunnel/config"
+	tunnelruntime "github.com/jians1/cf-tunnel/internal/cftunnel/runtime"
+	"github.com/jians1/cf-tunnel/internal/config"
+	"github.com/jians1/cf-tunnel/internal/health"
 )
 
 type Runner struct {
@@ -153,7 +153,7 @@ func statusForRunError(ctx context.Context, err error) string {
 }
 
 func buildUserAgent() string {
-	return "cf-quicktunnel-ipv6pool/dev"
+	return "cf-tunnel/dev"
 }
 
 func buildHTTP2ServerOptions(_ tunnelconfig.RuntimeConfig, logger *slog.Logger, connected tunnelruntime.ConnectedFuse) tunnelruntime.HTTP2ServerOptions {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/origin"
+	appconfig "github.com/jians1/cf-tunnel/internal/config"
 )
 
 var defaultQuickServiceRetryBackoffs = []time.Duration{

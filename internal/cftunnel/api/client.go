@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/credentials"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/credentials"
 )
 
 const DefaultQuickService = "https://api.trycloudflare.com"

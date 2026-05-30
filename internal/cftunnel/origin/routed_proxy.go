@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/protocol"
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/protocol"
+	appconfig "github.com/jians1/cf-tunnel/internal/config"
 )
 
 type RoutedProxy struct {

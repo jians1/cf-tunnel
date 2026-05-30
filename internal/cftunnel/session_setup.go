@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/api"
-	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/credentials"
-	tunnelruntime "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/runtime"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/api"
+	tunnelconfig "github.com/jians1/cf-tunnel/internal/cftunnel/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/credentials"
+	tunnelruntime "github.com/jians1/cf-tunnel/internal/cftunnel/runtime"
+	"github.com/jians1/cf-tunnel/internal/config"
 )
 
 type quickTunnelReservationFunc func(ctx context.Context, runtimeConfig tunnelconfig.RuntimeConfig) (*api.QuickTunnelReservation, error)

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	appconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	appconfig "github.com/jians1/cf-tunnel/internal/config"
 )
 
 type Route struct {

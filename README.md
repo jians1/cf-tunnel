@@ -1,4 +1,4 @@
-# cf-quicktunnel-ipv6pool
+# cf-tunnel
 
 Single-binary Go project focused on Cloudflare `TryCloudflare / Quick Tunnel` and lightweight remote-managed Tunnel token mode.
 
@@ -46,10 +46,10 @@ Latest `256MiB` RSS smoke results on `linux/amd64` release build:
 go build -buildvcs=false ./cmd/app
 ```
 
-Current prototype version:
+Current version:
 
 ```text
-0.1.0-prototype
+0.1.0
 ```
 
 ## Release Build
@@ -67,22 +67,22 @@ CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w"
 Default output:
 
 ```text
-dist/cf-quicktunnel-ipv6pool-0.1.0-prototype-linux-amd64
-dist/cf-quicktunnel-ipv6pool-0.1.0-prototype-linux-amd64.sha256
-dist/cf-quicktunnel-ipv6pool-0.1.0-prototype-linux-amd64.manifest.txt
+dist/cf-tunnel-0.1.0-linux-amd64
+dist/cf-tunnel-0.1.0-linux-amd64.sha256
+dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
 ```
 
 ## Container Build
 
 ```bash
-docker build -t cf-quicktunnel-ipv6pool:0.1.0-prototype .
+docker build -t cf-tunnel:0.1.0 .
 ```
 
 Example run:
 
 ```bash
 docker run --rm \
-  cf-quicktunnel-ipv6pool:0.1.0-prototype \
+  cf-tunnel:0.1.0 \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080 \
   --health-listen=
@@ -254,8 +254,8 @@ Compatibility rules:
 Usage:
 
 ```bash
-cf-quicktunnel-ipv6pool --cf-tunnel-target=<url> [options]
-cf-quicktunnel-ipv6pool --config=<config.yaml>
+cf-tunnel --cf-tunnel-target=<url> [options]
+cf-tunnel --config=<config.yaml>
 ```
 
 Required:
@@ -306,5 +306,5 @@ mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
 
 ## Release
 
-- Version file: [VERSION](/root/cf-quicktunnel-ipv6pool/VERSION)
-- Release notes: [RELEASE_NOTES.md](/root/cf-quicktunnel-ipv6pool/RELEASE_NOTES.md)
+- Version file: [VERSION](VERSION)
+- Release notes: [RELEASE_NOTES.md](RELEASE_NOTES.md)

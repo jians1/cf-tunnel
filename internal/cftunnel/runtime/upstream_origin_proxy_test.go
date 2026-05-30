@@ -7,8 +7,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"sync/atomic"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )

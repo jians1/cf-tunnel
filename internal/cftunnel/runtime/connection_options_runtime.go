@@ -7,7 +7,7 @@ import (
 	goruntime "runtime"
 )
 
-const runtimeClientVersion = "cf-quicktunnel-ipv6pool/0.1.0-prototype"
+const runtimeClientVersion = "cf-tunnel/0.1.0"
 
 type runtimeConnectionOptionsSnapshot struct {
 	client              runtimeClientInfo

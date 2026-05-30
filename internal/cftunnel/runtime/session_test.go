@@ -6,10 +6,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/api"
-	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/credentials"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/api"
+	tunnelconfig "github.com/jians1/cf-tunnel/internal/cftunnel/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/credentials"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/origin"
 )
 
 func TestBuildSession(t *testing.T) {

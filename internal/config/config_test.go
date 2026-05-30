@@ -1,11 +1,27 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestUsageUsesReleaseBinaryName(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	writeUsage(&out, "cf-tunnel")
+
+	usage := out.String()
+	if !strings.Contains(usage, "cf-tunnel --cf-tunnel-target=<url> [options]") {
+		t.Fatalf("usage should include release binary name, got:\n%s", usage)
+	}
+	if strings.Contains(usage, "cf-quicktunnel-ipv6pool") {
+		t.Fatalf("usage should not include old binary name, got:\n%s", usage)
+	}
+}
 
 func TestParseRequiresTunnelTarget(t *testing.T) {
 	t.Parallel()

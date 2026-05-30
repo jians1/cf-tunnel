@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
-	apphealth "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/health"
+	"github.com/jians1/cf-tunnel/internal/config"
+	apphealth "github.com/jians1/cf-tunnel/internal/health"
 )
 
 func TestRunnerReadinessDefaultsToPending(t *testing.T) {
@@ -41,6 +41,14 @@ func TestRunnerReadinessMarksReadyWhenConnected(t *testing.T) {
 	}
 	if !strings.Contains(status.Summary, "details=[cftunnel:ready]") {
 		t.Fatalf("unexpected summary: %s", status.Summary)
+	}
+}
+
+func TestBuildUserAgentUsesReleaseBinaryName(t *testing.T) {
+	t.Parallel()
+
+	if got := buildUserAgent(); got != "cf-tunnel/dev" {
+		t.Fatalf("unexpected user agent: %s", got)
 	}
 }
 

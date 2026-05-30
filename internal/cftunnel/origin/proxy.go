@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/protocol"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/protocol"
 )
 
 const websocketCopyBufferSize = 32 * 1024

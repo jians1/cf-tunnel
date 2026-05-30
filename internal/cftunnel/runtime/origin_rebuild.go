@@ -3,7 +3,7 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/origin"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/origin"
 )
 
 func (s Session) OriginTarget() (origin.Target, error) {

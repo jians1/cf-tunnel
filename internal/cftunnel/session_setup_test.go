@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/api"
-	tunnelconfig "github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel/config"
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/jians1/cf-tunnel/internal/cftunnel/api"
+	tunnelconfig "github.com/jians1/cf-tunnel/internal/cftunnel/config"
+	"github.com/jians1/cf-tunnel/internal/config"
 )
 
 func TestPrepareQuickTunnelSessionWithMockReservation(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
+	"github.com/jians1/cf-tunnel/internal/config"
 )
 
 func TestNewMultiRunnerRejectsEmptyTunnels(t *testing.T) {
