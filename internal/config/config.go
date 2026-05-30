@@ -202,7 +202,7 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
-	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,server_name=<name>][,insecure_skip_verify=true|false]")
+	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,server_name=<name>][,insecure_skip_verify=true|false]")
 
 	if err := fs.Parse(args); err != nil {
 		return AppConfig{}, err

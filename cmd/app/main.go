@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"flag"
 
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/cftunnel"
 	"github.com/deanxv/cf-quicktunnel-ipv6pool/internal/config"
@@ -16,6 +18,9 @@ import (
 func main() {
 	cfg, err := config.Parse(os.Args[1:])
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(2)
 	}
