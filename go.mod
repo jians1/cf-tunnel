@@ -9,14 +9,16 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/go-logr/logr v1.4.3 // indirect
+require (
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/tinylib/msgp v1.6.4 // indirect
+)
 
 require (
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/pprof v0.0.0-20250418163039-24c5476c6587 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.23.4 // indirect
-	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/quic-go/quic-go v0.52.0
 	go.uber.org/automaxprocs v1.6.0 // indirect
