@@ -260,7 +260,7 @@ Compatibility rules:
 
 ### Tunnel Controls
 
-- `--cf-edge-protocol=quic|http2`
+- `--cf-edge-protocol=http2|quic` (default: `http2`)
 - `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
 - `--cf-tunnel-target=url`
 - `--cf-origin-server-name=...`

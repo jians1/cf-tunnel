@@ -236,7 +236,6 @@ func TestParseDefaultRoutesIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := Parse([]string{
-		"--cf-edge-protocol=http2",
 		"--cf-tunnel-target=http://127.0.0.1:8080",
 		"--health-listen=",
 	})
@@ -245,6 +244,21 @@ func TestParseDefaultRoutesIsEmpty(t *testing.T) {
 	}
 	if len(cfg.CFTunnel.Routes) != 0 {
 		t.Fatalf("expected empty routes by default, got %d", len(cfg.CFTunnel.Routes))
+	}
+}
+
+func TestParseDefaultEdgeProtocolIsHTTP2(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CFTunnel.EdgeProtocol != EdgeProtocolHTTP2 {
+		t.Fatalf("expected default edge protocol %q, got %q", EdgeProtocolHTTP2, cfg.CFTunnel.EdgeProtocol)
 	}
 }
 

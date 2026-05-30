@@ -198,7 +198,7 @@ func Parse(args []string) (AppConfig, error) {
 	cfg.CFTunnel.QuickService = "https://api.trycloudflare.com"
 	cfg.CFTunnel.TunnelToken = strings.TrimSpace(os.Getenv("CF_TUNNEL_TOKEN"))
 	fs.StringVar(&cfg.CFTunnel.TunnelToken, "cf-tunnel-token", cfg.CFTunnel.TunnelToken, "Cloudflare remote-managed tunnel token")
-	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolQUIC, "Cloudflare edge protocol")
+	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolHTTP2, "Cloudflare edge protocol (http2|quic)")
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
