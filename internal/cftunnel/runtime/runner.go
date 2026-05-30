@@ -33,7 +33,7 @@ func (r *BridgeRunner) SetQUICOptions(opts QUICRuntimeOptions) {
 }
 
 func (r *BridgeRunner) Run(ctx context.Context) error {
-	r.logger.Info(
+	r.logger.Debug(
 		"cftunnel runtime bridge prepared",
 		"tunnel_id", r.session.TunnelID,
 		"hostname", r.session.Hostname,
@@ -55,7 +55,7 @@ func (r *BridgeRunner) Run(ctx context.Context) error {
 		return fmt.Errorf("build runtime instance: %w", err)
 	}
 	if instance.HTTP2Server != nil {
-		r.logger.Info("http2 runtime server composed")
+		r.logger.Debug("http2 runtime server composed")
 		if r.http2Options.LocalEdgeDriver {
 			driver, err := NewHTTP2LocalEdgeDriver(instance.HTTP2Server)
 			if err != nil {

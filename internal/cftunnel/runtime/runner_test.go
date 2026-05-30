@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -65,6 +66,29 @@ func TestBridgeRunnerQUICUsesConfiguredEdgeDial(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parse quic dial address") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBridgeRunnerOmitsPreparedDetailsAtInfo(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	runner := NewBridgeRunner(testSession(t, "quic"), logger)
+	runner.SetQUICOptions(QUICRuntimeOptions{
+		DialAddress: "not-a-udp-address",
+	})
+
+	if err := runner.Run(context.Background()); err == nil {
+		t.Fatal("expected configured quic edge dial address to fail")
+	}
+
+	output := buf.String()
+	if strings.Contains(output, "cftunnel runtime bridge prepared") {
+		t.Fatalf("expected info logs to omit runtime preparation details; got %s", output)
+	}
+	if strings.Contains(output, "origin_insecure_skip_verify") {
+		t.Fatalf("expected info logs to omit origin TLS details; got %s", output)
 	}
 }
 
