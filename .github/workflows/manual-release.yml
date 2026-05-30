@@ -1,0 +1,103 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag. Leave empty to use v<VERSION>."
+        required: false
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease."
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(tr -d '\n' < VERSION)"
+          tag="$(printf '%s' "${{ inputs.tag }}" | xargs)"
+          if [ -z "${tag}" ]; then
+            tag="v${version}"
+          fi
+          case "${tag}" in
+            v*) ;;
+            *)
+              echo "::error::Release tag must start with v, got '${tag}'"
+              exit 1
+              ;;
+          esac
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf dist
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH="${arch}" ./scripts/build-release.sh
+          done
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd dist
+          for checksum in *.sha256; do
+            sha256sum -c "${checksum}"
+          done
+          ls -lh
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.meta.outputs.tag }}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "::error::Release ${tag} already exists. Delete it or choose another tag."
+            exit 1
+          fi
+
+          release_flags=()
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            release_flags+=(--prerelease)
+          fi
+
+          gh release create "${tag}" \
+            "${release_flags[@]}" \
+            --title "${tag}" \
+            --notes-file RELEASE_NOTES.md \
+            --target "${GITHUB_SHA}" \
+            dist/*
