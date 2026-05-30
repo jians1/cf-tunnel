@@ -249,23 +249,38 @@ Compatibility rules:
 - Config files must be YAML (`.yaml` or `.yml`) and use `snake_case` fields. JSON files and Go-style fields such as `CFTunnel` or `EdgeProtocol` are rejected.
 - If `tunnel_token` is stored in YAML, keep the file private, for example `chmod 600 config.yaml`.
 
-## Important Flags
+## Parameters
 
-### Global Controls
+Usage:
 
+```bash
+cf-quicktunnel-ipv6pool --cf-tunnel-target=<url> [options]
+cf-quicktunnel-ipv6pool --config=<config.yaml>
+```
+
+Required:
+
+- `--cf-tunnel-target=<url>` (required when `--config` is not used)
+
+Optional:
+
+- `--config=<path>`: YAML config file (`.yaml` / `.yml`)
+- `--cf-edge-protocol=http2|quic` (default: `http2`)
+- `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
+- `--cf-origin-server-name=...`
+- `--cf-origin-insecure-skip-verify`
+- `--cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
 - `--log-level=debug|info|warn|error`
 - `--log-format=text|json`
 - `--health-listen=:9090`
 - `--shutdown-timeout=10s`
 
-### Tunnel Controls
+Precedence and override rules:
 
-- `--cf-edge-protocol=http2|quic` (default: `http2`)
-- `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
-- `--cf-tunnel-target=url`
-- `--cf-origin-server-name=...`
-- `--cf-origin-insecure-skip-verify`
-- `--cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
+- Parse order is CLI first, then `--config`.
+- If config file contains `cf_tunnel`, it replaces single-tunnel CLI fields as one block.
+- If config file contains non-empty `tunnels`, runtime enters multi-tunnel mode and single-tunnel CLI fields (`--cf-*` for single tunnel) are not used.
+- Global controls (`log-level`, `log-format`, `health-listen`, `shutdown-timeout`) are also overridden by config file when the corresponding fields are set.
 
 ## Current Runtime Behavior
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -189,6 +190,9 @@ func Parse(args []string) (AppConfig, error) {
 	var configPath string
 
 	fs := flag.NewFlagSet("cf-quicktunnel-ipv6pool", flag.ContinueOnError)
+	fs.Usage = func() {
+		writeUsage(fs.Output(), fs.Name())
+	}
 	fs.StringVar(&cfg.LogLevel, "log-level", "info", "log level")
 	fs.StringVar(&cfg.LogFormat, "log-format", "text", "log format")
 	fs.StringVar(&cfg.HealthListen, "health-listen", ":9090", "health endpoint listen address")
@@ -224,6 +228,36 @@ func Parse(args []string) (AppConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func writeUsage(w io.Writer, name string) {
+	fmt.Fprintf(w, "Usage:\n")
+	fmt.Fprintf(w, "  %s --cf-tunnel-target=<url> [options]\n", name)
+	fmt.Fprintf(w, "  %s --config=<config.yaml>\n\n", name)
+
+	fmt.Fprintln(w, "Required:")
+	fmt.Fprintln(w, "  --cf-tunnel-target=<url> (required when --config is not used)")
+	fmt.Fprintln(w)
+
+	fmt.Fprintln(w, "Optional:")
+	fmt.Fprintln(w, "  --config=<path>                                       YAML config file (.yaml / .yml)")
+	fmt.Fprintln(w, "  --cf-edge-protocol=http2|quic                         Cloudflare edge protocol (default: http2)")
+	fmt.Fprintln(w, "  --cf-tunnel-token=<token>                             Cloudflare remote-managed tunnel token")
+	fmt.Fprintln(w, "  --cf-origin-server-name=<name>                        Origin TLS server name override")
+	fmt.Fprintln(w, "  --cf-origin-insecure-skip-verify                      Skip origin TLS verification")
+	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]")
+	fmt.Fprintln(w, "                                                         Path-based route rule, repeatable")
+	fmt.Fprintln(w, "  --log-level=debug|info|warn|error                     Log level (default: info)")
+	fmt.Fprintln(w, "  --log-format=text|json                                Log format (default: text)")
+	fmt.Fprintln(w, "  --health-listen=:9090                                 Health endpoint listen address")
+	fmt.Fprintln(w, "  --shutdown-timeout=10s                                Shutdown timeout")
+	fmt.Fprintln(w)
+
+	fmt.Fprintln(w, "Precedence and override rules:")
+	fmt.Fprintln(w, "  1) Parse order is CLI first, then --config.")
+	fmt.Fprintln(w, "  2) If config has cf_tunnel, it replaces single-tunnel CLI fields as one block.")
+	fmt.Fprintln(w, "  3) If config has non-empty tunnels, runtime enters multi-tunnel mode; single-tunnel --cf-* CLI fields are not used.")
+	fmt.Fprintln(w, "  4) Global controls are overridden by config file when corresponding fields are set.")
 }
 
 func (c AppConfig) Validate() error {
