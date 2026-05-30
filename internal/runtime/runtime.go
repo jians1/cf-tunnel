@@ -55,6 +55,7 @@ func RunWithOptions(ctx context.Context, logger *slog.Logger, opts Options, runn
 
 	timerStarted := false
 	var timeout <-chan time.Time
+	shutdownSignal := ctx.Done()
 	var firstErr error
 	completed := 0
 	for completed < len(runners) {
@@ -64,7 +65,8 @@ func RunWithOptions(ctx context.Context, logger *slog.Logger, opts Options, runn
 			if firstErr == nil && result.err != nil {
 				firstErr = result.err
 			}
-		case <-ctx.Done():
+		case <-shutdownSignal:
+			shutdownSignal = nil
 			if opts.ShutdownTimeout <= 0 {
 				continue
 			}

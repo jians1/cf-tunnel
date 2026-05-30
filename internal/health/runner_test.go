@@ -50,6 +50,71 @@ func TestRunnerStopsPromptlyWithOpenClientConnection(t *testing.T) {
 	}
 }
 
+func TestRunnerShutdownTimesOutWhenReadinessHandlerBlocks(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	listen := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	providerStarted := make(chan struct{})
+	releaseProvider := make(chan struct{})
+	runner := NewRunner(listen, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	runner.SetReadyProvider(func() ReadyStatus {
+		close(providerStarted)
+		<-releaseProvider
+		return ReadyStatus{Ready: true, Summary: "ready"}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Run(ctx)
+	}()
+
+	waitForHealthStatus(t, "http://"+listen+"/live", http.StatusOK)
+	requestDone := make(chan struct{})
+	go func() {
+		resp, err := http.Get("http://" + listen + "/ready")
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		close(requestDone)
+	}()
+
+	select {
+	case <-providerStarted:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("readiness provider did not start")
+	}
+
+	cancel()
+	defer close(releaseProvider)
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected shutdown timeout error")
+		}
+		if !strings.Contains(err.Error(), "context deadline exceeded") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(1500 * time.Millisecond):
+		t.Fatal("health runner did not return after shutdown timeout")
+	}
+
+	select {
+	case <-requestDone:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("blocked readiness request did not finish after provider release")
+	}
+}
+
 func TestRunnerReadyUsesSummaryProvider(t *testing.T) {
 	t.Parallel()
 

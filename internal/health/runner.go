@@ -5,7 +5,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 )
+
+const shutdownTimeout = 1 * time.Second
 
 type Runner struct {
 	listen string
@@ -85,7 +88,13 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		return server.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			return err
+		}
+		return nil
 	case err := <-errCh:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
