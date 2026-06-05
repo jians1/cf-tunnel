@@ -15,16 +15,18 @@ cfqt_extract_url() {
   local selector="${2:-}"
   local line=""
   if [[ -n "$selector" ]]; then
-    line="$(grep "$selector" "$log" | grep 'cftunnel startup summary' | tail -n1 || true)"
+    line="$(grep "$selector" "$log" | grep -E 'cftunnel startup summary|quick tunnel ready' | tail -n1 || true)"
   else
-    line="$(grep 'cftunnel startup summary' "$log" | tail -n1 || true)"
+    line="$(grep -E 'cftunnel startup summary|quick tunnel ready' "$log" | tail -n1 || true)"
   fi
   if [[ -z "$line" ]]; then
     return 0
   fi
   printf '%s\n' "$line" \
     | sed -n -e 's/.*"quick_tunnel_url":"\([^"]*\)".*/\1/p' \
+             -e 's/.*"url":"\([^"]*\)".*/\1/p' \
              -e 's/.*quick_tunnel_url=\([^[:space:]]*\).*/\1/p' \
+             -e 's/.*url=\([^[:space:]]*\).*/\1/p' \
     | head -n1
 }
 
