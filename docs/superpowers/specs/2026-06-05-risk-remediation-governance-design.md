@@ -11,7 +11,7 @@ Build a phased remediation and governance spec for the current `cf-tunnel` proje
 ## In Scope
 
 - Go version strategy and build environment consistency
-- Docker build and release artifact consistency
+- Removal of unused Docker delivery artifacts
 - Local CI script and GitHub release workflow alignment
 - `--cf-route` CLI parsing defect remediation
 - health readiness default behavior hardening
@@ -31,25 +31,20 @@ Build a phased remediation and governance spec for the current `cf-tunnel` proje
 
 ### R1: Build and release chain depends on a pinned Go `1.26` toolchain
 
-- Observed in `go.mod`, `Dockerfile`, local CI, and GitHub release workflow.
-- Risk: if the toolchain or image tag is unavailable in an execution environment, build, CI, Docker packaging, and release publication all fail together.
+- Observed in `go.mod`, local CI, and GitHub release workflow.
+- Risk: if the toolchain is unavailable in an execution environment, build, CI, and release publication fail together.
 
-### R2: Docker build flags are inconsistent with the documented release build
+### R2: Unused Docker delivery artifacts add maintenance surface
 
-- Observed between `README.md`, `scripts/build-release.sh`, and `Dockerfile`.
-- Risk: Docker image binaries can differ from release script binaries, reducing reproducibility and complicating debugging.
+- The project does not require Docker delivery.
+- Risk: keeping an unused Docker chain creates documentation drift, CI ambiguity, and unnecessary maintenance.
 
-### R3: Docker build context includes repository metadata that should not participate in artifact construction
-
-- Observed in `.dockerignore`.
-- Risk: larger build context, avoidable metadata leakage, and possible divergence between local and container builds.
-
-### R4: `--cf-route` parsing is not safe for target URLs containing commas
+### R3: `--cf-route` parsing is not safe for target URLs containing commas
 
 - Observed in `internal/config/config.go`.
 - Risk: valid targets can be misparsed into route options, causing broken configuration through CLI while YAML may still work.
 
-### R5: Health readiness defaults to ready when no provider is wired
+### R4: Health readiness defaults to ready when no provider is wired
 
 - Observed in `internal/health/runner.go`.
 - Risk: future wiring mistakes can silently expose false-positive readiness.
@@ -86,9 +81,8 @@ Use a four-phase execution model. Each phase has one primary objective and expli
 
 **Tasks:**
 
-- Normalize Go version policy across `go.mod`, `Dockerfile`, CI script, and GitHub Actions workflow.
-- Align Docker build flags with the documented release build contract.
-- Reduce Docker build context to required files only.
+- Normalize Go version policy across `go.mod`, CI script, and GitHub Actions workflow.
+- Remove unused Docker delivery artifacts and documentation.
 - Define the canonical build verification sequence for local and CI environments.
 
 **Boundary Rules:**
@@ -98,9 +92,8 @@ Use a four-phase execution model. Each phase has one primary objective and expli
 
 **Exit Criteria:**
 
-- One declared Go version strategy exists across all build entry points.
-- Docker build semantics match release build semantics.
-- Build context exclusions are documented and enforced.
+- One declared Go version strategy exists across all supported build entry points.
+- Unused Docker delivery artifacts are removed from the repository.
 - Local CI and release workflow reference the same build assumptions.
 
 ### Phase P2: Configuration and Runtime Safety Repair

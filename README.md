@@ -40,7 +40,6 @@
 构建基线：
 
 - Go 工具链基线：`1.26.3`
-- Docker builder 基线：`golang:1.26.3`
 
 #### 已知限制
 
@@ -82,22 +81,6 @@ dist/cf-tunnel-0.1.0-linux-amd64.sha256
 dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
 ```
 
-### 容器构建
-
-```bash
-docker build -t cf-tunnel:0.1.0 .
-```
-
-运行示例：
-
-```bash
-docker run --rm \
-  cf-tunnel:0.1.0 \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080 \
-  --health-listen=
-```
-
 ### CI 与本地验收
 
 运行本地流水线：
@@ -110,7 +93,8 @@ docker run --rm \
 
 1. `go test ./...`
 2. 将精简 release 二进制构建到 `dist/`
-3. Docker 镜像构建
+
+项目当前不提供 Docker 镜像构建或容器交付链路。
 
 ### 端到端 A/B 测试
 
@@ -357,7 +341,6 @@ Latest `256MiB` RSS smoke results on `linux/amd64` release build:
 Build baseline:
 
 - Go toolchain baseline: `1.26.3`
-- Docker builder baseline: `golang:1.26.3`
 
 #### Known Limits
 
@@ -399,22 +382,6 @@ dist/cf-tunnel-0.1.0-linux-amd64.sha256
 dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
 ```
 
-### Container Build
-
-```bash
-docker build -t cf-tunnel:0.1.0 .
-```
-
-Example run:
-
-```bash
-docker run --rm \
-  cf-tunnel:0.1.0 \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080 \
-  --health-listen=
-```
-
 ### CI / Local Acceptance
 
 Run the local pipeline:
@@ -427,7 +394,8 @@ This currently performs:
 
 1. `go test ./...`
 2. compact release binary build into `dist/`
-3. Docker image build
+
+The project does not currently provide a Docker image or container delivery path.
 
 ### E2E A/B Test
 
