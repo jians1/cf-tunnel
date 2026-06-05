@@ -30,6 +30,10 @@ type tunnelRunner interface {
 	Run(context.Context) error
 }
 
+type tunnelStatusProvider interface {
+	Status() health.StatusPayload
+}
+
 func NewMultiRunner(tunnels []config.NamedTunnelConfig, logger *slog.Logger) (*MultiRunner, error) {
 	if len(tunnels) == 0 {
 		return nil, errors.New("no tunnel instances configured")
@@ -198,8 +202,22 @@ func (r *MultiRunner) Status() health.StatusPayload {
 	tunnels := make([]health.TunnelStatus, 0, len(names))
 	for _, name := range names {
 		snapshot := r.status[name]
+		for _, runner := range r.runners {
+			if runner.Name() != name {
+				continue
+			}
+			if provider, ok := runner.(tunnelStatusProvider); ok {
+				if payload := provider.Status(); payload.Tunnel != nil {
+					snapshot = *payload.Tunnel
+				}
+			}
+			break
+		}
 		if snapshot.Name == "" {
 			snapshot.Name = name
+		}
+		if state := r.state[name]; state != "" {
+			snapshot.Status = state
 		}
 		if snapshot.Status == "" {
 			snapshot.Status = "pending"

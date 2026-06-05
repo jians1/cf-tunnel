@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tunnelruntime "github.com/jians1/cf-tunnel/internal/cftunnel/runtime"
 	"github.com/jians1/cf-tunnel/internal/config"
 	apphealth "github.com/jians1/cf-tunnel/internal/health"
 )
@@ -204,6 +205,52 @@ func TestMultiRunnerStatusAggregatesTunnelSnapshots(t *testing.T) {
 	}
 	if status.Tunnels[1].Name != "beta" || status.Tunnels[1].Status != "starting" {
 		t.Fatalf("unexpected beta payload: %#v", status.Tunnels[1])
+	}
+}
+
+func TestMultiRunnerStatusUsesChildRunnerSessionSnapshot(t *testing.T) {
+	t.Parallel()
+
+	child := NewNamedRunner("bero-ws", config.CFTunnelConfig{
+		EdgeProtocol: config.EdgeProtocolHTTP2,
+		Target:       "http://127.0.0.1:10006",
+	}, testLogger())
+	child.setSessionForTest(tunnelruntime.Session{
+		QuickTunnel: true,
+		Hostname:    "exception-first-wishing-borough.trycloudflare.com",
+		PublicURL:   "https://exception-first-wishing-borough.trycloudflare.com",
+		Edge: tunnelruntime.EdgeSettings{
+			Protocol: config.EdgeProtocolHTTP2,
+		},
+		Origin: tunnelruntime.OriginSettings{
+			URL: "http://127.0.0.1:10006",
+		},
+	})
+	child.markReadyForTest()
+
+	multi := &MultiRunner{
+		runners: []tunnelRunner{child},
+		state: map[string]string{
+			"bero-ws": "ready",
+		},
+		status: map[string]apphealth.TunnelStatus{
+			"bero-ws": {
+				Name:   "bero-ws",
+				Status: "ready",
+			},
+		},
+	}
+
+	status := multi.Status()
+	if len(status.Tunnels) != 1 {
+		t.Fatalf("unexpected tunnel count: %#v", status)
+	}
+	tunnel := status.Tunnels[0]
+	if !tunnel.QuickTunnel || tunnel.QuickTunnelURL != "https://exception-first-wishing-borough.trycloudflare.com" {
+		t.Fatalf("expected quick tunnel metadata from child runner, got %#v", tunnel)
+	}
+	if tunnel.Hostname != "exception-first-wishing-borough.trycloudflare.com" || tunnel.Protocol != config.EdgeProtocolHTTP2 || tunnel.OriginURL != "http://127.0.0.1:10006" {
+		t.Fatalf("unexpected child runner snapshot: %#v", tunnel)
 	}
 }
 
