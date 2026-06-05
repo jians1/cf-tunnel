@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ type MultiRunner struct {
 	startInterval time.Duration
 	mu            sync.RWMutex
 	state         map[string]string
+	status        map[string]health.TunnelStatus
 }
 
 type tunnelRunner interface {
@@ -37,6 +39,7 @@ func NewMultiRunner(tunnels []config.NamedTunnelConfig, logger *slog.Logger) (*M
 		logger:        logger.With("component", "cftunnel"),
 		startInterval: multiTunnelStartInterval,
 		state:         make(map[string]string, len(tunnels)),
+		status:        make(map[string]health.TunnelStatus, len(tunnels)),
 	}
 	for _, tunnel := range tunnels {
 		name := tunnel.Name
@@ -127,7 +130,17 @@ func joinTunnelErrors(errs []error) error {
 func (r *MultiRunner) setState(name, status string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.state == nil {
+		r.state = map[string]string{}
+	}
+	if r.status == nil {
+		r.status = map[string]health.TunnelStatus{}
+	}
 	r.state[name] = status
+	snapshot := r.status[name]
+	snapshot.Name = name
+	snapshot.Status = status
+	r.status[name] = snapshot
 }
 
 func (r *MultiRunner) ReadinessSummary() string {
@@ -168,5 +181,36 @@ func (r *MultiRunner) ReadyStatus() health.ReadyStatus {
 			failed,
 			strings.Join(details, ","),
 		),
+	}
+}
+
+func (r *MultiRunner) Status() health.StatusPayload {
+	ready := r.ReadyStatus()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	names := make([]string, 0, len(r.runners))
+	for _, runner := range r.runners {
+		names = append(names, runner.Name())
+	}
+	sort.Strings(names)
+
+	tunnels := make([]health.TunnelStatus, 0, len(names))
+	for _, name := range names {
+		snapshot := r.status[name]
+		if snapshot.Name == "" {
+			snapshot.Name = name
+		}
+		if snapshot.Status == "" {
+			snapshot.Status = "pending"
+		}
+		tunnels = append(tunnels, snapshot)
+	}
+
+	return health.StatusPayload{
+		Mode:    "multi",
+		Ready:   ready.Ready,
+		Summary: ready.Summary,
+		Tunnels: tunnels,
 	}
 }

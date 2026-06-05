@@ -20,6 +20,8 @@ type Runner struct {
 	cfg       config.CFTunnelConfig
 	logger    *slog.Logger
 	readiness *tunnelReadiness
+	mu        sync.RWMutex
+	session   *tunnelruntime.Session
 }
 
 type tunnelReadiness struct {
@@ -104,6 +106,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		r.readiness.set(statusForRunError(ctx, err))
 		return err
 	}
+	r.setSession(prepared.session)
 
 	logTunnelSummary(r.logger, formatProtocol(r.cfg.EdgeProtocol), prepared.session)
 
@@ -138,8 +141,57 @@ func (r *Runner) ReadyStatus() health.ReadyStatus {
 	}
 }
 
+func (r *Runner) Status() health.StatusPayload {
+	ready := r.ReadyStatus()
+	name, status := r.readiness.snapshot()
+	tunnel := health.TunnelStatus{
+		Name:      name,
+		Status:    status,
+		Protocol:  r.cfg.EdgeProtocol,
+		OriginURL: r.cfg.Target,
+	}
+	if session := r.currentSession(); session != nil {
+		tunnel.QuickTunnel = session.QuickTunnel
+		tunnel.QuickTunnelURL = session.PublicURL
+		tunnel.Hostname = session.Hostname
+		if session.Edge.Protocol != "" {
+			tunnel.Protocol = session.Edge.Protocol
+		}
+		if session.Origin.URL != "" {
+			tunnel.OriginURL = session.Origin.URL
+		}
+	}
+	return health.StatusPayload{
+		Mode:    "single",
+		Ready:   ready.Ready,
+		Summary: ready.Summary,
+		Tunnel:  &tunnel,
+	}
+}
+
 func (r *Runner) markReadyForTest() {
 	r.readiness.Connected()
+}
+
+func (r *Runner) setSession(session tunnelruntime.Session) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	snapshot := session
+	r.session = &snapshot
+}
+
+func (r *Runner) currentSession() *tunnelruntime.Session {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.session == nil {
+		return nil
+	}
+	snapshot := *r.session
+	return &snapshot
+}
+
+func (r *Runner) setSessionForTest(session tunnelruntime.Session) {
+	r.setSession(session)
 }
 
 func statusForRunError(ctx context.Context, err error) string {

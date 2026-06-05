@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ type Runner struct {
 	listen string
 	logger *slog.Logger
 	ready  ReadyProvider
+	status StatusProvider
 }
 
 type ReadyStatus struct {
@@ -22,6 +24,26 @@ type ReadyStatus struct {
 }
 
 type ReadyProvider func() ReadyStatus
+
+type TunnelStatus struct {
+	Name           string `json:"name"`
+	Status         string `json:"status"`
+	QuickTunnel    bool   `json:"quick_tunnel"`
+	QuickTunnelURL string `json:"quick_tunnel_url"`
+	Hostname       string `json:"hostname"`
+	Protocol       string `json:"protocol"`
+	OriginURL      string `json:"origin_url"`
+}
+
+type StatusPayload struct {
+	Mode    string         `json:"mode"`
+	Ready   bool           `json:"ready"`
+	Summary string         `json:"summary"`
+	Tunnel  *TunnelStatus  `json:"tunnel,omitempty"`
+	Tunnels []TunnelStatus `json:"tunnels,omitempty"`
+}
+
+type StatusProvider func() StatusPayload
 
 func NewRunner(listen string, logger *slog.Logger) *Runner {
 	return &Runner{
@@ -40,6 +62,10 @@ func (r *Runner) SetReadyProvider(fn ReadyProvider) {
 	r.ready = fn
 }
 
+func (r *Runner) SetStatusProvider(fn StatusProvider) {
+	r.status = fn
+}
+
 func (r *Runner) ReadySummary() string {
 	return r.ReadyStatus().Summary
 }
@@ -53,6 +79,20 @@ func (r *Runner) ReadyStatus() ReadyStatus {
 		return status
 	}
 	return ReadyStatus{Ready: false, Summary: "not ready"}
+}
+
+func (r *Runner) Status() StatusPayload {
+	if r.status != nil {
+		status := r.status()
+		if status.Summary == "" {
+			status.Summary = "not ready"
+		}
+		return status
+	}
+	return StatusPayload{
+		Ready:   false,
+		Summary: "not ready",
+	}
 }
 
 func (r *Runner) Name() string {
@@ -73,6 +113,12 @@ func (r *Runner) Run(ctx context.Context) error {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 		_, _ = w.Write([]byte(status.Summary))
+	})
+	mux.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(r.Status()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
 	server := &http.Server{

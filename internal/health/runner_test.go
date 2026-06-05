@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
@@ -21,6 +22,120 @@ func TestRunnerReadyStatusWithoutProviderIsNotReady(t *testing.T) {
 	}
 	if status.Summary != "not ready" {
 		t.Fatalf("unexpected summary %q", status.Summary)
+	}
+}
+
+func TestRunnerStatusWithoutProviderReturnsDefaultJSON(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	listen := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	runner := NewRunner(listen, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("runner run: %v", err)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("health runner did not stop")
+		}
+	}()
+
+	waitForHealthStatus(t, "http://"+listen+"/live", http.StatusOK)
+	resp, err := http.Get("http://" + listen + "/status")
+	if err != nil {
+		t.Fatalf("get status: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "application/json") {
+		t.Fatalf("unexpected content type: %q", got)
+	}
+	var payload map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode status json: %v", err)
+	}
+	if ready, _ := payload["ready"].(bool); ready {
+		t.Fatalf("expected not ready payload: %#v", payload)
+	}
+	if summary, _ := payload["summary"].(string); summary != "not ready" {
+		t.Fatalf("unexpected summary: %#v", payload)
+	}
+}
+
+func TestRunnerStatusUsesStructuredStatusProvider(t *testing.T) {
+	t.Parallel()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	listen := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	runner := NewRunner(listen, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	runner.SetStatusProvider(func() StatusPayload {
+		return StatusPayload{
+			Mode:    "single",
+			Ready:   true,
+			Summary: "mode=single total=1 ready=1 failed=0 details=[cftunnel:ready]",
+			Tunnel: &TunnelStatus{
+				Name:           "cftunnel",
+				Status:         "ready",
+				QuickTunnel:    true,
+				QuickTunnelURL: "https://demo.trycloudflare.com",
+				Hostname:       "demo.trycloudflare.com",
+				Protocol:       "quic",
+				OriginURL:      "http://127.0.0.1:8080",
+			},
+		}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("runner run: %v", err)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("health runner did not stop")
+		}
+	}()
+
+	waitForHealthStatus(t, "http://"+listen+"/live", http.StatusOK)
+	resp, err := http.Get("http://" + listen + "/status")
+	if err != nil {
+		t.Fatalf("get status: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var payload StatusPayload
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode status json: %v", err)
+	}
+	if payload.Mode != "single" || !payload.Ready {
+		t.Fatalf("unexpected status payload: %#v", payload)
+	}
+	if payload.Tunnel == nil || payload.Tunnel.QuickTunnelURL != "https://demo.trycloudflare.com" {
+		t.Fatalf("unexpected tunnel payload: %#v", payload)
 	}
 }
 

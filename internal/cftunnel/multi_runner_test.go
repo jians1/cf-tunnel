@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jians1/cf-tunnel/internal/config"
+	apphealth "github.com/jians1/cf-tunnel/internal/health"
 )
 
 func TestNewMultiRunnerRejectsEmptyTunnels(t *testing.T) {
@@ -157,6 +158,52 @@ func TestMultiRunnerReadyStatusAllReady(t *testing.T) {
 	}
 	if !strings.Contains(status.Summary, "mode=multi total=2 ready=2 failed=0") {
 		t.Fatalf("unexpected summary header: %s", status.Summary)
+	}
+}
+
+func TestMultiRunnerStatusAggregatesTunnelSnapshots(t *testing.T) {
+	t.Parallel()
+
+	multi := &MultiRunner{
+		runners: []tunnelRunner{
+			fakeTunnelRunner{name: "alpha", run: func(context.Context) error { return nil }},
+			fakeTunnelRunner{name: "beta", run: func(context.Context) error { return nil }},
+		},
+		state: map[string]string{
+			"alpha": "ready",
+			"beta":  "starting",
+		},
+		status: map[string]apphealth.TunnelStatus{
+			"alpha": {
+				Name:           "alpha",
+				Status:         "ready",
+				QuickTunnel:    true,
+				QuickTunnelURL: "https://alpha.trycloudflare.com",
+				Hostname:       "alpha.trycloudflare.com",
+				Protocol:       config.EdgeProtocolQUIC,
+				OriginURL:      "http://127.0.0.1:8081",
+			},
+			"beta": {
+				Name:       "beta",
+				Status:     "starting",
+				Protocol:   config.EdgeProtocolHTTP2,
+				OriginURL:  "http://127.0.0.1:8082",
+			},
+		},
+	}
+
+	status := multi.Status()
+	if status.Mode != "multi" || status.Ready {
+		t.Fatalf("unexpected multi status payload: %#v", status)
+	}
+	if len(status.Tunnels) != 2 {
+		t.Fatalf("unexpected tunnel count: %#v", status)
+	}
+	if status.Tunnels[0].Name != "alpha" || status.Tunnels[0].QuickTunnelURL != "https://alpha.trycloudflare.com" {
+		t.Fatalf("unexpected alpha payload: %#v", status.Tunnels[0])
+	}
+	if status.Tunnels[1].Name != "beta" || status.Tunnels[1].Status != "starting" {
+		t.Fatalf("unexpected beta payload: %#v", status.Tunnels[1])
 	}
 }
 

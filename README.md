@@ -296,6 +296,7 @@ cf-tunnel --config=<config.yaml>
 
 - `/live`：进程存活检查。健康检查服务运行时返回 `200 OK`。
 - `/ready`：隧道就绪检查。只有所有已配置隧道完成 edge registration 后才返回 `200 OK`；隧道处于 pending、starting、failed、stopped 或 exited 时返回 `503 Service Unavailable`。
+- `/status`：运行态结构化状态，返回 JSON，适合 shell 脚本或外部编排读取当前 tunnel 状态与 Quick Tunnel URL。
 - 如果运行时没有接入 readiness provider，`/ready` 默认返回 `503 Service Unavailable` 和 `not ready`，避免误报健康状态。
 
 `/ready` 响应体是简短文本摘要：
@@ -303,6 +304,32 @@ cf-tunnel --config=<config.yaml>
 ```text
 mode=single total=1 ready=0 failed=0 details=[cftunnel:starting]
 mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
+```
+
+`/status` 响应体是结构化 JSON。单隧道示例：
+
+```json
+{
+  "mode": "single",
+  "ready": true,
+  "summary": "mode=single total=1 ready=1 failed=0 details=[cftunnel:ready]",
+  "tunnel": {
+    "name": "cftunnel",
+    "status": "ready",
+    "quick_tunnel": true,
+    "quick_tunnel_url": "https://demo.trycloudflare.com",
+    "hostname": "demo.trycloudflare.com",
+    "protocol": "quic",
+    "origin_url": "http://127.0.0.1:8080"
+  }
+}
+```
+
+shell 示例：
+
+```bash
+curl -fsS http://127.0.0.1:9090/status
+curl -fsS http://127.0.0.1:9090/status | jq -r '.tunnel.quick_tunnel_url'
 ```
 
 ### 发布
@@ -603,6 +630,7 @@ When `--health-listen` is non-empty, the app exposes:
 
 - `/live`: process liveness. Returns `200 OK` while the health server is running.
 - `/ready`: tunnel readiness. Returns `200 OK` only when every configured tunnel has completed edge registration. Returns `503 Service Unavailable` while tunnels are pending, starting, failed, stopped, or exited.
+- `/status`: structured runtime status in JSON for shell scripts and external automation to read current tunnel state and Quick Tunnel URLs.
 - If no readiness provider is wired, `/ready` returns `503 Service Unavailable` with `not ready` to avoid false-positive health reporting.
 
 Readiness response bodies are concise text summaries:
@@ -610,6 +638,32 @@ Readiness response bodies are concise text summaries:
 ```text
 mode=single total=1 ready=0 failed=0 details=[cftunnel:starting]
 mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
+```
+
+`/status` returns structured JSON. Single-tunnel example:
+
+```json
+{
+  "mode": "single",
+  "ready": true,
+  "summary": "mode=single total=1 ready=1 failed=0 details=[cftunnel:ready]",
+  "tunnel": {
+    "name": "cftunnel",
+    "status": "ready",
+    "quick_tunnel": true,
+    "quick_tunnel_url": "https://demo.trycloudflare.com",
+    "hostname": "demo.trycloudflare.com",
+    "protocol": "quic",
+    "origin_url": "http://127.0.0.1:8080"
+  }
+}
+```
+
+Shell examples:
+
+```bash
+curl -fsS http://127.0.0.1:9090/status
+curl -fsS http://127.0.0.1:9090/status | jq -r '.tunnel.quick_tunnel_url'
 ```
 
 ### Release
