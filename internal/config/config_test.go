@@ -449,6 +449,51 @@ func TestParseAcceptsCFRouteTLSOptions(t *testing.T) {
 	}
 }
 
+func TestParseRouteAcceptsTargetURLContainingComma(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=https://example.com/query?a=1,2",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(cfg.CFTunnel.Routes))
+	}
+	if got := cfg.CFTunnel.Routes[0].Target; got != "https://example.com/query?a=1,2" {
+		t.Fatalf("unexpected route target %q", got)
+	}
+}
+
+func TestParseRouteAcceptsTargetURLContainingCommaBeforeOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=https://example.com/query?a=1,2,server_name=api.internal,insecure_skip_verify=true",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(cfg.CFTunnel.Routes))
+	}
+	route := cfg.CFTunnel.Routes[0]
+	if route.Target != "https://example.com/query?a=1,2" {
+		t.Fatalf("unexpected route target %q", route.Target)
+	}
+	if route.OriginServerName != "api.internal" {
+		t.Fatalf("unexpected route server name %q", route.OriginServerName)
+	}
+	if !route.InsecureSkipVerify {
+		t.Fatal("expected route insecure skip verify")
+	}
+}
+
 func TestParseRouteAcceptsHostOption(t *testing.T) {
 	t.Parallel()
 
@@ -507,6 +552,22 @@ func TestParseRejectsInvalidCFRouteFormat(t *testing.T) {
 				t.Fatal("expected parse error")
 			}
 		})
+	}
+}
+
+func TestParseRejectsDuplicateCFRouteOptions(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=https://example.com,host=api.example.com,host=api2.example.com",
+		"--health-listen=",
+	})
+	if err == nil {
+		t.Fatal("expected duplicate route option error")
+	}
+	if !strings.Contains(err.Error(), `route option "host" duplicated`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

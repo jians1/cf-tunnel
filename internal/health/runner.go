@@ -52,7 +52,7 @@ func (r *Runner) ReadyStatus() ReadyStatus {
 		}
 		return status
 	}
-	return ReadyStatus{Ready: true, Summary: "ready"}
+	return ReadyStatus{Ready: false, Summary: "not ready"}
 }
 
 func (r *Runner) Name() string {

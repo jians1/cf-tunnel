@@ -11,6 +11,19 @@ import (
 	"time"
 )
 
+func TestRunnerReadyStatusWithoutProviderIsNotReady(t *testing.T) {
+	t.Parallel()
+
+	runner := NewRunner(":9090", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	status := runner.ReadyStatus()
+	if status.Ready {
+		t.Fatalf("expected not ready, got %#v", status)
+	}
+	if status.Summary != "not ready" {
+		t.Fatalf("unexpected summary %q", status.Summary)
+	}
+}
+
 func TestRunnerStopsPromptlyWithOpenClientConnection(t *testing.T) {
 	t.Parallel()
 

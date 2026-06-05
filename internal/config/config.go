@@ -139,18 +139,34 @@ func (r *routeFlag) Set(v string) error {
 
 func parseRouteTargetOptions(v string) (RouteRule, error) {
 	fields := strings.Split(v, ",")
-	target := strings.TrimSpace(fields[0])
+	targetFields := fields
+	optionFields := make([]string, 0, len(fields)-1)
+	for len(targetFields) > 1 {
+		field := strings.TrimSpace(targetFields[len(targetFields)-1])
+		if field == "" {
+			return RouteRule{}, errors.New("route rule has empty option")
+		}
+		idx := strings.Index(field, "=")
+		if idx <= 0 || idx >= len(field)-1 {
+			break
+		}
+		key := strings.ToLower(strings.TrimSpace(field[:idx]))
+		if !isSupportedRouteOptionKey(key) {
+			break
+		}
+		optionFields = append([]string{field}, optionFields...)
+		targetFields = targetFields[:len(targetFields)-1]
+	}
+
+	target := strings.TrimSpace(strings.Join(targetFields, ","))
 	if target == "" {
 		return RouteRule{}, errors.New("route rule must include non-empty path and target")
 	}
 
 	route := RouteRule{Target: target}
 	seen := map[string]struct{}{}
-	for _, rawField := range fields[1:] {
+	for _, rawField := range optionFields {
 		field := strings.TrimSpace(rawField)
-		if field == "" {
-			return RouteRule{}, errors.New("route rule has empty option")
-		}
 		idx := strings.Index(field, "=")
 		if idx <= 0 || idx >= len(field)-1 {
 			return RouteRule{}, fmt.Errorf("route option must be key=value: %q", field)
@@ -183,6 +199,15 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 		}
 	}
 	return route, nil
+}
+
+func isSupportedRouteOptionKey(key string) bool {
+	switch key {
+	case "host", "server_name", "insecure_skip_verify":
+		return true
+	default:
+		return false
+	}
 }
 
 func Parse(args []string) (AppConfig, error) {

@@ -37,6 +37,11 @@
 | Remote-managed token tunnel, `quic` | `18,744 KB` | `19,132 KB` | `21,484 KB` | `21,356 KB` |
 | Quick Tunnel, `quic` | `16,052 KB` | `16,056 KB` | `22,676 KB` | `22,032 KB` |
 
+构建基线：
+
+- Go 工具链基线：`1.26.3`
+- Docker builder 基线：`golang:1.26.3`
+
 #### 已知限制
 
 - Quick Tunnel 创建可能受到 `api.trycloudflare.com` 限流。
@@ -171,7 +176,7 @@ go run ./cmd/app \
 说明：
 
 - `--cf-origin-server-name` 和 `--cf-origin-insecure-skip-verify` 只作用于默认 `--cf-tunnel-target`。
-- 每个 `--cf-route` 目标有独立 TLS 选项：需要时可在该 route 后追加 `server_name=...` 或 `insecure_skip_verify=true`。未设置 route 选项时，URL host 会作为 TLS server name，证书校验保持启用。
+- 每个 `--cf-route` 目标有独立 TLS 选项：需要时可在该 route 后追加尾随选项 `server_name=...` 或 `insecure_skip_verify=true`。当目标 URL 自身包含逗号时，保持这些 route 选项放在最后。未设置 route 选项时，URL host 会作为 TLS server name，证书校验保持启用。
 - `--cf-route` 也支持 `host=<public-hostname>`，用于一个 Cloudflare Tunnel connector 服务多个公网 hostname 的场景。
 
 ### 正式 Cloudflare Tunnel Token 模式
@@ -301,6 +306,7 @@ cf-tunnel --config=<config.yaml>
 
 - `/live`：进程存活检查。健康检查服务运行时返回 `200 OK`。
 - `/ready`：隧道就绪检查。只有所有已配置隧道完成 edge registration 后才返回 `200 OK`；隧道处于 pending、starting、failed、stopped 或 exited 时返回 `503 Service Unavailable`。
+- 如果运行时没有接入 readiness provider，`/ready` 默认返回 `503 Service Unavailable` 和 `not ready`，避免误报健康状态。
 
 `/ready` 响应体是简短文本摘要：
 
@@ -347,6 +353,11 @@ Latest `256MiB` RSS smoke results on `linux/amd64` release build:
 |---|---:|---:|---:|---:|
 | Remote-managed token tunnel, `quic` | `18,744 KB` | `19,132 KB` | `21,484 KB` | `21,356 KB` |
 | Quick Tunnel, `quic` | `16,052 KB` | `16,056 KB` | `22,676 KB` | `22,032 KB` |
+
+Build baseline:
+
+- Go toolchain baseline: `1.26.3`
+- Docker builder baseline: `golang:1.26.3`
 
 #### Known Limits
 
@@ -482,7 +493,7 @@ go run ./cmd/app \
 Notes:
 
 - `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply to the default `--cf-tunnel-target` only.
-- Each `--cf-route` target has independent TLS options: append `server_name=...` or `insecure_skip_verify=true` to that route when needed. Without route options, URL host is the TLS server name and certificate verification stays enabled.
+- Each `--cf-route` target has independent TLS options: append trailing route options such as `server_name=...` or `insecure_skip_verify=true` when needed. If the target URL itself contains commas, keep route options at the end. Without route options, URL host is the TLS server name and certificate verification stays enabled.
 - `--cf-route` also supports `host=<public-hostname>` to match one Cloudflare Tunnel connector serving multiple public hostnames.
 
 ### Formal Cloudflare Tunnel Token Mode
@@ -612,6 +623,7 @@ When `--health-listen` is non-empty, the app exposes:
 
 - `/live`: process liveness. Returns `200 OK` while the health server is running.
 - `/ready`: tunnel readiness. Returns `200 OK` only when every configured tunnel has completed edge registration. Returns `503 Service Unavailable` while tunnels are pending, starting, failed, stopped, or exited.
+- If no readiness provider is wired, `/ready` returns `503 Service Unavailable` with `not ready` to avoid false-positive health reporting.
 
 Readiness response bodies are concise text summaries:
 
