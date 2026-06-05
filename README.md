@@ -154,14 +154,20 @@ go run ./cmd/app \
   --cf-tunnel-target=http://127.0.0.1:8080 \
   --cf-route=/api/*=http://127.0.0.1:9001 \
   --cf-route=/ws/*=ws://127.0.0.1:10000 \
-  --cf-route=/secure/*=https://127.0.0.1:9443,server_name=secure.internal
+  --cf-route=/secure/*=https://127.0.0.1:9443,origin_server_name=secure.internal
 ```
 
 说明：
 
 - `--cf-origin-server-name` 和 `--cf-origin-insecure-skip-verify` 只作用于默认 `--cf-tunnel-target`。
-- 每个 `--cf-route` 目标有独立 TLS 选项：需要时可在该 route 后追加尾随选项 `server_name=...` 或 `insecure_skip_verify=true`。当目标 URL 自身包含逗号时，保持这些 route 选项放在最后。未设置 route 选项时，URL host 会作为 TLS server name，证书校验保持启用。
+- 每个 `--cf-route` 目标有独立 TLS 选项：需要时可在该 route 后追加尾随选项 `origin_server_name=...` 或 `origin_insecure_skip_verify=true`。当目标 URL 自身包含逗号时，保持这些 route 选项放在最后。未设置 route 选项时，URL host 会作为 TLS server name，证书校验保持启用。
 - `--cf-route` 也支持 `host=<public-hostname>`，用于一个 Cloudflare Tunnel connector 服务多个公网 hostname 的场景。
+
+命名规则：
+
+- CLI flags 统一使用 `kebab-case`，例如 `--cf-origin-server-name`。
+- YAML 字段统一使用 `snake_case`，例如 `origin_server_name`、`origin_insecure_skip_verify`。
+- `--cf-route` 子选项保留完整语义前缀，统一使用 `origin_server_name`、`origin_insecure_skip_verify`，不再接受旧的缩写键名。
 
 ### 正式 Cloudflare Tunnel Token 模式
 
@@ -263,7 +269,7 @@ cf-tunnel --config=<config.yaml>
 - `--cf-tunnel-token=...` 或 `CF_TUNNEL_TOKEN=...`：remote-managed 正式 tunnel 模式使用的 token
 - `--cf-origin-server-name=...`：默认源站 TLS server name
 - `--cf-origin-insecure-skip-verify`：默认源站 TLS 跳过证书校验
-- `--cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]`：可重复设置的路由，支持精确路径 `/health` 和前缀路径 `/api/*`
+- `--cf-route=/path=url[,host=...][,origin_server_name=...][,origin_insecure_skip_verify=true|false]`：可重复设置的路由，支持精确路径 `/health` 和前缀路径 `/api/*`
 - `--log-level=debug|info|warn|error`：日志级别
 - `--log-format=text|json`：日志格式
 - `--health-listen=:9090`：健康检查监听地址
@@ -455,14 +461,20 @@ go run ./cmd/app \
   --cf-tunnel-target=http://127.0.0.1:8080 \
   --cf-route=/api/*=http://127.0.0.1:9001 \
   --cf-route=/ws/*=ws://127.0.0.1:10000 \
-  --cf-route=/secure/*=https://127.0.0.1:9443,server_name=secure.internal
+  --cf-route=/secure/*=https://127.0.0.1:9443,origin_server_name=secure.internal
 ```
 
 Notes:
 
 - `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply to the default `--cf-tunnel-target` only.
-- Each `--cf-route` target has independent TLS options: append trailing route options such as `server_name=...` or `insecure_skip_verify=true` when needed. If the target URL itself contains commas, keep route options at the end. Without route options, URL host is the TLS server name and certificate verification stays enabled.
+- Each `--cf-route` target has independent TLS options: append trailing route options such as `origin_server_name=...` or `origin_insecure_skip_verify=true` when needed. If the target URL itself contains commas, keep route options at the end. Without route options, URL host is the TLS server name and certificate verification stays enabled.
 - `--cf-route` also supports `host=<public-hostname>` to match one Cloudflare Tunnel connector serving multiple public hostnames.
+
+Naming rules:
+
+- CLI flags use `kebab-case`, for example `--cf-origin-server-name`.
+- YAML fields use `snake_case`, for example `origin_server_name` and `origin_insecure_skip_verify`.
+- `--cf-route` option keys keep the full semantic prefixes and use `origin_server_name` and `origin_insecure_skip_verify`. Legacy shortened keys are not accepted.
 
 ### Formal Cloudflare Tunnel Token Mode
 
@@ -564,7 +576,7 @@ Optional:
 - `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
-- `--cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
+- `--cf-route=/path=url[,host=...][,origin_server_name=...][,origin_insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
 - `--log-level=debug|info|warn|error`
 - `--log-format=text|json`
 - `--health-listen=:9090`

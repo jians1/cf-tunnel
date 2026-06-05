@@ -428,7 +428,7 @@ func TestParseAcceptsCFRouteTLSOptions(t *testing.T) {
 		"--cf-tunnel-target=https://127.0.0.1:8080",
 		"--cf-origin-server-name=default.internal",
 		"--cf-origin-insecure-skip-verify",
-		"--cf-route=/api/*=https://127.0.0.1:9001,server_name=api.internal,insecure_skip_verify=true",
+		"--cf-route=/api/*=https://127.0.0.1:9001,origin_server_name=api.internal,origin_insecure_skip_verify=true",
 		"--health-listen=",
 	})
 	if err != nil {
@@ -473,7 +473,7 @@ func TestParseRouteAcceptsTargetURLContainingCommaBeforeOptions(t *testing.T) {
 
 	cfg, err := Parse([]string{
 		"--cf-tunnel-target=http://127.0.0.1:8080",
-		"--cf-route=/api/*=https://example.com/query?a=1,2,server_name=api.internal,insecure_skip_verify=true",
+		"--cf-route=/api/*=https://example.com/query?a=1,2,origin_server_name=api.internal,origin_insecure_skip_verify=true",
 		"--health-listen=",
 	})
 	if err != nil {
@@ -571,6 +571,39 @@ func TestParseRejectsDuplicateCFRouteOptions(t *testing.T) {
 	}
 }
 
+func TestParseRejectsLegacyCFRouteTLSOptionNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		flag string
+	}{
+		{
+			name: "legacy server_name",
+			flag: "--cf-route=/api/*=https://127.0.0.1:9001,server_name=api.internal",
+		},
+		{
+			name: "legacy insecure_skip_verify",
+			flag: "--cf-route=/api/*=https://127.0.0.1:9001,origin_server_name=api.internal,insecure_skip_verify=true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse([]string{
+				"--cf-tunnel-target=https://127.0.0.1:8080",
+				tt.flag,
+				"--health-listen=",
+			})
+			if err == nil {
+				t.Fatal("expected legacy route option rejection")
+			}
+		})
+	}
+}
+
 func TestParseYAMLConfigFileMultiTunnel(t *testing.T) {
 	t.Parallel()
 
@@ -654,7 +687,7 @@ cf_tunnel:
       path: /api/*
       target: http://127.0.0.1:13000
       origin_server_name: api.internal
-      insecure_skip_verify: true
+      origin_insecure_skip_verify: true
 `), 0o644)
 	if err != nil {
 		t.Fatalf("write config file: %v", err)
@@ -679,6 +712,64 @@ cf_tunnel:
 	}
 	if !route.InsecureSkipVerifySet {
 		t.Fatal("expected route insecure skip verify to be marked as explicitly set")
+	}
+}
+
+func TestParseYAMLConfigAcceptsNormalizedOriginTLSFieldNames(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+cf_tunnel:
+  edge_protocol: quic
+  target: https://127.0.0.1:13000
+  origin_server_name: default.internal
+  origin_insecure_skip_verify: true
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := Parse([]string{"--config=" + p})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CFTunnel.OriginServerName != "default.internal" {
+		t.Fatalf("unexpected origin server name: %q", cfg.CFTunnel.OriginServerName)
+	}
+	if !cfg.CFTunnel.InsecureSkipVerify {
+		t.Fatal("expected normalized origin_insecure_skip_verify to be applied")
+	}
+}
+
+func TestParseYAMLConfigRejectsLegacyOriginTLSFieldNames(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+cf_tunnel:
+  edge_protocol: quic
+  target: https://127.0.0.1:13000
+  insecure_skip_verify: true
+  routes:
+    - path: /api/*
+      target: https://127.0.0.1:13001
+      insecure_skip_verify: true
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	_, err = Parse([]string{"--config=" + p})
+	if err == nil {
+		t.Fatal("expected legacy YAML field rejection")
+	}
+	if !strings.Contains(err.Error(), "field insecure_skip_verify not found") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

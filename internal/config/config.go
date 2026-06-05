@@ -34,7 +34,7 @@ type CFTunnelConfig struct {
 	EdgeProtocol       string      `yaml:"edge_protocol"`
 	Target             string      `yaml:"target"`
 	OriginServerName   string      `yaml:"origin_server_name"`
-	InsecureSkipVerify bool        `yaml:"insecure_skip_verify"`
+	InsecureSkipVerify bool        `yaml:"origin_insecure_skip_verify"`
 	Routes             []RouteRule `yaml:"routes"`
 }
 
@@ -57,11 +57,11 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 		return fmt.Errorf("route rule must be a mapping")
 	}
 	allowed := map[string]struct{}{
-		"host":                 {},
-		"path":                 {},
-		"target":               {},
-		"origin_server_name":   {},
-		"insecure_skip_verify": {},
+		"host":                        {},
+		"path":                        {},
+		"target":                      {},
+		"origin_server_name":          {},
+		"origin_insecure_skip_verify": {},
 	}
 	for i := 0; i < len(value.Content); i += 2 {
 		key := value.Content[i].Value
@@ -74,7 +74,7 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 		Path               string `yaml:"path"`
 		Target             string `yaml:"target"`
 		OriginServerName   string `yaml:"origin_server_name"`
-		InsecureSkipVerify *bool  `yaml:"insecure_skip_verify"`
+		InsecureSkipVerify *bool  `yaml:"origin_insecure_skip_verify"`
 	}
 	if err := value.Decode(&raw); err != nil {
 		return err
@@ -103,10 +103,10 @@ func (r *routeFlag) String() string {
 			spec += ",host=" + rule.Host
 		}
 		if rule.OriginServerName != "" {
-			spec += ",server_name=" + rule.OriginServerName
+			spec += ",origin_server_name=" + rule.OriginServerName
 		}
 		if rule.InsecureSkipVerifySet {
-			spec += fmt.Sprintf(",insecure_skip_verify=%t", rule.InsecureSkipVerify)
+			spec += fmt.Sprintf(",origin_insecure_skip_verify=%t", rule.InsecureSkipVerify)
 		}
 		parts = append(parts, spec)
 	}
@@ -162,6 +162,9 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 	if target == "" {
 		return RouteRule{}, errors.New("route rule must include non-empty path and target")
 	}
+	if err := rejectRemovedRouteOptionKeys(targetFields[1:]); err != nil {
+		return RouteRule{}, err
+	}
 
 	route := RouteRule{Target: target}
 	seen := map[string]struct{}{}
@@ -181,9 +184,9 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 		switch key {
 		case "host":
 			route.Host = strings.ToLower(strings.TrimSpace(value))
-		case "server_name":
+		case "origin_server_name":
 			route.OriginServerName = value
-		case "insecure_skip_verify":
+		case "origin_insecure_skip_verify":
 			switch value {
 			case "true":
 				route.InsecureSkipVerify = true
@@ -192,7 +195,7 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 				route.InsecureSkipVerify = false
 				route.InsecureSkipVerifySet = true
 			default:
-				return RouteRule{}, fmt.Errorf("route option insecure_skip_verify must be true or false: %s", value)
+				return RouteRule{}, fmt.Errorf("route option origin_insecure_skip_verify must be true or false: %s", value)
 			}
 		default:
 			return RouteRule{}, fmt.Errorf("unsupported route option: %s", key)
@@ -201,9 +204,25 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 	return route, nil
 }
 
+func rejectRemovedRouteOptionKeys(fields []string) error {
+	for _, rawField := range fields {
+		field := strings.TrimSpace(rawField)
+		idx := strings.Index(field, "=")
+		if idx <= 0 || idx >= len(field)-1 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(field[:idx]))
+		switch key {
+		case "server_name", "insecure_skip_verify":
+			return fmt.Errorf("unsupported route option: %s", key)
+		}
+	}
+	return nil
+}
+
 func isSupportedRouteOptionKey(key string) bool {
 	switch key {
-	case "host", "server_name", "insecure_skip_verify":
+	case "host", "origin_server_name", "origin_insecure_skip_verify":
 		return true
 	default:
 		return false
@@ -231,7 +250,7 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
-	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,server_name=<name>][,insecure_skip_verify=true|false]")
+	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false]")
 
 	if err := fs.Parse(args); err != nil {
 		return AppConfig{}, err
@@ -270,7 +289,7 @@ func writeUsage(w io.Writer, name string) {
 	fmt.Fprintln(w, "  --cf-tunnel-token=<token>                             Cloudflare remote-managed tunnel token")
 	fmt.Fprintln(w, "  --cf-origin-server-name=<name>                        Origin TLS server name override")
 	fmt.Fprintln(w, "  --cf-origin-insecure-skip-verify                      Skip origin TLS verification")
-	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,server_name=...][,insecure_skip_verify=true|false]")
+	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,origin_server_name=...][,origin_insecure_skip_verify=true|false]")
 	fmt.Fprintln(w, "                                                         Path-based route rule, repeatable")
 	fmt.Fprintln(w, "  --log-level=debug|info|warn|error                     Log level (default: info)")
 	fmt.Fprintln(w, "  --log-format=text|json                                Log format (default: text)")
