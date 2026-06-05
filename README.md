@@ -332,6 +332,19 @@ curl -fsS http://127.0.0.1:9090/status
 curl -fsS http://127.0.0.1:9090/status | jq -r '.tunnel.quick_tunnel_url'
 ```
 
+HTTP 回源客户端 IP 语义：
+
+- 后端应用读取真实客户端 IP，应优先信任头而不是 socket `remote_addr`。
+- 当前代理会向 HTTP/HTTPS/WebSocket 源站透传并规范化：
+  - `CF-Connecting-IP`
+  - `X-Real-IP`
+  - `X-Forwarded-For`
+- 优先级是：
+  - `CF-Connecting-IP`
+  - `X-Forwarded-For` 的第一个有效客户端 IP
+  - `X-Real-IP`
+- 当前实现不会把本地代理连接地址伪造成真实客户端 IP，也不会把 backend `remote_addr` 重写为终端用户地址。
+
 ### 发布
 
 - 版本文件：[VERSION](VERSION)
@@ -665,6 +678,19 @@ Shell examples:
 curl -fsS http://127.0.0.1:9090/status
 curl -fsS http://127.0.0.1:9090/status | jq -r '.tunnel.quick_tunnel_url'
 ```
+
+HTTP origin client IP semantics:
+
+- Backend applications should trust forwarded headers for real client IP, not socket `remote_addr`.
+- The proxy forwards and normalizes these headers for HTTP/HTTPS/WebSocket origins:
+  - `CF-Connecting-IP`
+  - `X-Real-IP`
+  - `X-Forwarded-For`
+- Priority order is:
+  - `CF-Connecting-IP`
+  - the first valid client IP in `X-Forwarded-For`
+  - `X-Real-IP`
+- The current implementation does not fabricate a real client IP from the local proxy hop and does not rewrite backend `remote_addr` to the end-user address.
 
 ### Release
 

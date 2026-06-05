@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -30,15 +31,16 @@ type Proxy struct {
 
 func NewProxy(target Target) *Proxy {
 	transport := newTransport(target)
-	director := func(req *http.Request) {
-		rewriteRequest(req, target)
+	rewrite := func(req *httputil.ProxyRequest) {
+		rewriteRequest(req.Out, target)
+		applyForwardedClientIPHeaders(req.Out, req.In)
 	}
 
 	return &Proxy{
 		target:    target,
 		transport: transport,
 		proxy: &httputil.ReverseProxy{
-			Director:  director,
+			Rewrite:   rewrite,
 			Transport: transport,
 		},
 	}
@@ -131,6 +133,70 @@ func rewriteRequest(req *http.Request, target Target) {
 	if originalHost != "" {
 		req.Header.Set("X-Forwarded-Host", originalHost)
 	}
+}
+
+func applyForwardedClientIPHeaders(outReq, inReq *http.Request) {
+	clientIP, forwardedChain := forwardedClientIP(inReq.Header)
+	if clientIP == "" {
+		outReq.Header.Del("CF-Connecting-IP")
+		outReq.Header.Del("X-Real-IP")
+		outReq.Header.Del("X-Forwarded-For")
+		return
+	}
+	outReq.Header.Set("CF-Connecting-IP", clientIP)
+	outReq.Header.Set("X-Real-IP", clientIP)
+	outReq.Header.Set("X-Forwarded-For", strings.Join(forwardedChain, ", "))
+}
+
+func forwardedClientIP(header http.Header) (string, []string) {
+	if ip := normalizeIP(header.Get("CF-Connecting-IP")); ip != "" {
+		return ip, normalizeForwardedChain(ip, parseForwardedChain(header.Get("X-Forwarded-For")))
+	}
+	chain := parseForwardedChain(header.Get("X-Forwarded-For"))
+	if len(chain) > 0 {
+		return chain[0], normalizeForwardedChain(chain[0], chain)
+	}
+	if ip := normalizeIP(header.Get("X-Real-IP")); ip != "" {
+		return ip, []string{ip}
+	}
+	return "", nil
+}
+
+func parseForwardedChain(raw string) []string {
+	parts := strings.Split(raw, ",")
+	chain := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if ip := normalizeIP(part); ip != "" {
+			chain = append(chain, ip)
+		}
+	}
+	return chain
+}
+
+func normalizeForwardedChain(clientIP string, chain []string) []string {
+	if clientIP == "" {
+		return nil
+	}
+	out := []string{clientIP}
+	for _, ip := range chain {
+		if ip == "" || ip == clientIP {
+			continue
+		}
+		out = append(out, ip)
+	}
+	return out
+}
+
+func normalizeIP(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return ""
+	}
+	return addr.String()
 }
 
 func isWebsocketUpgrade(req *http.Request) bool {

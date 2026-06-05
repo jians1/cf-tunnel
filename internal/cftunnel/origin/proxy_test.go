@@ -90,6 +90,216 @@ func TestProxyOverridesHostAndSetsForwardedHost(t *testing.T) {
 	}
 }
 
+func TestProxyPreservesCFConnectingIPAndMirrorsCommonClientIPHeaders(t *testing.T) {
+	t.Parallel()
+
+	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Seen-CF-Connecting-IP", r.Header.Get("CF-Connecting-IP"))
+		w.Header().Set("X-Seen-X-Real-IP", r.Header.Get("X-Real-IP"))
+		w.Header().Set("X-Seen-X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	target := Target{
+		Raw:      upstream.URL,
+		Protocol: ProtocolHTTP,
+		URL:      MustParseURL(upstream.URL),
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("CF-Connecting-IP", "198.51.100.24")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Seen-CF-Connecting-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected CF-Connecting-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Real-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected X-Real-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Forwarded-For"); got != "198.51.100.24" {
+		t.Fatalf("unexpected X-Forwarded-For: %q", got)
+	}
+}
+
+func TestProxyNormalizesXForwardedForFromExistingChain(t *testing.T) {
+	t.Parallel()
+
+	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Seen-CF-Connecting-IP", r.Header.Get("CF-Connecting-IP"))
+		w.Header().Set("X-Seen-X-Real-IP", r.Header.Get("X-Real-IP"))
+		w.Header().Set("X-Seen-X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	target := Target{
+		Raw:      upstream.URL,
+		Protocol: ProtocolHTTP,
+		URL:      MustParseURL(upstream.URL),
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("CF-Connecting-IP", "198.51.100.24")
+	req.Header.Set("X-Forwarded-For", "198.51.100.24, 203.0.113.10")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Seen-CF-Connecting-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected CF-Connecting-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Real-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected X-Real-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Forwarded-For"); got != "198.51.100.24, 203.0.113.10" {
+		t.Fatalf("unexpected X-Forwarded-For: %q", got)
+	}
+}
+
+func TestProxyUsesExistingXForwardedForWhenCFConnectingIPMissing(t *testing.T) {
+	t.Parallel()
+
+	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Seen-CF-Connecting-IP", r.Header.Get("CF-Connecting-IP"))
+		w.Header().Set("X-Seen-X-Real-IP", r.Header.Get("X-Real-IP"))
+		w.Header().Set("X-Seen-X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	target := Target{
+		Raw:      upstream.URL,
+		Protocol: ProtocolHTTP,
+		URL:      MustParseURL(upstream.URL),
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("X-Forwarded-For", "198.51.100.24, 203.0.113.10")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Seen-CF-Connecting-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected CF-Connecting-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Real-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected X-Real-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Forwarded-For"); got != "198.51.100.24, 203.0.113.10" {
+		t.Fatalf("unexpected X-Forwarded-For: %q", got)
+	}
+}
+
+func TestProxyUsesExistingXRealIPWhenForwardedHeadersMissing(t *testing.T) {
+	t.Parallel()
+
+	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Seen-CF-Connecting-IP", r.Header.Get("CF-Connecting-IP"))
+		w.Header().Set("X-Seen-X-Real-IP", r.Header.Get("X-Real-IP"))
+		w.Header().Set("X-Seen-X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	target := Target{
+		Raw:      upstream.URL,
+		Protocol: ProtocolHTTP,
+		URL:      MustParseURL(upstream.URL),
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("X-Real-IP", "198.51.100.24")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Seen-CF-Connecting-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected CF-Connecting-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Real-IP"); got != "198.51.100.24" {
+		t.Fatalf("unexpected X-Real-IP: %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Forwarded-For"); got != "198.51.100.24" {
+		t.Fatalf("unexpected X-Forwarded-For: %q", got)
+	}
+}
+
+func TestProxyDoesNotFabricateClientIPHeadersWithoutTrustedInput(t *testing.T) {
+	t.Parallel()
+
+	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Seen-CF-Connecting-IP", r.Header.Get("CF-Connecting-IP"))
+		w.Header().Set("X-Seen-X-Real-IP", r.Header.Get("X-Real-IP"))
+		w.Header().Set("X-Seen-X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	target := Target{
+		Raw:      upstream.URL,
+		Protocol: ProtocolHTTP,
+		URL:      MustParseURL(upstream.URL),
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatalf("get through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Seen-CF-Connecting-IP"); got != "" {
+		t.Fatalf("expected empty CF-Connecting-IP, got %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Real-IP"); got != "" {
+		t.Fatalf("expected empty X-Real-IP, got %q", got)
+	}
+	if got := resp.Header.Get("X-Seen-X-Forwarded-For"); got != "" {
+		t.Fatalf("expected empty X-Forwarded-For, got %q", got)
+	}
+}
+
 func TestProxySupportsInsecureHTTPSOrigin(t *testing.T) {
 	t.Parallel()
 
