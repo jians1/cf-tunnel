@@ -39,7 +39,7 @@ func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 		QuickService:        cfg.QuickService,
 		QuickServiceTimeout: 15 * time.Second,
 		RetryBackoffs:       append([]time.Duration(nil), defaultQuickServiceRetryBackoffs...),
-		HAConnections:       1,
+		HAConnections:       4,
 		Origin:              target,
 		Routes:              append([]appconfig.RouteRule(nil), cfg.Routes...),
 		QuickTunnelDefault:  true,

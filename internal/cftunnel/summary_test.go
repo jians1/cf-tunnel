@@ -44,7 +44,7 @@ func TestLogQuickTunnelSummaryKeepsVerboseFieldsAtDebug(t *testing.T) {
 		`"origin_server_name":"origin.internal"`,
 		`"origin_insecure_skip_verify":true`,
 		`"origin_websocket_upgrade_mode":true`,
-		`"ha_connections":1`,
+		`"ha_connections":4`,
 	)
 }
 
@@ -93,7 +93,7 @@ func quickTunnelSession() tunnelruntime.Session {
 			WebsocketUpgradeMode: true,
 		},
 		QuickTunnel:   true,
-		HAConnections: 1,
+		HAConnections: 4,
 	}
 }
 

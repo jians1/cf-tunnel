@@ -28,6 +28,7 @@ type QUICRuntimeOptions struct {
 	DialTimeout         time.Duration
 	DialConfig          *QUICDialConfig
 	ConnectedFuse       ConnectedFuse
+	ConnIndex           uint8
 }
 
 func NewInstance(session Session, logger *slog.Logger) (*Instance, error) {

@@ -42,6 +42,17 @@ func NewQUICDialConfigWithProvider(prepared *PreparedRuntime, address string, pr
 	}, nil
 }
 
+func (c *QUICDialConfig) Clone() *QUICDialConfig {
+	if c == nil {
+		return nil
+	}
+	clone := *c
+	if c.TLSConfig != nil {
+		clone.TLSConfig = c.TLSConfig.Clone()
+	}
+	return &clone
+}
+
 func (c *QUICDialConfig) resolveAddress() (string, error) {
 	if c == nil {
 		return "", fmt.Errorf("nil quic dial config")

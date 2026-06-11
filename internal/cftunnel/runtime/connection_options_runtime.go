@@ -7,7 +7,8 @@ import (
 	goruntime "runtime"
 )
 
-const runtimeClientVersion = "cf-tunnel/0.1.0"
+// Cloudflare compares this connector version against cloudflared releases.
+const runtimeClientVersion = "2026.6.0"
 
 type runtimeConnectionOptionsSnapshot struct {
 	client              runtimeClientInfo

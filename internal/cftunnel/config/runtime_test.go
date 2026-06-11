@@ -20,7 +20,7 @@ func TestNormalizeDefaultsQuickTunnelRuntime(t *testing.T) {
 	if cfg.EdgeProtocol != appconfig.EdgeProtocolQUIC {
 		t.Fatalf("unexpected edge protocol: %s", cfg.EdgeProtocol)
 	}
-	if cfg.HAConnections != 1 {
+	if cfg.HAConnections != 4 {
 		t.Fatalf("unexpected ha connections: %d", cfg.HAConnections)
 	}
 	if cfg.Origin.URL.String() != "http://127.0.0.1:8080" {
@@ -42,7 +42,7 @@ func TestNormalizeCarriesRuntimeFields(t *testing.T) {
 	if cfg.QuickService != "https://example.com" {
 		t.Fatalf("unexpected quick service: %s", cfg.QuickService)
 	}
-	if cfg.HAConnections != 1 {
+	if cfg.HAConnections != 4 {
 		t.Fatalf("unexpected ha connections: %d", cfg.HAConnections)
 	}
 	if cfg.QuickServiceTimeout != 15*time.Second {

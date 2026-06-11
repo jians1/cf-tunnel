@@ -42,6 +42,17 @@ func NewHTTP2DialConfigWithProvider(prepared *PreparedRuntime, address string, p
 	}, nil
 }
 
+func (c *HTTP2DialConfig) Clone() *HTTP2DialConfig {
+	if c == nil {
+		return nil
+	}
+	clone := *c
+	if c.TLSConfig != nil {
+		clone.TLSConfig = c.TLSConfig.Clone()
+	}
+	return &clone
+}
+
 func (c *HTTP2DialConfig) TransportFactory() (HTTP2TransportFactory, error) {
 	if c == nil {
 		return nil, fmt.Errorf("nil http2 dial config")

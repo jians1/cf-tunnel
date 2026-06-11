@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -67,6 +68,81 @@ func TestBridgeRunnerQUICUsesConfiguredEdgeDial(t *testing.T) {
 	if !strings.Contains(err.Error(), "parse quic dial address") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestBridgeRunnerRunsConfiguredHTTP2HAConnectionsWithDistinctIndexes(t *testing.T) {
+	t.Parallel()
+
+	assertBridgeRunnerStartsHAConnections(t, "http2", func(options InstanceOptions) uint8 {
+		return options.HTTP2.ConnIndex
+	})
+}
+
+func TestBridgeRunnerRunsConfiguredQUICHAConnectionsWithDistinctIndexes(t *testing.T) {
+	t.Parallel()
+
+	assertBridgeRunnerStartsHAConnections(t, "quic", func(options InstanceOptions) uint8 {
+		return options.QUIC.ConnIndex
+	})
+}
+
+func assertBridgeRunnerStartsHAConnections(t *testing.T, proto string, selectIndex func(InstanceOptions) uint8) {
+	t.Helper()
+
+	session := testSession(t, proto)
+	session.HAConnections = 4
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+
+	started := make(chan uint8, session.HAConnections)
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
+		connIndex := selectIndex(options)
+		return bridgeInstanceFunc(func(ctx context.Context) error {
+			started <- connIndex
+			<-ctx.Done()
+			return ctx.Err()
+		}), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Run(ctx)
+	}()
+
+	got := make(map[uint8]bool)
+	for len(got) < session.HAConnections {
+		select {
+		case connIndex := <-started:
+			got[connIndex] = true
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timeout waiting for HA connections to start; got indexes: %v", got)
+		}
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected run error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for bridge runner to stop")
+	}
+
+	for want := 0; want < session.HAConnections; want++ {
+		if !got[uint8(want)] {
+			t.Fatalf("missing connIndex %d; got indexes: %v", want, got)
+		}
+	}
+}
+
+type bridgeInstanceFunc func(context.Context) error
+
+func (f bridgeInstanceFunc) Run(ctx context.Context) error {
+	return f(ctx)
 }
 
 func TestBridgeRunnerOmitsPreparedDetailsAtInfo(t *testing.T) {

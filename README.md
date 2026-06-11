@@ -47,7 +47,7 @@
 - 新创建的 `trycloudflare.com` hostname 可能存在短暂 DNS 或 edge 收敛窗口；大流量传输前建议先用小请求预热。
 - 本项目不实现账号登录流程，支持单隧道 CLI 和可选的多隧道配置文件模式。
 - Remote-managed token 模式不会下载 Cloudflare 远端 ingress 规则；本地 `target` 和 `routes` 仍是转发事实来源。
-- 当前实现中 Quick Tunnel 使用一个 HA connection。
+- Quick Tunnel 和 remote-managed token 模式默认使用 4 个 HA connections。
 
 ### 构建
 
@@ -394,7 +394,7 @@ Build baseline:
 - Newly-created `trycloudflare.com` hostnames can have a short DNS or edge convergence window; warm up with small requests before large transfers.
 - This project does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
 - Remote-managed token mode does not download Cloudflare remote ingress rules; local `target` and `routes` remain the source of truth.
-- Quick Tunnel currently runs with one HA connection in this implementation.
+- Quick Tunnel and remote-managed token mode use 4 HA connections by default.
 
 ### Build
 

@@ -19,7 +19,7 @@ func TestNewRuntimeConnectionOptionsIncludesConnectorClientID(t *testing.T) {
 	if options.Client.Version == "" {
 		t.Fatal("expected client version")
 	}
-	if options.Client.Version != "cf-tunnel/0.1.0" {
+	if options.Client.Version != "2026.6.0" {
 		t.Fatalf("unexpected client version: %s", options.Client.Version)
 	}
 	if options.Client.Arch == "" {

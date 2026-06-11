@@ -98,7 +98,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, opti
 		dialConfig.TLSConfig.Clone(),
 		edgeAddr,
 		nil,
-		0,
+		options.ConnIndex,
 		&log,
 		quicDialOpts{},
 	)
@@ -119,7 +119,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, opti
 	controlStreamHandler := NewControlStream(runtimeControlStreamOptions{
 		ConnectedFuse:      options.ConnectedFuse,
 		TunnelProperties:   binding.TunnelProperties,
-		ConnIndex:          0,
+		ConnIndex:          options.ConnIndex,
 		EdgeAddress:        net.IP(edgeAddr.Addr().AsSlice()),
 		RegisterClientFunc: nil,
 		RegisterTimeout:    time.Second,
@@ -133,7 +133,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, opti
 		newNoopDatagramSessionHandler(),
 		controlStreamHandler,
 		connOptions,
-		0,
+		options.ConnIndex,
 		15*time.Second,
 		0,
 		time.Second,

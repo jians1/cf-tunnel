@@ -56,7 +56,7 @@ The main remaining protocol/runtime weight is concentrated in:
 - normal full Quick Tunnel startup may be rate-limited by `api.trycloudflare.com`
 - newly-created Quick Tunnel hostnames can have a short DNS or edge convergence window
 - named tunnels and account login flows are not implemented
-- this implementation currently supports one Quick Tunnel HA connection
+- Quick Tunnel and token mode use 4 HA connections by default
 - token mode does not download or apply Cloudflare remote ingress rules; configure local `target` and `routes`
 
 ### Recommended Usage
