@@ -47,6 +47,7 @@ type RouteRule struct {
 	Host                  string
 	Path                  string
 	Target                string
+	StripPathPrefix       bool
 	OriginServerName      string
 	InsecureSkipVerify    bool
 	InsecureSkipVerifySet bool
@@ -60,6 +61,7 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 		"host":                        {},
 		"path":                        {},
 		"target":                      {},
+		"strip_path_prefix":           {},
 		"origin_server_name":          {},
 		"origin_insecure_skip_verify": {},
 	}
@@ -73,6 +75,7 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 		Host               string `yaml:"host"`
 		Path               string `yaml:"path"`
 		Target             string `yaml:"target"`
+		StripPathPrefix    bool   `yaml:"strip_path_prefix"`
 		OriginServerName   string `yaml:"origin_server_name"`
 		InsecureSkipVerify *bool  `yaml:"origin_insecure_skip_verify"`
 	}
@@ -82,6 +85,7 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 	r.Host = raw.Host
 	r.Path = raw.Path
 	r.Target = raw.Target
+	r.StripPathPrefix = raw.StripPathPrefix
 	r.OriginServerName = raw.OriginServerName
 	if raw.InsecureSkipVerify != nil {
 		r.InsecureSkipVerify = *raw.InsecureSkipVerify
@@ -101,6 +105,9 @@ func (r *routeFlag) String() string {
 		spec := rule.Path + "=" + rule.Target
 		if rule.Host != "" {
 			spec += ",host=" + rule.Host
+		}
+		if rule.StripPathPrefix {
+			spec += ",strip_path_prefix=true"
 		}
 		if rule.OriginServerName != "" {
 			spec += ",origin_server_name=" + rule.OriginServerName
@@ -184,6 +191,15 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 		switch key {
 		case "host":
 			route.Host = strings.ToLower(strings.TrimSpace(value))
+		case "strip_path_prefix":
+			switch value {
+			case "true":
+				route.StripPathPrefix = true
+			case "false":
+				route.StripPathPrefix = false
+			default:
+				return RouteRule{}, fmt.Errorf("route option strip_path_prefix must be true or false: %s", value)
+			}
 		case "origin_server_name":
 			route.OriginServerName = value
 		case "origin_insecure_skip_verify":
@@ -222,7 +238,7 @@ func rejectRemovedRouteOptionKeys(fields []string) error {
 
 func isSupportedRouteOptionKey(key string) bool {
 	switch key {
-	case "host", "origin_server_name", "origin_insecure_skip_verify":
+	case "host", "strip_path_prefix", "origin_server_name", "origin_insecure_skip_verify":
 		return true
 	default:
 		return false
@@ -250,7 +266,7 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
-	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false]")
+	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,strip_path_prefix=true|false][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false]")
 
 	if err := fs.Parse(args); err != nil {
 		return AppConfig{}, err
@@ -289,7 +305,7 @@ func writeUsage(w io.Writer, name string) {
 	fmt.Fprintln(w, "  --cf-tunnel-token=<token>                             Cloudflare remote-managed tunnel token")
 	fmt.Fprintln(w, "  --cf-origin-server-name=<name>                        Origin TLS server name override")
 	fmt.Fprintln(w, "  --cf-origin-insecure-skip-verify                      Skip origin TLS verification")
-	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,origin_server_name=...][,origin_insecure_skip_verify=true|false]")
+	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,strip_path_prefix=true|false][,origin_server_name=...][,origin_insecure_skip_verify=true|false]")
 	fmt.Fprintln(w, "                                                         Path-based route rule, repeatable")
 	fmt.Fprintln(w, "  --log-level=debug|info|warn|error                     Log level (default: info)")
 	fmt.Fprintln(w, "  --log-format=text|json                                Log format (default: text)")

@@ -57,6 +57,45 @@ func TestRoutedProxyDispatchByPath(t *testing.T) {
 	}
 }
 
+func TestRoutedProxyStripsPathPrefix(t *testing.T) {
+	t.Parallel()
+
+	upstreamDefault := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("default"))
+	}))
+	defer upstreamDefault.Close()
+	upstreamAPI := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(r.URL.RequestURI()))
+	}))
+	defer upstreamAPI.Close()
+
+	defaultTarget := Target{
+		Raw:      upstreamDefault.URL,
+		Protocol: ProtocolHTTP,
+		URL:      MustParseURL(upstreamDefault.URL),
+	}
+
+	p, err := NewRoutedProxy(defaultTarget, []appconfig.RouteRule{
+		{Path: "/api/*", Target: upstreamAPI.URL, StripPathPrefix: true},
+	})
+	if err != nil {
+		t.Fatalf("new routed proxy: %v", err)
+	}
+
+	server := startLocalHTTPServer(t, p.Handler())
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/ping?x=1")
+	if err != nil {
+		t.Fatalf("get api route: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if string(body) != "/ping?x=1" {
+		t.Fatalf("unexpected stripped path: %q", string(body))
+	}
+}
+
 func TestRoutedProxyDispatchByHostBeforePathFallback(t *testing.T) {
 	t.Parallel()
 

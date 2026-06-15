@@ -13,6 +13,7 @@ type Route struct {
 	Host                  string
 	Path                  string
 	Target                string
+	StripPathPrefix       bool
 	OriginServerName      string
 	InsecureSkipVerify    bool
 	InsecureSkipVerifySet bool
@@ -42,6 +43,7 @@ func NewRouter(rules []appconfig.RouteRule) (*Router, error) {
 			Host:                  normalizeRouteHost(rr.Host),
 			Path:                  normalized,
 			Target:                rr.Target,
+			StripPathPrefix:       rr.StripPathPrefix,
 			OriginServerName:      rr.OriginServerName,
 			InsecureSkipVerify:    rr.InsecureSkipVerify,
 			InsecureSkipVerifySet: rr.InsecureSkipVerifySet,

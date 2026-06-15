@@ -3,6 +3,7 @@ package origin
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/jians1/cf-tunnel/internal/cftunnel/protocol"
 	appconfig "github.com/jians1/cf-tunnel/internal/config"
@@ -53,25 +54,54 @@ func (p *RoutedProxy) Handler() http.Handler {
 }
 
 func (p *RoutedProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	p.pickProxy(req.Host, req.URL.Path).ServeHTTP(w, req)
+	proxy, route, matched := p.pickRouteProxy(req.Host, req.URL.Path)
+	if matched {
+		req = requestWithStrippedPathPrefix(req, route)
+	}
+	proxy.ServeHTTP(w, req)
 }
 
 func (p *RoutedProxy) ProxyWebsocket(w protocol.ResponseWriter, req *http.Request) error {
-	return p.pickProxy(req.Host, req.URL.Path).ProxyWebsocket(w, req)
+	proxy, route, matched := p.pickRouteProxy(req.Host, req.URL.Path)
+	if matched {
+		req = requestWithStrippedPathPrefix(req, route)
+	}
+	return proxy.ProxyWebsocket(w, req)
 }
 
-func (p *RoutedProxy) pickProxy(host, path string) *Proxy {
+func (p *RoutedProxy) pickRouteProxy(host, path string) (*Proxy, Route, bool) {
 	if p.router == nil {
-		return p.defaultProxy
+		return p.defaultProxy, Route{}, false
 	}
 	route, ok := p.router.Match(host, path)
 	if !ok {
-		return p.defaultProxy
+		return p.defaultProxy, Route{}, false
 	}
 	if proxy, ok := p.proxyByTarget[matchedRouteProxyKey(route)]; ok {
-		return proxy
+		return proxy, route, true
 	}
-	return p.defaultProxy
+	return p.defaultProxy, Route{}, false
+}
+
+func requestWithStrippedPathPrefix(req *http.Request, route Route) *http.Request {
+	if !route.StripPathPrefix || route.Path == "" || route.Path == "/" || req.URL == nil {
+		return req
+	}
+	if req.URL.Path != route.Path && !strings.HasPrefix(req.URL.Path, route.Path+"/") {
+		return req
+	}
+
+	path := strings.TrimPrefix(req.URL.Path, route.Path)
+	if path == "" {
+		path = "/"
+	}
+
+	out := req.Clone(req.Context())
+	u := *req.URL
+	u.Path = path
+	u.RawPath = ""
+	out.URL = &u
+	return out
 }
 
 func routeRuleProxyKey(route appconfig.RouteRule) (string, error) {

@@ -449,6 +449,25 @@ func TestParseAcceptsCFRouteTLSOptions(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsCFRouteStripPathPrefixOption(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-route=/api/*=http://127.0.0.1:9001,strip_path_prefix=true",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(cfg.CFTunnel.Routes))
+	}
+	if !cfg.CFTunnel.Routes[0].StripPathPrefix {
+		t.Fatal("expected strip path prefix")
+	}
+}
+
 func TestParseRouteAcceptsTargetURLContainingComma(t *testing.T) {
 	t.Parallel()
 
@@ -686,6 +705,7 @@ cf_tunnel:
     - host: test.910666.xyz
       path: /api/*
       target: http://127.0.0.1:13000
+      strip_path_prefix: true
       origin_server_name: api.internal
       origin_insecure_skip_verify: true
 `), 0o644)
@@ -706,6 +726,9 @@ cf_tunnel:
 	route := cfg.CFTunnel.Routes[0]
 	if route.Host != "test.910666.xyz" || route.Path != "/api/*" || route.Target != "http://127.0.0.1:13000" {
 		t.Fatalf("unexpected route: %#v", route)
+	}
+	if !route.StripPathPrefix {
+		t.Fatal("expected strip path prefix")
 	}
 	if route.OriginServerName != "api.internal" || !route.InsecureSkipVerify {
 		t.Fatalf("unexpected route TLS settings: %#v", route)
