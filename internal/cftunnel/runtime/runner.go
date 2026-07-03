@@ -237,6 +237,7 @@ func (r *BridgeRunner) instanceOptions(connIndex uint8) InstanceOptions {
 	http2Options := r.http2Options
 	http2Options.ConnIndex = connIndex
 	http2Options.ConnectorID = append([]byte(nil), r.connectorID...)
+	http2Options.EdgeAddressProvider = edgeAddressProviderForConnIndex(http2Options.EdgeAddressProvider, connIndex)
 	if http2Options.DialConfig != nil {
 		http2Options.DialConfig = http2Options.DialConfig.Clone()
 	}
@@ -244,6 +245,7 @@ func (r *BridgeRunner) instanceOptions(connIndex uint8) InstanceOptions {
 	quicOptions := r.quicOptions
 	quicOptions.ConnIndex = connIndex
 	quicOptions.ConnectorID = append([]byte(nil), r.connectorID...)
+	quicOptions.EdgeAddressProvider = edgeAddressProviderForConnIndex(quicOptions.EdgeAddressProvider, connIndex)
 	if quicOptions.DialConfig != nil {
 		quicOptions.DialConfig = quicOptions.DialConfig.Clone()
 	}
@@ -262,6 +264,17 @@ func normalizeHAConnections(haConnections int) int {
 		return maxHAConnections
 	}
 	return haConnections
+}
+
+type connectionIndexedEdgeAddressProvider interface {
+	ForConnIndex(uint8) EdgeAddressProvider
+}
+
+func edgeAddressProviderForConnIndex(provider EdgeAddressProvider, connIndex uint8) EdgeAddressProvider {
+	if indexed, ok := provider.(connectionIndexedEdgeAddressProvider); ok {
+		return indexed.ForConnIndex(connIndex)
+	}
+	return provider
 }
 
 func defaultBridgeInstanceFactory(session Session, logger *slog.Logger, options InstanceOptions) (bridgeInstance, error) {

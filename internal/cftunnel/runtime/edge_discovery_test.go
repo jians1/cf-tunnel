@@ -38,6 +38,42 @@ func TestCloudflareEdgeAddressProviderResolveHTTP2Address(t *testing.T) {
 	}
 }
 
+func TestCloudflareEdgeAddressProviderUsesConnectionIndex(t *testing.T) {
+	restoreSRV := stubEdgeLookupSRV([]*net.SRV{
+		{Target: "region1.example.com.", Port: 443},
+		{Target: "region2.example.com.", Port: 443},
+	})
+	defer restoreSRV()
+
+	restoreIP := stubEdgeLookupIP(map[string][]net.IP{
+		"region1.example.com.": {
+			net.ParseIP("198.51.100.10"),
+		},
+		"region2.example.com.": {
+			net.ParseIP("198.51.100.20"),
+		},
+	})
+	defer restoreIP()
+
+	provider := NewCloudflareEdgeAddressProvider("", EdgeIPv4Only, testEdgeLogger())
+
+	first, err := provider.ForConnIndex(0).ResolveHTTP2Address()
+	if err != nil {
+		t.Fatalf("resolve first http2 address: %v", err)
+	}
+	second, err := provider.ForConnIndex(1).ResolveHTTP2Address()
+	if err != nil {
+		t.Fatalf("resolve second http2 address: %v", err)
+	}
+
+	if first != "198.51.100.10:443" {
+		t.Fatalf("unexpected first address: %s", first)
+	}
+	if second != "198.51.100.20:443" {
+		t.Fatalf("unexpected second address: %s", second)
+	}
+}
+
 func TestCloudflareEdgeAddressProviderResolveQUICAddressHonorsIPv4Only(t *testing.T) {
 	t.Parallel()
 

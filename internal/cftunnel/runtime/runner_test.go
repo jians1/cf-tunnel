@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -100,6 +101,36 @@ func TestBridgeRunnerRunsQUICHAConnectionsWithStableConnectorID(t *testing.T) {
 	assertBridgeRunnerUsesStableConnectorID(t, "quic", func(options InstanceOptions) []byte {
 		return options.QUIC.ConnectorID
 	})
+}
+
+func TestBridgeRunnerUsesConnectionIndexedEdgeProviders(t *testing.T) {
+	t.Parallel()
+
+	runner := NewBridgeRunner(testSession(t, "http2"), newDiscardSlogLogger())
+	runner.SetHTTP2Options(HTTP2ServerOptions{
+		EdgeAddressProvider: indexedEdgeAddressProvider{},
+	})
+	runner.SetQUICOptions(QUICRuntimeOptions{
+		EdgeAddressProvider: indexedEdgeAddressProvider{},
+	})
+
+	options := runner.instanceOptions(2)
+
+	http2Address, err := options.HTTP2.EdgeAddressProvider.ResolveHTTP2Address()
+	if err != nil {
+		t.Fatalf("resolve http2 address: %v", err)
+	}
+	quicAddress, err := options.QUIC.EdgeAddressProvider.ResolveQUICAddress()
+	if err != nil {
+		t.Fatalf("resolve quic address: %v", err)
+	}
+
+	if http2Address != "http2-2.example.com:443" {
+		t.Fatalf("unexpected http2 address: %s", http2Address)
+	}
+	if quicAddress != "quic-2.example.com:7844" {
+		t.Fatalf("unexpected quic address: %s", quicAddress)
+	}
 }
 
 func TestBridgeRunnerWaitsForFirstConnectionBeforeStartingRemainingHAConnections(t *testing.T) {
@@ -305,6 +336,22 @@ type bridgeInstanceFunc func(context.Context) error
 
 func (f bridgeInstanceFunc) Run(ctx context.Context) error {
 	return f(ctx)
+}
+
+type indexedEdgeAddressProvider struct {
+	index uint8
+}
+
+func (p indexedEdgeAddressProvider) ForConnIndex(connIndex uint8) EdgeAddressProvider {
+	return indexedEdgeAddressProvider{index: connIndex}
+}
+
+func (p indexedEdgeAddressProvider) ResolveHTTP2Address() (string, error) {
+	return "http2-" + strconv.Itoa(int(p.index)) + ".example.com:443", nil
+}
+
+func (p indexedEdgeAddressProvider) ResolveQUICAddress() (string, error) {
+	return "quic-" + strconv.Itoa(int(p.index)) + ".example.com:7844", nil
 }
 
 func TestBridgeRunnerOmitsPreparedDetailsAtInfo(t *testing.T) {

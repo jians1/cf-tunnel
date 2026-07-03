@@ -62,6 +62,7 @@ func (p StaticEdgeAddressProvider) ResolveQUICAddress() (string, error) {
 }
 
 type CloudflareEdgeAddressProvider struct {
+	ConnIndex uint8
 	Region    string
 	IPVersion EdgeIPVersion
 	logger    *slog.Logger
@@ -73,6 +74,15 @@ func NewCloudflareEdgeAddressProvider(region string, ipVersion EdgeIPVersion, lo
 		IPVersion: ipVersion,
 		logger:    logger,
 	}
+}
+
+func (p *CloudflareEdgeAddressProvider) ForConnIndex(connIndex uint8) *CloudflareEdgeAddressProvider {
+	if p == nil {
+		return nil
+	}
+	clone := *p
+	clone.ConnIndex = connIndex
+	return &clone
 }
 
 func (p *CloudflareEdgeAddressProvider) ResolveHTTP2Address() (string, error) {
@@ -108,30 +118,34 @@ func (p *CloudflareEdgeAddressProvider) resolveEdgeAddr() (*net.TCPAddr, error) 
 		return nil, fmt.Errorf("expected at least %d edge regions, got %d", edgeResolveMinRegions, len(records))
 	}
 
+	addrs := make([]*net.TCPAddr, 0, len(records))
 	for _, record := range records {
-		addr, err := p.resolveRecord(record)
+		recordAddrs, err := p.resolveRecordAddrs(record)
 		if err != nil {
 			return nil, err
 		}
-		if addr != nil {
-			return addr, nil
-		}
+		addrs = append(addrs, recordAddrs...)
 	}
 
-	return nil, fmt.Errorf("no usable edge address for ip version %d", p.IPVersion)
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no usable edge address for ip version %d", p.IPVersion)
+	}
+
+	return addrs[int(p.ConnIndex)%len(addrs)], nil
 }
 
-func (p *CloudflareEdgeAddressProvider) resolveRecord(record *net.SRV) (*net.TCPAddr, error) {
+func (p *CloudflareEdgeAddressProvider) resolveRecordAddrs(record *net.SRV) ([]*net.TCPAddr, error) {
 	ips, err := netLookupIP(record.Target)
 	if err != nil {
 		return nil, fmt.Errorf("resolve edge ip for %s: %w", record.Target, err)
 	}
+	addrs := make([]*net.TCPAddr, 0, len(ips))
 	for _, ip := range ips {
 		if edgeIPMatchesVersion(ip, p.IPVersion) {
-			return &net.TCPAddr{IP: ip, Port: int(record.Port)}, nil
+			addrs = append(addrs, &net.TCPAddr{IP: ip, Port: int(record.Port)})
 		}
 	}
-	return nil, nil
+	return addrs, nil
 }
 
 func edgeRegionalServiceName(region string) string {
