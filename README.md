@@ -197,6 +197,7 @@ go run ./cmd/app \
 cf_tunnel:
   tunnel_token: "..."
   edge_protocol: quic
+  ha_connections: 4
   target: http://127.0.0.1:8080
   routes:
     - host: api.example.com
@@ -224,12 +225,14 @@ tunnels:
   - name: alpha
     cf_tunnel:
       edge_protocol: quic
+      ha_connections: 4
       target: http://127.0.0.1:8081
 
   - name: beta
     cf_tunnel:
       tunnel_token: "..."
       edge_protocol: http2
+      ha_connections: 4
       target: ws://127.0.0.1:10000
       routes:
         - host: test.910666.xyz
@@ -268,6 +271,7 @@ cf-tunnel --config=<config.yaml>
 
 - `--config=<path>`：YAML 配置文件（`.yaml` / `.yml`）
 - `--cf-edge-protocol=http2|quic`：Cloudflare edge 传输协议，默认 `http2`
+- `--cf-ha-connections=<n>`：Cloudflare HA edge 连接数，默认 `4`
 - `--cf-tunnel-token=...` 或 `CF_TUNNEL_TOKEN=...`：remote-managed 正式 tunnel 模式使用的 token
 - `--cf-origin-server-name=...`：默认源站 TLS server name
 - `--cf-origin-insecure-skip-verify`：默认源站 TLS 跳过证书校验
@@ -546,6 +550,7 @@ Multiple public hostnames on one Cloudflare Tunnel should be represented as one 
 cf_tunnel:
   tunnel_token: "..."
   edge_protocol: quic
+  ha_connections: 4
   target: http://127.0.0.1:8080
   routes:
     - host: api.example.com
@@ -573,12 +578,14 @@ tunnels:
   - name: alpha
     cf_tunnel:
       edge_protocol: quic
+      ha_connections: 4
       target: http://127.0.0.1:8081
 
   - name: beta
     cf_tunnel:
       tunnel_token: "..."
       edge_protocol: http2
+      ha_connections: 4
       target: ws://127.0.0.1:10000
       routes:
         - host: test.910666.xyz
@@ -617,6 +624,7 @@ Optional:
 
 - `--config=<path>`: YAML config file (`.yaml` / `.yml`)
 - `--cf-edge-protocol=http2|quic` (default: `http2`)
+- `--cf-ha-connections=<n>`: Cloudflare HA edge connections, default `4`
 - `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
 - `--cf-origin-server-name=...`
 - `--cf-origin-insecure-skip-verify`
