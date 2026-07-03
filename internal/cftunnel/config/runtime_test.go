@@ -34,6 +34,7 @@ func TestNormalizeCarriesRuntimeFields(t *testing.T) {
 	cfg, err := Normalize(appconfig.CFTunnelConfig{
 		QuickService: "https://example.com",
 		EdgeProtocol: appconfig.EdgeProtocolHTTP2,
+		HAConnections: 2,
 		Target:       "http://127.0.0.1:8080",
 	})
 	if err != nil {
@@ -42,7 +43,7 @@ func TestNormalizeCarriesRuntimeFields(t *testing.T) {
 	if cfg.QuickService != "https://example.com" {
 		t.Fatalf("unexpected quick service: %s", cfg.QuickService)
 	}
-	if cfg.HAConnections != 4 {
+	if cfg.HAConnections != 2 {
 		t.Fatalf("unexpected ha connections: %d", cfg.HAConnections)
 	}
 	if cfg.QuickServiceTimeout != 15*time.Second {

@@ -19,6 +19,11 @@ const (
 	EdgeProtocolHTTP2 = "http2"
 )
 
+const (
+	DefaultHAConnections = 4
+	MaxHAConnections     = 256
+)
+
 type AppConfig struct {
 	LogLevel        string
 	LogFormat       string
@@ -32,6 +37,7 @@ type CFTunnelConfig struct {
 	QuickService       string      `yaml:"quick_service"`
 	TunnelToken        string      `yaml:"tunnel_token"`
 	EdgeProtocol       string      `yaml:"edge_protocol"`
+	HAConnections      int         `yaml:"ha_connections"`
 	Target             string      `yaml:"target"`
 	OriginServerName   string      `yaml:"origin_server_name"`
 	InsecureSkipVerify bool        `yaml:"origin_insecure_skip_verify"`
@@ -260,9 +266,11 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&configPath, "config", "", "optional YAML config file path")
 
 	cfg.CFTunnel.QuickService = "https://api.trycloudflare.com"
+	cfg.CFTunnel.HAConnections = DefaultHAConnections
 	cfg.CFTunnel.TunnelToken = strings.TrimSpace(os.Getenv("CF_TUNNEL_TOKEN"))
 	fs.StringVar(&cfg.CFTunnel.TunnelToken, "cf-tunnel-token", cfg.CFTunnel.TunnelToken, "Cloudflare remote-managed tunnel token")
 	fs.StringVar(&cfg.CFTunnel.EdgeProtocol, "cf-edge-protocol", EdgeProtocolHTTP2, "Cloudflare edge protocol (http2|quic)")
+	fs.IntVar(&cfg.CFTunnel.HAConnections, "cf-ha-connections", cfg.CFTunnel.HAConnections, "Cloudflare HA edge connections")
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
@@ -302,6 +310,7 @@ func writeUsage(w io.Writer, name string) {
 	fmt.Fprintln(w, "Optional:")
 	fmt.Fprintln(w, "  --config=<path>                                       YAML config file (.yaml / .yml)")
 	fmt.Fprintln(w, "  --cf-edge-protocol=http2|quic                         Cloudflare edge protocol (default: http2)")
+	fmt.Fprintln(w, "  --cf-ha-connections=<n>                               Cloudflare HA edge connections (default: 4)")
 	fmt.Fprintln(w, "  --cf-tunnel-token=<token>                             Cloudflare remote-managed tunnel token")
 	fmt.Fprintln(w, "  --cf-origin-server-name=<name>                        Origin TLS server name override")
 	fmt.Fprintln(w, "  --cf-origin-insecure-skip-verify                      Skip origin TLS verification")
@@ -397,25 +406,37 @@ func applyConfigFile(cfg *AppConfig, path string) error {
 		cfg.ShutdownTimeout = v
 	}
 	if fc.CFTunnel != nil {
-		if fc.CFTunnel.QuickService == "" {
-			fc.CFTunnel.QuickService = cfg.CFTunnel.QuickService
-		}
 		cfg.CFTunnel = *fc.CFTunnel
+		cfg.CFTunnel.applyDefaults()
 	}
 	if len(fc.Tunnels) > 0 {
 		for i := range fc.Tunnels {
-			if fc.Tunnels[i].CFTunnel.QuickService == "" {
-				fc.Tunnels[i].CFTunnel.QuickService = cfg.CFTunnel.QuickService
-			}
+			fc.Tunnels[i].CFTunnel.applyDefaults()
 		}
 		cfg.Tunnels = append([]NamedTunnelConfig(nil), fc.Tunnels...)
 	}
 	return nil
 }
 
+func (c *CFTunnelConfig) applyDefaults() {
+	if c.QuickService == "" {
+		c.QuickService = "https://api.trycloudflare.com"
+	}
+	if c.HAConnections == 0 {
+		c.HAConnections = DefaultHAConnections
+	}
+}
+
 func (c CFTunnelConfig) Validate() error {
 	if err := validateEdgeProtocol(c.EdgeProtocol); err != nil {
 		return err
+	}
+	haConnections := c.HAConnections
+	if haConnections == 0 {
+		haConnections = DefaultHAConnections
+	}
+	if haConnections < 1 || haConnections > MaxHAConnections {
+		return fmt.Errorf("cf-ha-connections must be between 1 and %d", MaxHAConnections)
 	}
 	if c.Target == "" {
 		return errors.New("cf-tunnel-target is required")

@@ -221,17 +221,52 @@ func TestTunnelTokenStillRequiresTarget(t *testing.T) {
 	}
 }
 
-func TestParseRejectsRemovedHAConnectionsFlag(t *testing.T) {
+func TestParseAcceptsHAConnectionsFlag(t *testing.T) {
 	t.Parallel()
 
-	_, err := Parse([]string{
+	cfg, err := Parse([]string{
 		"--cf-edge-protocol=http2",
 		"--cf-tunnel-target=http://127.0.0.1:8080",
-		"--cf-ha-connections=1",
+		"--cf-ha-connections=2",
 		"--health-listen=",
 	})
-	if err == nil {
-		t.Fatal("expected removed flag to be rejected")
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if cfg.CFTunnel.HAConnections != 2 {
+		t.Fatalf("unexpected ha connections: %d", cfg.CFTunnel.HAConnections)
+	}
+}
+
+func TestParseDefaultsHAConnections(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-edge-protocol=http2",
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if cfg.CFTunnel.HAConnections != DefaultHAConnections {
+		t.Fatalf("unexpected default ha connections: %d", cfg.CFTunnel.HAConnections)
+	}
+}
+
+func TestParseRejectsInvalidHAConnections(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"-1", "257"} {
+		_, err := Parse([]string{
+			"--cf-edge-protocol=http2",
+			"--cf-tunnel-target=http://127.0.0.1:8080",
+			"--cf-ha-connections=" + value,
+			"--health-listen=",
+		})
+		if err == nil {
+			t.Fatalf("expected invalid ha connections %s to be rejected", value)
+		}
 	}
 }
 
@@ -687,6 +722,32 @@ cf_tunnel:
 	}
 	if cfg.CFTunnel.Target != "http://127.0.0.1:9001" {
 		t.Fatalf("expected config file target override, got: %s", cfg.CFTunnel.Target)
+	}
+}
+
+func TestParseYAMLConfigFileAcceptsHAConnections(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+cf_tunnel:
+  quick_service: https://api.trycloudflare.com
+  edge_protocol: http2
+  target: http://127.0.0.1:9001
+  ha_connections: 3
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := Parse([]string{"--config=" + p})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CFTunnel.HAConnections != 3 {
+		t.Fatalf("unexpected ha connections: %d", cfg.CFTunnel.HAConnections)
 	}
 }
 

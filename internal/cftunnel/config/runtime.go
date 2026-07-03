@@ -34,12 +34,17 @@ func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 		return RuntimeConfig{}, fmt.Errorf("parse origin target: %w", err)
 	}
 
+	haConnections := cfg.HAConnections
+	if haConnections == 0 {
+		haConnections = appconfig.DefaultHAConnections
+	}
+
 	return RuntimeConfig{
 		EdgeProtocol:        cfg.EdgeProtocol,
 		QuickService:        cfg.QuickService,
 		QuickServiceTimeout: 15 * time.Second,
 		RetryBackoffs:       append([]time.Duration(nil), defaultQuickServiceRetryBackoffs...),
-		HAConnections:       4,
+		HAConnections:       haConnections,
 		Origin:              target,
 		Routes:              append([]appconfig.RouteRule(nil), cfg.Routes...),
 		QuickTunnelDefault:  true,
