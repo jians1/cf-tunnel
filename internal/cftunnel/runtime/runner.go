@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 const maxHAConnections = 256
+const defaultHARegistrationInterval = time.Second
 
 type bridgeInstance interface {
 	Run(context.Context) error
@@ -16,12 +18,13 @@ type bridgeInstance interface {
 type bridgeInstanceFactory func(Session, *slog.Logger, InstanceOptions) (bridgeInstance, error)
 
 type BridgeRunner struct {
-	session         Session
-	logger          *slog.Logger
-	http2Options    HTTP2ServerOptions
-	quicOptions     QUICRuntimeOptions
-	connectorID     []byte
-	instanceFactory bridgeInstanceFactory
+	session              Session
+	logger               *slog.Logger
+	http2Options         HTTP2ServerOptions
+	quicOptions          QUICRuntimeOptions
+	connectorID          []byte
+	registrationInterval time.Duration
+	instanceFactory      bridgeInstanceFactory
 }
 
 func NewBridgeRunner(session Session, logger *slog.Logger) *BridgeRunner {
@@ -30,9 +33,10 @@ func NewBridgeRunner(session Session, logger *slog.Logger) *BridgeRunner {
 	}
 
 	return &BridgeRunner{
-		session:         session,
-		logger:          logger.With("component", "cftunnel-runtime"),
-		instanceFactory: defaultBridgeInstanceFactory,
+		session:              session,
+		logger:               logger.With("component", "cftunnel-runtime"),
+		registrationInterval: defaultHARegistrationInterval,
+		instanceFactory:      defaultBridgeInstanceFactory,
 	}
 }
 
@@ -80,15 +84,51 @@ func (r *BridgeRunner) Run(ctx context.Context) error {
 		return r.runConnection(ctx, 0)
 	}
 
+	return r.runHAConnections(ctx, haConnections)
+}
+
+func (r *BridgeRunner) runHAConnections(ctx context.Context, haConnections int) error {
 	groupCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	errCh := make(chan error, 1)
-	done := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(haConnections)
-	for i := 0; i < haConnections; i++ {
-		connIndex := uint8(i)
+
+	firstConnected := make(chan struct{})
+	firstResult := make(chan error, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := r.runConnectionWithConnectedFuse(groupCtx, 0, &connectedSignalFuse{
+			delegate:  r.activeConnectedFuse(),
+			connected: firstConnected,
+		})
+		firstResult <- err
+		if err != nil {
+			select {
+			case errCh <- err:
+			default:
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		cancel()
+		wg.Wait()
+		return ctx.Err()
+	case err := <-firstResult:
+		cancel()
+		wg.Wait()
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		return err
+	case <-firstConnected:
+	}
+
+	startConnection := func(connIndex uint8) {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			if err := r.runConnection(groupCtx, connIndex); err != nil {
@@ -99,6 +139,19 @@ func (r *BridgeRunner) Run(ctx context.Context) error {
 			}
 		}()
 	}
+	for i := 1; i < haConnections; i++ {
+		connIndex := uint8(i)
+		startConnection(connIndex)
+		if i < haConnections-1 {
+			if err := r.waitRegistrationInterval(ctx, errCh); err != nil {
+				cancel()
+				wg.Wait()
+				return err
+			}
+		}
+	}
+
+	done := make(chan struct{})
 	go func() {
 		wg.Wait()
 		close(done)
@@ -121,12 +174,38 @@ func (r *BridgeRunner) Run(ctx context.Context) error {
 	}
 }
 
+func (r *BridgeRunner) waitRegistrationInterval(ctx context.Context, errCh <-chan error) error {
+	if r.registrationInterval <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(r.registrationInterval)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	case <-timer.C:
+		return nil
+	}
+}
+
 func (r *BridgeRunner) runConnection(ctx context.Context, connIndex uint8) error {
+	return r.runConnectionWithConnectedFuse(ctx, connIndex, nil)
+}
+
+func (r *BridgeRunner) runConnectionWithConnectedFuse(ctx context.Context, connIndex uint8, connectedFuse ConnectedFuse) error {
 	factory := r.instanceFactory
 	if factory == nil {
 		factory = defaultBridgeInstanceFactory
 	}
-	instance, err := factory(r.session, r.logger.With("conn_index", connIndex), r.instanceOptions(connIndex))
+	options := r.instanceOptions(connIndex)
+	if connectedFuse != nil {
+		options.HTTP2.ConnectedFuse = connectedFuse
+		options.QUIC.ConnectedFuse = connectedFuse
+	}
+	instance, err := factory(r.session, r.logger.With("conn_index", connIndex), options)
 	if err != nil {
 		return fmt.Errorf("build runtime instance: %w", err)
 	}
@@ -142,6 +221,16 @@ func (r *BridgeRunner) runConnection(ctx context.Context, connIndex uint8) error
 		}
 	}
 	return instance.Run(ctx)
+}
+
+func (r *BridgeRunner) activeConnectedFuse() ConnectedFuse {
+	if r.http2Options.ConnectedFuse != nil {
+		return r.http2Options.ConnectedFuse
+	}
+	if r.quicOptions.ConnectedFuse != nil {
+		return r.quicOptions.ConnectedFuse
+	}
+	return noopConnectedFuse{}
 }
 
 func (r *BridgeRunner) instanceOptions(connIndex uint8) InstanceOptions {
@@ -177,4 +266,26 @@ func normalizeHAConnections(haConnections int) int {
 
 func defaultBridgeInstanceFactory(session Session, logger *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
 	return NewInstanceWithRuntimeOptions(session, logger, options)
+}
+
+type connectedSignalFuse struct {
+	delegate  ConnectedFuse
+	connected chan struct{}
+	once      sync.Once
+}
+
+func (f *connectedSignalFuse) Connected() {
+	if f.delegate != nil {
+		f.delegate.Connected()
+	}
+	f.once.Do(func() {
+		close(f.connected)
+	})
+}
+
+func (f *connectedSignalFuse) IsConnected() bool {
+	if f.delegate == nil {
+		return false
+	}
+	return f.delegate.IsConnected()
 }

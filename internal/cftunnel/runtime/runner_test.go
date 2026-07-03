@@ -73,16 +73,16 @@ func TestBridgeRunnerQUICUsesConfiguredEdgeDial(t *testing.T) {
 func TestBridgeRunnerRunsConfiguredHTTP2HAConnectionsWithDistinctIndexes(t *testing.T) {
 	t.Parallel()
 
-	assertBridgeRunnerStartsHAConnections(t, "http2", func(options InstanceOptions) uint8 {
-		return options.HTTP2.ConnIndex
+	assertBridgeRunnerStartsHAConnections(t, "http2", func(options InstanceOptions) (uint8, ConnectedFuse) {
+		return options.HTTP2.ConnIndex, options.HTTP2.ConnectedFuse
 	})
 }
 
 func TestBridgeRunnerRunsConfiguredQUICHAConnectionsWithDistinctIndexes(t *testing.T) {
 	t.Parallel()
 
-	assertBridgeRunnerStartsHAConnections(t, "quic", func(options InstanceOptions) uint8 {
-		return options.QUIC.ConnIndex
+	assertBridgeRunnerStartsHAConnections(t, "quic", func(options InstanceOptions) (uint8, ConnectedFuse) {
+		return options.QUIC.ConnIndex, options.QUIC.ConnectedFuse
 	})
 }
 
@@ -102,18 +102,98 @@ func TestBridgeRunnerRunsQUICHAConnectionsWithStableConnectorID(t *testing.T) {
 	})
 }
 
-func assertBridgeRunnerStartsHAConnections(t *testing.T, proto string, selectIndex func(InstanceOptions) uint8) {
+func TestBridgeRunnerWaitsForFirstConnectionBeforeStartingRemainingHAConnections(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "quic")
+	session.HAConnections = 4
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.registrationInterval = 0
+
+	started := make(chan uint8, session.HAConnections)
+	firstConnected := make(chan ConnectedFuse, 1)
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
+		connIndex := options.QUIC.ConnIndex
+		connectedFuse := options.QUIC.ConnectedFuse
+		return bridgeInstanceFunc(func(ctx context.Context) error {
+			started <- connIndex
+			if connIndex == 0 {
+				firstConnected <- connectedFuse
+			}
+			<-ctx.Done()
+			return ctx.Err()
+		}), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Run(ctx)
+	}()
+
+	select {
+	case connIndex := <-started:
+		if connIndex != 0 {
+			t.Fatalf("expected first connection index 0, got %d", connIndex)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for first HA connection to start")
+	}
+
+	select {
+	case connIndex := <-started:
+		t.Fatalf("connection %d started before first connection reported connected", connIndex)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	var fuse ConnectedFuse
+	select {
+	case fuse = <-firstConnected:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for first connection fuse")
+	}
+	fuse.Connected()
+
+	got := map[uint8]bool{0: true}
+	for len(got) < session.HAConnections {
+		select {
+		case connIndex := <-started:
+			got[connIndex] = true
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timeout waiting for remaining HA connections; got indexes: %v", got)
+		}
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected run error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for bridge runner to stop")
+	}
+}
+
+func assertBridgeRunnerStartsHAConnections(t *testing.T, proto string, selectIndex func(InstanceOptions) (uint8, ConnectedFuse)) {
 	t.Helper()
 
 	session := testSession(t, proto)
 	session.HAConnections = 4
 	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.registrationInterval = 0
 
 	started := make(chan uint8, session.HAConnections)
 	runner.instanceFactory = func(_ Session, _ *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
-		connIndex := selectIndex(options)
+		connIndex, connectedFuse := selectIndex(options)
 		return bridgeInstanceFunc(func(ctx context.Context) error {
 			started <- connIndex
+			if connIndex == 0 {
+				connectedFuse.Connected()
+			}
 			<-ctx.Done()
 			return ctx.Err()
 		}), nil
@@ -161,12 +241,22 @@ func assertBridgeRunnerUsesStableConnectorID(t *testing.T, proto string, selectC
 	session := testSession(t, proto)
 	session.HAConnections = 4
 	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.registrationInterval = 0
 
 	started := make(chan []byte, session.HAConnections)
 	runner.instanceFactory = func(_ Session, _ *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
+		connIndex := options.QUIC.ConnIndex
+		connectedFuse := options.QUIC.ConnectedFuse
+		if proto == "http2" {
+			connIndex = options.HTTP2.ConnIndex
+			connectedFuse = options.HTTP2.ConnectedFuse
+		}
 		connectorID := append([]byte(nil), selectConnectorID(options)...)
 		return bridgeInstanceFunc(func(ctx context.Context) error {
 			started <- connectorID
+			if connIndex == 0 {
+				connectedFuse.Connected()
+			}
 			<-ctx.Done()
 			return ctx.Err()
 		}), nil
