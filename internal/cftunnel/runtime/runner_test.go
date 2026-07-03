@@ -86,6 +86,22 @@ func TestBridgeRunnerRunsConfiguredQUICHAConnectionsWithDistinctIndexes(t *testi
 	})
 }
 
+func TestBridgeRunnerRunsHTTP2HAConnectionsWithStableConnectorID(t *testing.T) {
+	t.Parallel()
+
+	assertBridgeRunnerUsesStableConnectorID(t, "http2", func(options InstanceOptions) []byte {
+		return options.HTTP2.ConnectorID
+	})
+}
+
+func TestBridgeRunnerRunsQUICHAConnectionsWithStableConnectorID(t *testing.T) {
+	t.Parallel()
+
+	assertBridgeRunnerUsesStableConnectorID(t, "quic", func(options InstanceOptions) []byte {
+		return options.QUIC.ConnectorID
+	})
+}
+
 func assertBridgeRunnerStartsHAConnections(t *testing.T, proto string, selectIndex func(InstanceOptions) uint8) {
 	t.Helper()
 
@@ -136,6 +152,62 @@ func assertBridgeRunnerStartsHAConnections(t *testing.T, proto string, selectInd
 		if !got[uint8(want)] {
 			t.Fatalf("missing connIndex %d; got indexes: %v", want, got)
 		}
+	}
+}
+
+func assertBridgeRunnerUsesStableConnectorID(t *testing.T, proto string, selectConnectorID func(InstanceOptions) []byte) {
+	t.Helper()
+
+	session := testSession(t, proto)
+	session.HAConnections = 4
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+
+	started := make(chan []byte, session.HAConnections)
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
+		connectorID := append([]byte(nil), selectConnectorID(options)...)
+		return bridgeInstanceFunc(func(ctx context.Context) error {
+			started <- connectorID
+			<-ctx.Done()
+			return ctx.Err()
+		}), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runner.Run(ctx)
+	}()
+
+	var first []byte
+	for i := 0; i < session.HAConnections; i++ {
+		select {
+		case connectorID := <-started:
+			if len(connectorID) != runtimeConnectorIDLength {
+				t.Fatalf("expected %d-byte connector id, got %d bytes", runtimeConnectorIDLength, len(connectorID))
+			}
+			if i == 0 {
+				first = connectorID
+				continue
+			}
+			if !bytes.Equal(connectorID, first) {
+				t.Fatalf("connector id changed: got %v want %v", connectorID, first)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for HA connections to start")
+		}
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected run error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for bridge runner to stop")
 	}
 }
 

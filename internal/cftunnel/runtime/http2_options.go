@@ -24,6 +24,7 @@ type HTTP2ServerOptions struct {
 	RegisterTimeout        time.Duration
 	ConnectedFuse          ConnectedFuse
 	ConnIndex              uint8
+	ConnectorID            []byte
 	EdgeAddress            net.IP
 }
 

@@ -20,6 +20,7 @@ type BridgeRunner struct {
 	logger          *slog.Logger
 	http2Options    HTTP2ServerOptions
 	quicOptions     QUICRuntimeOptions
+	connectorID     []byte
 	instanceFactory bridgeInstanceFactory
 }
 
@@ -43,6 +44,18 @@ func (r *BridgeRunner) SetQUICOptions(opts QUICRuntimeOptions) {
 	r.quicOptions = opts
 }
 
+func (r *BridgeRunner) ensureConnectorID() error {
+	if len(r.connectorID) == runtimeConnectorIDLength {
+		return nil
+	}
+	connectorID, err := newRuntimeConnectorID()
+	if err != nil {
+		return err
+	}
+	r.connectorID = connectorID
+	return nil
+}
+
 func (r *BridgeRunner) Run(ctx context.Context) error {
 	r.logger.Debug(
 		"cftunnel runtime bridge prepared",
@@ -57,6 +70,10 @@ func (r *BridgeRunner) Run(ctx context.Context) error {
 		"origin_websocket_upgrade_mode", r.session.Origin.WebsocketUpgradeMode,
 		"ha_connections", r.session.HAConnections,
 	)
+
+	if err := r.ensureConnectorID(); err != nil {
+		return err
+	}
 
 	haConnections := normalizeHAConnections(r.session.HAConnections)
 	if haConnections == 1 {
@@ -130,12 +147,14 @@ func (r *BridgeRunner) runConnection(ctx context.Context, connIndex uint8) error
 func (r *BridgeRunner) instanceOptions(connIndex uint8) InstanceOptions {
 	http2Options := r.http2Options
 	http2Options.ConnIndex = connIndex
+	http2Options.ConnectorID = append([]byte(nil), r.connectorID...)
 	if http2Options.DialConfig != nil {
 		http2Options.DialConfig = http2Options.DialConfig.Clone()
 	}
 
 	quicOptions := r.quicOptions
 	quicOptions.ConnIndex = connIndex
+	quicOptions.ConnectorID = append([]byte(nil), r.connectorID...)
 	if quicOptions.DialConfig != nil {
 		quicOptions.DialConfig = quicOptions.DialConfig.Clone()
 	}

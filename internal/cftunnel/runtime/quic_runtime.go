@@ -106,7 +106,7 @@ func newQUICRuntimeWithEdgeDialConfig(session Session, logger *slog.Logger, opti
 		return nil, err
 	}
 
-	connOptions, err := newRuntimeConnectionOptions()
+	connOptions, err := newRuntimeConnectionOptions(options.ConnectorID)
 	if err != nil {
 		_ = conn.CloseWithError(0, "")
 		return nil, fmt.Errorf("build quic connection options: %w", err)

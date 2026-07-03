@@ -29,6 +29,7 @@ type QUICRuntimeOptions struct {
 	DialConfig          *QUICDialConfig
 	ConnectedFuse       ConnectedFuse
 	ConnIndex           uint8
+	ConnectorID         []byte
 }
 
 func NewInstance(session Session, logger *slog.Logger) (*Instance, error) {

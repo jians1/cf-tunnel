@@ -51,7 +51,7 @@ func NewHTTP2ServerWithHandler(prepared *PreparedRuntime, logger *slog.Logger, h
 		_ = transport.Close()
 		return nil, fmt.Errorf("http2 transport must provide a server conn")
 	}
-	connOptions, err := newRuntimeConnectionOptions()
+	connOptions, err := newRuntimeConnectionOptions(options.ConnectorID)
 	if err != nil {
 		_ = transport.Close()
 		return nil, fmt.Errorf("build http2 connection options: %w", err)

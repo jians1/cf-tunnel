@@ -9,6 +9,7 @@ import (
 
 // Cloudflare compares this connector version against cloudflared releases.
 const runtimeClientVersion = "2026.6.0"
+const runtimeConnectorIDLength = 16
 
 type runtimeConnectionOptionsSnapshot struct {
 	client              runtimeClientInfo
@@ -16,15 +17,30 @@ type runtimeConnectionOptionsSnapshot struct {
 	numPreviousAttempts uint8
 }
 
-func newRuntimeConnectionOptions() (*runtimeConnectionOptionsSnapshot, error) {
-	clientID := make([]byte, 16)
+func newRuntimeConnectorID() ([]byte, error) {
+	clientID := make([]byte, runtimeConnectorIDLength)
 	if _, err := rand.Read(clientID); err != nil {
 		return nil, fmt.Errorf("generate connector id: %w", err)
+	}
+	return clientID, nil
+}
+
+func newRuntimeConnectionOptions(connectorID []byte) (*runtimeConnectionOptionsSnapshot, error) {
+	clientID := connectorID
+	if len(clientID) == 0 {
+		generated, err := newRuntimeConnectorID()
+		if err != nil {
+			return nil, err
+		}
+		clientID = generated
+	}
+	if len(clientID) != runtimeConnectorIDLength {
+		return nil, fmt.Errorf("connector id must be %d bytes, got %d", runtimeConnectorIDLength, len(clientID))
 	}
 
 	return &runtimeConnectionOptionsSnapshot{
 		client: runtimeClientInfo{
-			ClientID: clientID,
+			ClientID: append([]byte(nil), clientID...),
 			Version:  runtimeClientVersion,
 			Arch:     goruntime.GOOS + "_" + goruntime.GOARCH,
 			Features: []string{
