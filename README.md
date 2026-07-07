@@ -48,6 +48,7 @@
 - 本项目不实现账号登录流程，支持单隧道 CLI 和可选的多隧道配置文件模式。
 - Remote-managed token 模式不会下载 Cloudflare 远端 ingress 规则；本地 `target` 和 `routes` 仍是转发事实来源。
 - Quick Tunnel 和 remote-managed token 模式默认使用 4 个 HA connections。
+- 每个 HA connection 独立维护到 edge 的连接：瞬时故障（如 `EDUPCONN`、edge 主动断开）会自动换用不同的 edge 地址并退避重连，进程不会退出，Quick Tunnel 域名也不会因此变化；只有当单个连接连续重连超过上限（默认 5 次）仍失败时，进程才会退出并交由外部（如 systemd）重启。
 
 ### 构建
 
@@ -401,6 +402,7 @@ Build baseline:
 - This project does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
 - Remote-managed token mode does not download Cloudflare remote ingress rules; local `target` and `routes` remain the source of truth.
 - Quick Tunnel and remote-managed token mode use 4 HA connections by default.
+- Each HA connection reconnects on its own after a transient edge failure (EDUPCONN, edge-closed, dial errors): it rotates to a different edge address and backs off, so a single blip no longer tears down the process or (for Quick Tunnels) changes the public hostname. Only after repeated consecutive failures on a connection does the process exit and rely on the service manager to restart.
 
 ### Build
 
