@@ -377,7 +377,7 @@ func (r *BridgeRunner) instanceOptions(connIndex uint8) InstanceOptions {
 	http2Options := r.http2Options
 	http2Options.ConnIndex = connIndex
 	http2Options.ConnectorID = append([]byte(nil), r.connectorID...)
-	http2Options.EdgeAddressProvider = edgeAddressProviderForConnIndex(http2Options.EdgeAddressProvider, connIndex)
+	http2Options.EdgeAddressProvider = r.edgeProviderForConnIndex(http2Options.EdgeAddressProvider, connIndex)
 	if http2Options.DialConfig != nil {
 		http2Options.DialConfig = http2Options.DialConfig.Clone()
 	}
@@ -385,7 +385,7 @@ func (r *BridgeRunner) instanceOptions(connIndex uint8) InstanceOptions {
 	quicOptions := r.quicOptions
 	quicOptions.ConnIndex = connIndex
 	quicOptions.ConnectorID = append([]byte(nil), r.connectorID...)
-	quicOptions.EdgeAddressProvider = edgeAddressProviderForConnIndex(quicOptions.EdgeAddressProvider, connIndex)
+	quicOptions.EdgeAddressProvider = r.edgeProviderForConnIndex(quicOptions.EdgeAddressProvider, connIndex)
 	if quicOptions.DialConfig != nil {
 		quicOptions.DialConfig = quicOptions.DialConfig.Clone()
 	}
@@ -415,6 +415,18 @@ func edgeAddressProviderForConnIndex(provider EdgeAddressProvider, connIndex uin
 		return indexed.ForConnIndex(connIndex)
 	}
 	return provider
+}
+
+// edgeProviderForConnIndex returns the provider a single HA connection should
+// use to resolve its edge address. When the shared pool is active it hands out
+// a provider bound to this connection index so every connection lands on a
+// distinct edge server (preventing EDUPCONN). Otherwise it falls back to the
+// per-connection provider path used by custom providers and tests.
+func (r *BridgeRunner) edgeProviderForConnIndex(provider EdgeAddressProvider, connIndex uint8) EdgeAddressProvider {
+	if r.edgePool != nil {
+		return r.edgePool.providerFor(connIndex)
+	}
+	return edgeAddressProviderForConnIndex(provider, connIndex)
 }
 
 func defaultBridgeInstanceFactory(session Session, logger *slog.Logger, options InstanceOptions) (bridgeInstance, error) {

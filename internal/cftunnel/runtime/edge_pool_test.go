@@ -201,3 +201,44 @@ func TestBridgeRunnerLeavesEdgePoolNilForCustomProvider(t *testing.T) {
 		t.Fatal("expected custom provider to leave edge pool nil")
 	}
 }
+
+// TestBridgeRunnerInstanceOptionsUsesPoolForDistinctAddresses is the
+// regression guard for the wiring bug where the shared pool was built but
+// instanceOptions never consulted it. It uses two edge IPs and queries
+// connIndex 0 and 2: the old per-connection modulo path (addrs[connIndex%len])
+// collides for those indexes, so this test only passes when instanceOptions
+// actually routes through the pool, which assigns distinct addresses.
+func TestBridgeRunnerInstanceOptionsUsesPoolForDistinctAddresses(t *testing.T) {
+	// Not parallel: mutates the package-level edge lookup stubs.
+	restoreSRV := stubEdgeLookupSRV([]*net.SRV{
+		{Target: "region1.example.com.", Port: 7844},
+		{Target: "region2.example.com.", Port: 7844},
+	})
+	defer restoreSRV()
+	restoreIP := stubEdgeLookupIP(map[string][]net.IP{
+		"region1.example.com.": {net.ParseIP("198.51.100.10")},
+		"region2.example.com.": {net.ParseIP("198.51.100.20")},
+	})
+	defer restoreIP()
+
+	runner := NewBridgeRunner(testSession(t, "quic"), newDiscardSlogLogger())
+	runner.SetQUICOptions(QUICRuntimeOptions{
+		EdgeAddressProvider: NewCloudflareEdgeAddressProvider("", EdgeIPv4Only, newDiscardSlogLogger()),
+	})
+	runner.ensureEdgePool()
+	if runner.edgePool == nil {
+		t.Fatal("expected edge pool to be built")
+	}
+
+	addr0, err := runner.instanceOptions(0).QUIC.EdgeAddressProvider.ResolveQUICAddress()
+	if err != nil {
+		t.Fatalf("resolve conn 0: %v", err)
+	}
+	addr2, err := runner.instanceOptions(2).QUIC.EdgeAddressProvider.ResolveQUICAddress()
+	if err != nil {
+		t.Fatalf("resolve conn 2: %v", err)
+	}
+	if addr0 == addr2 {
+		t.Fatalf("conn 0 and conn 2 got the same edge address %s; pool not wired into instanceOptions", addr0)
+	}
+}
