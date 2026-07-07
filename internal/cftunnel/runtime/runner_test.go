@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -390,5 +391,205 @@ func TestNewBridgeRunnerAcceptsNilLogger(t *testing.T) {
 	}
 	if runner.logger == nil {
 		t.Fatal("expected default logger")
+	}
+}
+
+func TestBridgeRunnerRetriesConnectionThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "http2")
+	session.HAConnections = 1
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.backoffBase = time.Millisecond
+	runner.backoffCap = 2 * time.Millisecond
+
+	var attempts int32
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, _ InstanceOptions) (bridgeInstance, error) {
+		return bridgeInstanceFunc(func(ctx context.Context) error {
+			n := atomic.AddInt32(&attempts, 1)
+			if n < 3 {
+				return errors.New("connection with edge closed")
+			}
+			<-ctx.Done()
+			return ctx.Err()
+		}), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+
+	// Wait until the third attempt (the one that stays connected) is running.
+	deadline := time.After(2 * time.Second)
+	for atomic.LoadInt32(&attempts) < 3 {
+		select {
+		case <-deadline:
+			t.Fatalf("timeout waiting for retries; attempts=%d", atomic.LoadInt32(&attempts))
+		case err := <-done:
+			t.Fatalf("runner exited early: %v", err)
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected run error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for runner to stop")
+	}
+}
+
+func TestBridgeRunnerStopsAfterMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "http2")
+	session.HAConnections = 1
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.maxConnRetries = 3
+	runner.backoffBase = time.Millisecond
+	runner.backoffCap = 2 * time.Millisecond
+
+	var attempts int32
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, _ InstanceOptions) (bridgeInstance, error) {
+		return bridgeInstanceFunc(func(context.Context) error {
+			atomic.AddInt32(&attempts, 1)
+			return errors.New("EDUPCONN")
+		}), nil
+	}
+
+	err := runner.Run(context.Background())
+	if err == nil {
+		t.Fatal("expected error after exhausting retries")
+	}
+	if !strings.Contains(err.Error(), "exhausted") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// initial attempt + maxConnRetries retries = 4
+	if got := atomic.LoadInt32(&attempts); got != 4 {
+		t.Fatalf("expected 4 attempts, got %d", got)
+	}
+}
+
+func TestBridgeRunnerRetryResetsAfterSuccessfulConnect(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "http2")
+	session.HAConnections = 1
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.maxConnRetries = 2
+	runner.backoffBase = time.Millisecond
+	runner.backoffCap = 2 * time.Millisecond
+
+	var attempts int32
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, options InstanceOptions) (bridgeInstance, error) {
+		fuse := options.HTTP2.ConnectedFuse
+		return bridgeInstanceFunc(func(context.Context) error {
+			n := atomic.AddInt32(&attempts, 1)
+			// Every attempt connects (resetting the budget) then drops, so the
+			// runner would loop forever if the reset works. Stop it after a
+			// handful of attempts to prove it never hit the retry ceiling.
+			if fuse != nil {
+				fuse.Connected()
+			}
+			if n >= 6 {
+				return &nonRetryableError{err: errors.New("stop")}
+			}
+			return errors.New("connection with edge closed")
+		}), nil
+	}
+
+	err := runner.Run(context.Background())
+	if err == nil || strings.Contains(err.Error(), "exhausted") {
+		t.Fatalf("expected non-exhaustion stop error, got: %v", err)
+	}
+	if got := atomic.LoadInt32(&attempts); got < 6 {
+		t.Fatalf("expected budget to reset across connects; attempts=%d", got)
+	}
+}
+
+func TestBridgeRunnerRetryCanceledDuringBackoff(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "http2")
+	session.HAConnections = 1
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.maxConnRetries = 100
+	runner.backoffBase = time.Hour
+	runner.backoffCap = time.Hour
+
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, _ InstanceOptions) (bridgeInstance, error) {
+		return bridgeInstanceFunc(func(context.Context) error {
+			return errors.New("connection with edge closed")
+		}), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+
+	// Give the first attempt time to fail and enter the long backoff.
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("backoff did not honor context cancellation")
+	}
+}
+
+func TestBridgeRunnerBuildErrorIsNotRetried(t *testing.T) {
+	t.Parallel()
+
+	session := testSession(t, "http2")
+	session.HAConnections = 1
+	runner := NewBridgeRunner(session, newDiscardSlogLogger())
+	runner.backoffBase = time.Millisecond
+
+	var attempts int32
+	runner.instanceFactory = func(_ Session, _ *slog.Logger, _ InstanceOptions) (bridgeInstance, error) {
+		atomic.AddInt32(&attempts, 1)
+		return nil, errors.New("bad config")
+	}
+
+	err := runner.Run(context.Background())
+	if err == nil {
+		t.Fatal("expected build error")
+	}
+	if strings.Contains(err.Error(), "exhausted") {
+		t.Fatalf("build error should not be retried: %v", err)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 1 {
+		t.Fatalf("expected exactly 1 attempt for build error, got %d", got)
+	}
+}
+
+func TestBridgeRunnerBackoffDurationGrowsAndCaps(t *testing.T) {
+	t.Parallel()
+
+	runner := NewBridgeRunner(testSession(t, "http2"), newDiscardSlogLogger())
+	runner.backoffBase = time.Second
+	runner.backoffCap = 8 * time.Second
+
+	cases := map[int]time.Duration{
+		1: time.Second,
+		2: 2 * time.Second,
+		3: 4 * time.Second,
+		4: 8 * time.Second,
+		5: 8 * time.Second, // capped
+	}
+	for attempt, want := range cases {
+		if got := runner.backoffDuration(attempt); got != want {
+			t.Fatalf("attempt %d: got %v want %v", attempt, got, want)
+		}
 	}
 }

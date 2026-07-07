@@ -102,6 +102,17 @@ func (p *CloudflareEdgeAddressProvider) ResolveQUICAddress() (string, error) {
 }
 
 func (p *CloudflareEdgeAddressProvider) resolveEdgeAddr() (*net.TCPAddr, error) {
+	addrs, err := p.resolveAllAddrs()
+	if err != nil {
+		return nil, err
+	}
+	return addrs[int(p.ConnIndex)%len(addrs)], nil
+}
+
+// resolveAllAddrs returns every usable edge address for the configured region
+// and IP version. The shared edge address pool uses it to hand out distinct
+// addresses per connection index instead of the modulo selection above.
+func (p *CloudflareEdgeAddressProvider) resolveAllAddrs() ([]*net.TCPAddr, error) {
 	if p == nil {
 		return nil, fmt.Errorf("nil cloudflare edge address provider")
 	}
@@ -131,7 +142,7 @@ func (p *CloudflareEdgeAddressProvider) resolveEdgeAddr() (*net.TCPAddr, error) 
 		return nil, fmt.Errorf("no usable edge address for ip version %d", p.IPVersion)
 	}
 
-	return addrs[int(p.ConnIndex)%len(addrs)], nil
+	return addrs, nil
 }
 
 func (p *CloudflareEdgeAddressProvider) resolveRecordAddrs(record *net.SRV) ([]*net.TCPAddr, error) {

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -10,6 +11,12 @@ import (
 
 const maxHAConnections = 256
 const defaultHARegistrationInterval = time.Second
+
+const (
+	defaultMaxConnRetries = 5
+	defaultBackoffBase    = time.Second
+	defaultBackoffCap     = 15 * time.Second
+)
 
 type bridgeInstance interface {
 	Run(context.Context) error
@@ -25,6 +32,10 @@ type BridgeRunner struct {
 	connectorID          []byte
 	registrationInterval time.Duration
 	instanceFactory      bridgeInstanceFactory
+	maxConnRetries       int
+	backoffBase          time.Duration
+	backoffCap           time.Duration
+	edgePool             *edgeAddressPool
 }
 
 func NewBridgeRunner(session Session, logger *slog.Logger) *BridgeRunner {
@@ -37,6 +48,9 @@ func NewBridgeRunner(session Session, logger *slog.Logger) *BridgeRunner {
 		logger:               logger.With("component", "cftunnel-runtime"),
 		registrationInterval: defaultHARegistrationInterval,
 		instanceFactory:      defaultBridgeInstanceFactory,
+		maxConnRetries:       defaultMaxConnRetries,
+		backoffBase:          defaultBackoffBase,
+		backoffCap:           defaultBackoffCap,
 	}
 }
 
@@ -60,6 +74,30 @@ func (r *BridgeRunner) ensureConnectorID() error {
 	return nil
 }
 
+// ensureEdgePool builds the shared edge address pool from the configured
+// Cloudflare edge address provider for the active protocol. The pool hands each
+// HA connection a distinct edge server so a second connection is not rejected
+// with EDUPCONN, and lets rotate pick a fresh server on reconnect. Custom
+// providers (used in tests) leave the pool nil and keep the per-connection
+// provider path unchanged.
+func (r *BridgeRunner) ensureEdgePool() {
+	if r.edgePool != nil {
+		return
+	}
+	var provider EdgeAddressProvider
+	switch r.session.Edge.Protocol {
+	case edgeProtocolQUIC:
+		provider = r.quicOptions.EdgeAddressProvider
+	default:
+		provider = r.http2Options.EdgeAddressProvider
+	}
+	cf, ok := provider.(*CloudflareEdgeAddressProvider)
+	if !ok {
+		return
+	}
+	r.edgePool = newCloudflareEdgeAddressPool(cf)
+}
+
 func (r *BridgeRunner) Run(ctx context.Context) error {
 	r.logger.Debug(
 		"cftunnel runtime bridge prepared",
@@ -78,10 +116,11 @@ func (r *BridgeRunner) Run(ctx context.Context) error {
 	if err := r.ensureConnectorID(); err != nil {
 		return err
 	}
+	r.ensureEdgePool()
 
 	haConnections := normalizeHAConnections(r.session.HAConnections)
 	if haConnections == 1 {
-		return r.runConnection(ctx, 0)
+		return r.runConnectionWithRetry(ctx, 0, nil)
 	}
 
 	return r.runHAConnections(ctx, haConnections)
@@ -99,7 +138,7 @@ func (r *BridgeRunner) runHAConnections(ctx context.Context, haConnections int) 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := r.runConnectionWithConnectedFuse(groupCtx, 0, &connectedSignalFuse{
+		err := r.runConnectionWithRetry(groupCtx, 0, &connectedSignalFuse{
 			delegate:  r.activeConnectedFuse(),
 			connected: firstConnected,
 		})
@@ -131,7 +170,7 @@ func (r *BridgeRunner) runHAConnections(ctx context.Context, haConnections int) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := r.runConnection(groupCtx, connIndex); err != nil {
+			if err := r.runConnectionWithRetry(groupCtx, connIndex, nil); err != nil {
 				select {
 				case errCh <- err:
 				default:
@@ -195,6 +234,107 @@ func (r *BridgeRunner) runConnection(ctx context.Context, connIndex uint8) error
 	return r.runConnectionWithConnectedFuse(ctx, connIndex, nil)
 }
 
+// nonRetryableError marks a failure that should not trigger a reconnect,
+// such as a configuration or instance-build error. Transport failures that
+// happen after (or during) dialing are retryable so a single HA connection
+// can recover without tearing down the whole process.
+type nonRetryableError struct {
+	err error
+}
+
+func (e *nonRetryableError) Error() string { return e.err.Error() }
+func (e *nonRetryableError) Unwrap() error { return e.err }
+
+// runConnectionWithRetry keeps a single HA connection alive across transient
+// edge failures (EDUPCONN, "connection with edge closed", dial errors). Each
+// attempt rotates to a different edge address and backs off, mirroring the
+// upstream cloudflared supervisor. It gives up only after maxConnRetries
+// consecutive failures without a successful connection, at which point the
+// error propagates and the process exits (systemd then restarts).
+func (r *BridgeRunner) runConnectionWithRetry(ctx context.Context, connIndex uint8, extraFuse ConnectedFuse) error {
+	attempts := 0
+	for {
+		tracker := &connectTrackingFuse{delegate: extraFuse}
+		err := r.runConnectionWithConnectedFuse(ctx, connIndex, tracker)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		if err == nil {
+			return nil
+		}
+		var nonRetryable *nonRetryableError
+		if errors.As(err, &nonRetryable) {
+			return nonRetryable.err
+		}
+		if tracker.didConnect() {
+			// A connection that served before dropping resets the budget,
+			// so a long-lived tunnel is not penalized for an old blip.
+			attempts = 0
+		}
+		attempts++
+		if attempts > r.maxConnRetries {
+			return fmt.Errorf("connection %d exhausted %d retries: %w", connIndex, r.maxConnRetries, err)
+		}
+		r.logger.Warn(
+			"edge connection failed, retrying",
+			"conn_index", connIndex,
+			"attempt", attempts,
+			"error", err,
+		)
+		r.rotateEdgeAddress(connIndex)
+		if waitErr := r.waitBackoff(ctx, attempts); waitErr != nil {
+			return waitErr
+		}
+	}
+}
+
+// waitBackoff sleeps for an exponentially increasing duration capped at
+// backoffCap, returning early if the context is cancelled.
+func (r *BridgeRunner) waitBackoff(ctx context.Context, attempt int) error {
+	delay := r.backoffDuration(attempt)
+	if delay <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (r *BridgeRunner) backoffDuration(attempt int) time.Duration {
+	if attempt < 1 {
+		attempt = 1
+	}
+	base := r.backoffBase
+	if base <= 0 {
+		return 0
+	}
+	delay := base
+	for i := 1; i < attempt; i++ {
+		delay *= 2
+		if r.backoffCap > 0 && delay >= r.backoffCap {
+			return r.backoffCap
+		}
+	}
+	if r.backoffCap > 0 && delay > r.backoffCap {
+		return r.backoffCap
+	}
+	return delay
+}
+
+// rotateEdgeAddress asks the edge pool (if configured) to hand this connection
+// a different edge address before the next attempt. It is a no-op until the
+// shared pool is wired in.
+func (r *BridgeRunner) rotateEdgeAddress(connIndex uint8) {
+	if r.edgePool != nil {
+		r.edgePool.rotate(connIndex)
+	}
+}
+
 func (r *BridgeRunner) runConnectionWithConnectedFuse(ctx context.Context, connIndex uint8, connectedFuse ConnectedFuse) error {
 	factory := r.instanceFactory
 	if factory == nil {
@@ -207,7 +347,7 @@ func (r *BridgeRunner) runConnectionWithConnectedFuse(ctx context.Context, connI
 	}
 	instance, err := factory(r.session, r.logger.With("conn_index", connIndex), options)
 	if err != nil {
-		return fmt.Errorf("build runtime instance: %w", err)
+		return &nonRetryableError{err: fmt.Errorf("build runtime instance: %w", err)}
 	}
 	runtimeInstance, ok := instance.(*Instance)
 	if ok && runtimeInstance.HTTP2Server != nil {
@@ -215,7 +355,7 @@ func (r *BridgeRunner) runConnectionWithConnectedFuse(ctx context.Context, connI
 		if r.http2Options.LocalEdgeDriver {
 			driver, err := NewHTTP2LocalEdgeDriver(runtimeInstance.HTTP2Server)
 			if err != nil {
-				return err
+				return &nonRetryableError{err: err}
 			}
 			return driver.Run(ctx)
 		}
@@ -301,4 +441,37 @@ func (f *connectedSignalFuse) IsConnected() bool {
 		return false
 	}
 	return f.delegate.IsConnected()
+}
+
+// connectTrackingFuse wraps a delegate fuse and records whether Connected was
+// called during a single connection attempt. The retry loop uses didConnect to
+// reset its backoff budget after an attempt that actually served traffic.
+type connectTrackingFuse struct {
+	delegate  ConnectedFuse
+	mu        sync.Mutex
+	connected bool
+}
+
+func (f *connectTrackingFuse) Connected() {
+	f.mu.Lock()
+	f.connected = true
+	f.mu.Unlock()
+	if f.delegate != nil {
+		f.delegate.Connected()
+	}
+}
+
+func (f *connectTrackingFuse) IsConnected() bool {
+	if f.delegate != nil {
+		return f.delegate.IsConnected()
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.connected
+}
+
+func (f *connectTrackingFuse) didConnect() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.connected
 }
