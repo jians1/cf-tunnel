@@ -32,6 +32,7 @@ type OriginSettings struct {
 	Protocol             origin.Protocol
 	ServerName           string
 	InsecureSkipVerify   bool
+	PassHostHeader       bool
 	WebsocketUpgradeMode bool
 	Routes               []appconfig.RouteRule
 }
@@ -84,6 +85,7 @@ func BuildSession(cfg tunnelconfig.RuntimeConfig, reservation *api.QuickTunnelRe
 			Protocol:             cfg.Origin.Protocol,
 			ServerName:           cfg.Origin.ServerName,
 			InsecureSkipVerify:   cfg.Origin.InsecureSkipVerify,
+			PassHostHeader:       cfg.Origin.PassHostHeader,
 			WebsocketUpgradeMode: cfg.Origin.WebsocketUpgradeMode,
 			Routes:               append([]appconfig.RouteRule(nil), cfg.Routes...),
 		},
@@ -114,6 +116,7 @@ func BuildTokenSession(cfg tunnelconfig.RuntimeConfig, creds credentials.Credent
 			Protocol:             cfg.Origin.Protocol,
 			ServerName:           cfg.Origin.ServerName,
 			InsecureSkipVerify:   cfg.Origin.InsecureSkipVerify,
+			PassHostHeader:       cfg.Origin.PassHostHeader,
 			WebsocketUpgradeMode: cfg.Origin.WebsocketUpgradeMode,
 			Routes:               append([]appconfig.RouteRule(nil), cfg.Routes...),
 		},

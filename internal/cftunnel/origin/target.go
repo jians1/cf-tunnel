@@ -20,10 +20,11 @@ type Target struct {
 	URL                  *url.URL
 	ServerName           string
 	InsecureSkipVerify   bool
+	PassHostHeader       bool
 	WebsocketUpgradeMode bool
 }
 
-func ParseTarget(rawTarget, serverName string, insecureSkipVerify bool) (Target, error) {
+func ParseTarget(rawTarget, serverName string, insecureSkipVerify, passHostHeader bool) (Target, error) {
 	if rawTarget == "" {
 		return Target{}, fmt.Errorf("empty target")
 	}
@@ -46,6 +47,7 @@ func ParseTarget(rawTarget, serverName string, insecureSkipVerify bool) (Target,
 		URL:                  normalizeURL(u, proto),
 		ServerName:           serverName,
 		InsecureSkipVerify:   insecureSkipVerify,
+		PassHostHeader:       passHostHeader,
 		WebsocketUpgradeMode: proto == ProtocolWS || proto == ProtocolWSS,
 	}, nil
 }

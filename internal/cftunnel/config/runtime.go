@@ -29,6 +29,7 @@ func Normalize(cfg appconfig.CFTunnelConfig) (RuntimeConfig, error) {
 		cfg.Target,
 		cfg.OriginServerName,
 		cfg.InsecureSkipVerify,
+		cfg.PassHostHeader,
 	)
 	if err != nil {
 		return RuntimeConfig{}, fmt.Errorf("parse origin target: %w", err)

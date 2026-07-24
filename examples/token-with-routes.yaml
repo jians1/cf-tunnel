@@ -27,8 +27,11 @@ cf_tunnel:
 
   # 未匹配任何 route 时的默认源站
   target: http://127.0.0.1:8080
+  # 本地服务用 Host 拼外链 / wss 时建议开启（nginx: proxy_set_header Host $host）
+  pass_host_header: true
   # origin_server_name: origin.internal
   # origin_insecure_skip_verify: false
+  # 回源始终设置 X-Forwarded-Proto: https
 
   routes:
     # 精确路径
@@ -40,6 +43,7 @@ cf_tunnel:
       path: /api/*
       target: http://127.0.0.1:9001
       strip_path_prefix: true
+      # pass_host_header 未写则继承隧道级 true
 
     # WebSocket 源站
     - host: ws.example.com
@@ -52,3 +56,4 @@ cf_tunnel:
       target: https://127.0.0.1:9443
       origin_server_name: secure.internal
       # origin_insecure_skip_verify: true
+      # pass_host_header: false   # 需要强制用 origin_server_name 作 Host 时关掉

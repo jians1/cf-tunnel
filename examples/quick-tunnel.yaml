@@ -17,3 +17,6 @@ cf_tunnel:
   ha_connections: 4
   # 默认源站（必填）
   target: http://127.0.0.1:8080
+  # 本地服务用 Host 拼外链 / WebSocket 地址时打开：
+  # pass_host_header: true
+  # 回源始终设置 X-Forwarded-Proto: https（Cloudflare 公网入口）

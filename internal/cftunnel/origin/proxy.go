@@ -121,18 +121,29 @@ func (p *Proxy) ProxyWebsocket(w protocol.ResponseWriter, req *http.Request) err
 	return proxyWebsocketStreams(w, backConn, req.Body)
 }
 
+const defaultForwardedProto = "https"
+
 func rewriteRequest(req *http.Request, target Target) {
 	originalHost := req.Host
 	req.URL.Scheme = target.URL.Scheme
 	req.URL.Host = target.URL.Host
-	req.Host = target.URL.Host
 
-	if target.ServerName != "" {
+	switch {
+	case target.PassHostHeader && originalHost != "":
+		// Keep the inbound Host (nginx-style proxy_set_header Host $host).
+		req.Host = originalHost
+	case target.ServerName != "":
 		req.Host = target.ServerName
+	default:
+		req.Host = target.URL.Host
 	}
+
 	if originalHost != "" {
 		req.Header.Set("X-Forwarded-Host", originalHost)
 	}
+	// Traffic enters via Cloudflare HTTPS edge; tell origins the external scheme
+	// so apps that build absolute/WS URLs prefer https/wss over http/ws.
+	req.Header.Set("X-Forwarded-Proto", defaultForwardedProto)
 }
 
 func applyForwardedClientIPHeaders(outReq, inReq *http.Request) {

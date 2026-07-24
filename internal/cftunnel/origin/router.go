@@ -17,6 +17,8 @@ type Route struct {
 	OriginServerName      string
 	InsecureSkipVerify    bool
 	InsecureSkipVerifySet bool
+	PassHostHeader        bool
+	PassHostHeaderSet     bool
 }
 
 type Router struct {
@@ -47,6 +49,8 @@ func NewRouter(rules []appconfig.RouteRule) (*Router, error) {
 			OriginServerName:      rr.OriginServerName,
 			InsecureSkipVerify:    rr.InsecureSkipVerify,
 			InsecureSkipVerifySet: rr.InsecureSkipVerifySet,
+			PassHostHeader:        rr.PassHostHeader,
+			PassHostHeaderSet:     rr.PassHostHeaderSet,
 		}
 		if route.Host != "" {
 			if err := addHostRoute(r, kind, route); err != nil {

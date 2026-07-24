@@ -173,7 +173,7 @@ func TestRoutedProxyRoutesDoNotInheritDefaultTargetTLSOptions(t *testing.T) {
 		t.Fatalf("new routed proxy: %v", err)
 	}
 
-	proxy := p.proxyByTarget["host=,path=/api,target=https://api.internal:9443,server_name=,insecure_skip_verify=false"]
+	proxy := p.proxyByTarget["host=,path=/api,target=https://api.internal:9443,server_name=,insecure_skip_verify=false,pass_host_header=false"]
 	if proxy == nil {
 		t.Fatal("expected route proxy")
 	}
@@ -182,6 +182,9 @@ func TestRoutedProxyRoutesDoNotInheritDefaultTargetTLSOptions(t *testing.T) {
 	}
 	if proxy.target.InsecureSkipVerify {
 		t.Fatal("route unexpectedly inherited insecure skip verify")
+	}
+	if proxy.target.PassHostHeader {
+		t.Fatal("route unexpectedly inherited pass host header")
 	}
 }
 
@@ -206,7 +209,7 @@ func TestRoutedProxyRoutesUseRouteTLSOptions(t *testing.T) {
 		t.Fatalf("new routed proxy: %v", err)
 	}
 
-	proxy := p.proxyByTarget["host=,path=/api,target=https://127.0.0.1:9443,server_name=api.internal,insecure_skip_verify=true"]
+	proxy := p.proxyByTarget["host=,path=/api,target=https://127.0.0.1:9443,server_name=api.internal,insecure_skip_verify=true,pass_host_header=false"]
 	if proxy == nil {
 		t.Fatal("expected route proxy")
 	}
@@ -215,5 +218,45 @@ func TestRoutedProxyRoutesUseRouteTLSOptions(t *testing.T) {
 	}
 	if !proxy.target.InsecureSkipVerify {
 		t.Fatal("expected route insecure skip verify")
+	}
+}
+
+func TestRoutedProxyInheritsAndOverridesPassHostHeader(t *testing.T) {
+	t.Parallel()
+
+	defaultTarget := Target{
+		Raw:            "http://127.0.0.1:8080",
+		Protocol:       ProtocolHTTP,
+		URL:            MustParseURL("http://127.0.0.1:8080"),
+		PassHostHeader: true,
+	}
+
+	p, err := NewRoutedProxy(defaultTarget, []appconfig.RouteRule{
+		{Path: "/inherit/*", Target: "http://127.0.0.1:9001"},
+		{
+			Path:              "/override/*",
+			Target:            "http://127.0.0.1:9002",
+			PassHostHeader:    false,
+			PassHostHeaderSet: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new routed proxy: %v", err)
+	}
+
+	inherited := p.proxyByTarget["host=,path=/inherit,target=http://127.0.0.1:9001,server_name=,insecure_skip_verify=false,pass_host_header=true"]
+	if inherited == nil {
+		t.Fatal("expected inherited route proxy")
+	}
+	if !inherited.target.PassHostHeader {
+		t.Fatal("expected route to inherit pass host header")
+	}
+
+	overridden := p.proxyByTarget["host=,path=/override,target=http://127.0.0.1:9002,server_name=,insecure_skip_verify=false,pass_host_header=false"]
+	if overridden == nil {
+		t.Fatal("expected overridden route proxy")
+	}
+	if overridden.target.PassHostHeader {
+		t.Fatal("expected route pass host header override to false")
 	}
 }

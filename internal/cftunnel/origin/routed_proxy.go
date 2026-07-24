@@ -29,11 +29,15 @@ func NewRoutedProxy(defaultTarget Target, routes []appconfig.RouteRule) (*Routed
 	proxyByTarget := make(map[string]*Proxy, len(routes)+1)
 	proxyByTarget[""] = defaultProxy
 	for i, rr := range routes {
-		target, err := ParseTarget(rr.Target, rr.OriginServerName, rr.InsecureSkipVerify)
+		passHostHeader := defaultTarget.PassHostHeader
+		if rr.PassHostHeaderSet {
+			passHostHeader = rr.PassHostHeader
+		}
+		target, err := ParseTarget(rr.Target, rr.OriginServerName, rr.InsecureSkipVerify, passHostHeader)
 		if err != nil {
 			return nil, fmt.Errorf("parse route[%d] target: %w", i, err)
 		}
-		key, err := routeRuleProxyKey(rr)
+		key, err := routeRuleProxyKey(rr, passHostHeader)
 		if err != nil {
 			return nil, fmt.Errorf("build route[%d] proxy key: %w", i, err)
 		}
@@ -77,7 +81,11 @@ func (p *RoutedProxy) pickRouteProxy(host, path string) (*Proxy, Route, bool) {
 	if !ok {
 		return p.defaultProxy, Route{}, false
 	}
-	if proxy, ok := p.proxyByTarget[matchedRouteProxyKey(route)]; ok {
+	defaultPassHostHeader := false
+	if p.defaultProxy != nil {
+		defaultPassHostHeader = p.defaultProxy.target.PassHostHeader
+	}
+	if proxy, ok := p.proxyByTarget[matchedRouteProxyKey(route, defaultPassHostHeader)]; ok {
 		return proxy, route, true
 	}
 	return p.defaultProxy, Route{}, false
@@ -104,25 +112,30 @@ func requestWithStrippedPathPrefix(req *http.Request, route Route) *http.Request
 	return out
 }
 
-func routeRuleProxyKey(route appconfig.RouteRule) (string, error) {
+func routeRuleProxyKey(route appconfig.RouteRule, passHostHeader bool) (string, error) {
 	_, normalized, err := classifyAndNormalizeRulePath(route.Path)
 	if err != nil {
 		return "", err
 	}
-	return routeProxyKey(route.Host, normalized, route.Target, route.OriginServerName, route.InsecureSkipVerify), nil
+	return routeProxyKey(route.Host, normalized, route.Target, route.OriginServerName, route.InsecureSkipVerify, passHostHeader), nil
 }
 
-func matchedRouteProxyKey(route Route) string {
-	return routeProxyKey(route.Host, route.Path, route.Target, route.OriginServerName, route.InsecureSkipVerify)
+func matchedRouteProxyKey(route Route, defaultPassHostHeader bool) string {
+	passHostHeader := defaultPassHostHeader
+	if route.PassHostHeaderSet {
+		passHostHeader = route.PassHostHeader
+	}
+	return routeProxyKey(route.Host, route.Path, route.Target, route.OriginServerName, route.InsecureSkipVerify, passHostHeader)
 }
 
-func routeProxyKey(host, path, target, serverName string, insecureSkipVerify bool) string {
+func routeProxyKey(host, path, target, serverName string, insecureSkipVerify, passHostHeader bool) string {
 	return fmt.Sprintf(
-		"host=%s,path=%s,target=%s,server_name=%s,insecure_skip_verify=%t",
+		"host=%s,path=%s,target=%s,server_name=%s,insecure_skip_verify=%t,pass_host_header=%t",
 		host,
 		path,
 		target,
 		serverName,
 		insecureSkipVerify,
+		passHostHeader,
 	)
 }

@@ -567,6 +567,65 @@ func TestParseRouteAcceptsHostOption(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsPassHostHeader(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Parse([]string{
+		"--cf-tunnel-target=http://127.0.0.1:8080",
+		"--cf-pass-host-header",
+		"--cf-route=/api/*=http://127.0.0.1:9001,pass_host_header=false",
+		"--health-listen=",
+	})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if !cfg.CFTunnel.PassHostHeader {
+		t.Fatal("expected pass host header")
+	}
+	if len(cfg.CFTunnel.Routes) != 1 {
+		t.Fatalf("expected one route, got %d", len(cfg.CFTunnel.Routes))
+	}
+	route := cfg.CFTunnel.Routes[0]
+	if !route.PassHostHeaderSet {
+		t.Fatal("expected route pass host header set")
+	}
+	if route.PassHostHeader {
+		t.Fatal("expected route pass host header false")
+	}
+}
+
+func TestParseYAMLConfigAcceptsPassHostHeader(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "cfg.yaml")
+	err := os.WriteFile(p, []byte(`
+health_listen: ""
+cf_tunnel:
+  edge_protocol: quic
+  target: http://127.0.0.1:8080
+  pass_host_header: true
+  routes:
+    - path: /api/*
+      target: http://127.0.0.1:9001
+      pass_host_header: false
+`), 0o644)
+	if err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := Parse([]string{"--config=" + p})
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	if !cfg.CFTunnel.PassHostHeader {
+		t.Fatal("expected pass host header")
+	}
+	if len(cfg.CFTunnel.Routes) != 1 || !cfg.CFTunnel.Routes[0].PassHostHeaderSet || cfg.CFTunnel.Routes[0].PassHostHeader {
+		t.Fatalf("unexpected route pass host header: %+v", cfg.CFTunnel.Routes)
+	}
+}
+
 func TestParseRouteRejectsInvalidHostOption(t *testing.T) {
 	t.Parallel()
 

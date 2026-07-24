@@ -56,6 +56,7 @@ func TestProxyOverridesHostAndSetsForwardedHost(t *testing.T) {
 	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Seen-Host", r.Host)
 		w.Header().Set("X-Forwarded-Host", r.Header.Get("X-Forwarded-Host"))
+		w.Header().Set("X-Forwarded-Proto", r.Header.Get("X-Forwarded-Proto"))
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer upstream.Close()
@@ -87,6 +88,54 @@ func TestProxyOverridesHostAndSetsForwardedHost(t *testing.T) {
 	}
 	if got := resp.Header.Get("X-Forwarded-Host"); got != "incoming.example.net" {
 		t.Fatalf("unexpected forwarded host: %q", got)
+	}
+	if got := resp.Header.Get("X-Forwarded-Proto"); got != "https" {
+		t.Fatalf("unexpected forwarded proto: %q", got)
+	}
+}
+
+func TestProxyPassHostHeaderKeepsInboundHost(t *testing.T) {
+	t.Parallel()
+
+	upstream := startLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Seen-Host", r.Host)
+		w.Header().Set("X-Forwarded-Host", r.Header.Get("X-Forwarded-Host"))
+		w.Header().Set("X-Forwarded-Proto", r.Header.Get("X-Forwarded-Proto"))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	target := Target{
+		Raw:            upstream.URL,
+		Protocol:       ProtocolHTTP,
+		URL:            MustParseURL(upstream.URL),
+		ServerName:     "origin.example.com",
+		PassHostHeader: true,
+	}
+	proxy := NewProxy(target)
+	server := startLocalHTTPServer(t, proxy.Handler())
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Host = "incoming.example.net"
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("X-Seen-Host"); got != "incoming.example.net" {
+		t.Fatalf("unexpected seen host: %q", got)
+	}
+	if got := resp.Header.Get("X-Forwarded-Host"); got != "incoming.example.net" {
+		t.Fatalf("unexpected forwarded host: %q", got)
+	}
+	if got := resp.Header.Get("X-Forwarded-Proto"); got != "https" {
+		t.Fatalf("unexpected forwarded proto: %q", got)
 	}
 }
 

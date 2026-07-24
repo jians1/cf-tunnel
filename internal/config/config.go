@@ -41,6 +41,7 @@ type CFTunnelConfig struct {
 	Target             string      `yaml:"target"`
 	OriginServerName   string      `yaml:"origin_server_name"`
 	InsecureSkipVerify bool        `yaml:"origin_insecure_skip_verify"`
+	PassHostHeader     bool        `yaml:"pass_host_header"`
 	Routes             []RouteRule `yaml:"routes"`
 }
 
@@ -57,6 +58,8 @@ type RouteRule struct {
 	OriginServerName      string
 	InsecureSkipVerify    bool
 	InsecureSkipVerifySet bool
+	PassHostHeader        bool
+	PassHostHeaderSet     bool
 }
 
 func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
@@ -70,6 +73,7 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 		"strip_path_prefix":           {},
 		"origin_server_name":          {},
 		"origin_insecure_skip_verify": {},
+		"pass_host_header":            {},
 	}
 	for i := 0; i < len(value.Content); i += 2 {
 		key := value.Content[i].Value
@@ -84,6 +88,7 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 		StripPathPrefix    bool   `yaml:"strip_path_prefix"`
 		OriginServerName   string `yaml:"origin_server_name"`
 		InsecureSkipVerify *bool  `yaml:"origin_insecure_skip_verify"`
+		PassHostHeader     *bool  `yaml:"pass_host_header"`
 	}
 	if err := value.Decode(&raw); err != nil {
 		return err
@@ -96,6 +101,10 @@ func (r *RouteRule) UnmarshalYAML(value *yaml.Node) error {
 	if raw.InsecureSkipVerify != nil {
 		r.InsecureSkipVerify = *raw.InsecureSkipVerify
 		r.InsecureSkipVerifySet = true
+	}
+	if raw.PassHostHeader != nil {
+		r.PassHostHeader = *raw.PassHostHeader
+		r.PassHostHeaderSet = true
 	}
 	return nil
 }
@@ -120,6 +129,9 @@ func (r *routeFlag) String() string {
 		}
 		if rule.InsecureSkipVerifySet {
 			spec += fmt.Sprintf(",origin_insecure_skip_verify=%t", rule.InsecureSkipVerify)
+		}
+		if rule.PassHostHeaderSet {
+			spec += fmt.Sprintf(",pass_host_header=%t", rule.PassHostHeader)
 		}
 		parts = append(parts, spec)
 	}
@@ -219,6 +231,17 @@ func parseRouteTargetOptions(v string) (RouteRule, error) {
 			default:
 				return RouteRule{}, fmt.Errorf("route option origin_insecure_skip_verify must be true or false: %s", value)
 			}
+		case "pass_host_header":
+			switch value {
+			case "true":
+				route.PassHostHeader = true
+				route.PassHostHeaderSet = true
+			case "false":
+				route.PassHostHeader = false
+				route.PassHostHeaderSet = true
+			default:
+				return RouteRule{}, fmt.Errorf("route option pass_host_header must be true or false: %s", value)
+			}
 		default:
 			return RouteRule{}, fmt.Errorf("unsupported route option: %s", key)
 		}
@@ -244,7 +267,7 @@ func rejectRemovedRouteOptionKeys(fields []string) error {
 
 func isSupportedRouteOptionKey(key string) bool {
 	switch key {
-	case "host", "strip_path_prefix", "origin_server_name", "origin_insecure_skip_verify":
+	case "host", "strip_path_prefix", "origin_server_name", "origin_insecure_skip_verify", "pass_host_header":
 		return true
 	default:
 		return false
@@ -274,7 +297,8 @@ func Parse(args []string) (AppConfig, error) {
 	fs.StringVar(&cfg.CFTunnel.Target, "cf-tunnel-target", "", "origin target")
 	fs.StringVar(&cfg.CFTunnel.OriginServerName, "cf-origin-server-name", "", "origin TLS server name override")
 	fs.BoolVar(&cfg.CFTunnel.InsecureSkipVerify, "cf-origin-insecure-skip-verify", false, "skip origin TLS verification")
-	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,strip_path_prefix=true|false][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false]")
+	fs.BoolVar(&cfg.CFTunnel.PassHostHeader, "cf-pass-host-header", false, "pass inbound Host header to origin (default: use target host)")
+	fs.Var((*routeFlag)(&cfg.CFTunnel.Routes), "cf-route", "path-based route rule, repeatable, format: /path=url[,host=<hostname>][,strip_path_prefix=true|false][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false][,pass_host_header=true|false]")
 
 	if err := fs.Parse(args); err != nil {
 		return AppConfig{}, err
@@ -314,7 +338,8 @@ func writeUsage(w io.Writer, name string) {
 	fmt.Fprintln(w, "  --cf-tunnel-token=<token>                             Cloudflare remote-managed tunnel token")
 	fmt.Fprintln(w, "  --cf-origin-server-name=<name>                        Origin TLS server name override")
 	fmt.Fprintln(w, "  --cf-origin-insecure-skip-verify                      Skip origin TLS verification")
-	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,strip_path_prefix=true|false][,origin_server_name=...][,origin_insecure_skip_verify=true|false]")
+	fmt.Fprintln(w, "  --cf-pass-host-header                                 Pass inbound Host to origin (default: false)")
+	fmt.Fprintln(w, "  --cf-route=/path=url[,host=...][,strip_path_prefix=true|false][,origin_server_name=...][,origin_insecure_skip_verify=true|false][,pass_host_header=true|false]")
 	fmt.Fprintln(w, "                                                         Path-based route rule, repeatable")
 	fmt.Fprintln(w, "  --log-level=debug|info|warn|error                     Log level (default: info)")
 	fmt.Fprintln(w, "  --log-format=text|json                                Log format (default: text)")

@@ -150,8 +150,9 @@ cf-tunnel --config=<config.yaml>
 | `--cf-edge-protocol=http2\|quic` | `http2` | Cloudflare edge 传输协议 |
 | `--cf-ha-connections=<n>` | `4` | HA edge 连接数，范围 `1`–`256` |
 | `--cf-tunnel-token=<token>` | 环境变量 `CF_TUNNEL_TOKEN` | 正式 remote-managed tunnel token |
-| `--cf-origin-server-name=<name>` | 空 | 默认源站 TLS SNI |
+| `--cf-origin-server-name=<name>` | 空 | 默认源站 TLS SNI（也可用作回源 Host 覆盖） |
 | `--cf-origin-insecure-skip-verify` | `false` | 默认源站跳过 TLS 证书校验 |
+| `--cf-pass-host-header` | `false` | 回源时保留入站 `Host`（类似 nginx `proxy_set_header Host $host`） |
 | `--cf-route=...` | 无 | 可重复；路径路由，见下方格式 |
 | `--log-level=debug\|info\|warn\|error` | `info` | 日志级别 |
 | `--log-format=text\|json` | `text` | 日志格式 |
@@ -161,7 +162,7 @@ cf-tunnel --config=<config.yaml>
 ### `--cf-route` 格式
 
 ```text
---cf-route=/path=url[,host=<hostname>][,strip_path_prefix=true|false][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false]
+--cf-route=/path=url[,host=<hostname>][,strip_path_prefix=true|false][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false][,pass_host_header=true|false]
 ```
 
 示例：
@@ -170,6 +171,7 @@ cf-tunnel --config=<config.yaml>
 ./cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080 \
+  --cf-pass-host-header \
   --cf-route=/api/*=http://127.0.0.1:9001,strip_path_prefix=true \
   --cf-route=/ws/*=ws://127.0.0.1:10000 \
   --cf-route=/secure/*=https://127.0.0.1:9443,origin_server_name=secure.internal
@@ -179,16 +181,28 @@ cf-tunnel --config=<config.yaml>
 
 - 路径支持精确匹配（`/health`）和前缀匹配（`/api/*`）
 - `--cf-origin-server-name` / `--cf-origin-insecure-skip-verify` **只作用于默认** `--cf-tunnel-target`
-- 每个 route 可单独写 TLS 选项；目标 URL 本身含逗号时，请把选项放在最后
+- 每个 route 可单独写 TLS / `pass_host_header` 选项；目标 URL 本身含逗号时，请把选项放在最后
 - 未写 route TLS 选项时：用 URL 的 host 作 SNI，并开启证书校验
 - `strip_path_prefix=true`：转发前去掉匹配前缀，例如 `/api/users?x=1` → `/users?x=1`（默认 `false`）
-- `host=<公网 hostname>`：同一 connector 服务多个公网域名时使用
+- `host=<公网 hostname>`：同一 connector 服务多个公网域名时使用（**仅分流匹配**，不会改回源 `Host`）
+- `pass_host_header=true`：回源 `Host` 使用入站公网 Host；未设置时继承隧道级 `--cf-pass-host-header`
+
+回源 Host 优先级（每个后端独立）：
+
+1. `pass_host_header=true` → 入站 `Host`
+2. 否则若设置了 `origin_server_name` → 该值
+3. 否则 → `target` URL 的 host（如 `127.0.0.1:8080`）
+
+转发头（始终设置）：
+
+- `X-Forwarded-Host`：入站公网 Host
+- `X-Forwarded-Proto`：固定 `https`（流量经 Cloudflare HTTPS edge 进入；便于本地服务拼 `https` / `wss` URL）
 
 命名约定：
 
-- CLI：`kebab-case`（如 `--cf-origin-server-name`）
-- YAML：`snake_case`（如 `origin_server_name`）
-- route 子选项使用完整键名：`strip_path_prefix`、`origin_server_name`、`origin_insecure_skip_verify`（不接受旧缩写）
+- CLI：`kebab-case`（如 `--cf-pass-host-header`）
+- YAML：`snake_case`（如 `pass_host_header`）
+- route 子选项使用完整键名：`strip_path_prefix`、`origin_server_name`、`origin_insecure_skip_verify`、`pass_host_header`（不接受旧缩写）
 
 ---
 
@@ -218,8 +232,9 @@ JSON、以及 `CFTunnel` / `EdgeProtocol` 这类 Go 风格字段名会被拒绝�
 | `edge_protocol` | string | `http2` | 否 | `http2` 或 `quic` |
 | `ha_connections` | int | `4` | 否 | `1`–`256` |
 | `tunnel_token` | string | 空 | 否 | 正式隧道 token；省略则走 Quick Tunnel |
-| `origin_server_name` | string | 空 | 否 | 默认源站 TLS SNI |
+| `origin_server_name` | string | 空 | 否 | 默认源站 TLS SNI（也可覆盖回源 Host） |
 | `origin_insecure_skip_verify` | bool | `false` | 否 | 默认源站跳过证书校验 |
+| `pass_host_header` | bool | `false` | 否 | 回源时保留入站 `Host`；本地服务用 Host 拼外链/WS 时建议开启 |
 | `routes` | list | 空 | 否 | 路径/主机路由 |
 | `quick_service` | string | `https://api.trycloudflare.com` | 否 | Quick Tunnel API；一般不用改 |
 
@@ -238,14 +253,16 @@ JSON、以及 `CFTunnel` / `EdgeProtocol` 这类 Go 风格字段名会被拒绝�
 | `target` | string | — | **是** | 该路由源站 URL |
 | `host` | string | 空 | 否 | 公网 hostname；省略则任意 host 都可匹配该 path |
 | `strip_path_prefix` | bool | `false` | 否 | 转发前去掉路径前缀 |
-| `origin_server_name` | string | 空 | 否 | 该路由 TLS SNI |
+| `origin_server_name` | string | 空 | 否 | 该路由 TLS SNI / 回源 Host 覆盖 |
 | `origin_insecure_skip_verify` | bool | 未设置 | 否 | 该路由是否跳过证书校验 |
+| `pass_host_header` | bool | 继承隧道级 | 否 | 该路由是否透传入站 Host；未写则继承 `cf_tunnel.pass_host_header` |
 
 路由匹配注意：
 
 - 未设置 `host` 的 route 是任意 hostname 上的路径 fallback
 - 同一 `host + path` 不可重复
 - 前缀通配只允许尾部 `/*` 形式
+- `host` **只用于匹配**，不会自动写成回源 `Host`；需要透传时用 `pass_host_header`
 
 ### Token 安全
 
@@ -381,6 +398,7 @@ tunnels:
 | `--cf-tunnel-token` / `CF_TUNNEL_TOKEN` | `cf_tunnel.tunnel_token` | 单隧道 |
 | `--cf-origin-server-name` | `cf_tunnel.origin_server_name` | 单隧道 |
 | `--cf-origin-insecure-skip-verify` | `cf_tunnel.origin_insecure_skip_verify` | 单隧道 |
+| `--cf-pass-host-header` | `cf_tunnel.pass_host_header` | 单隧道 |
 | `--cf-route=...` | `cf_tunnel.routes[]` | 单隧道 |
 | （无直接 CLI） | `cf_tunnel.quick_service` | 单隧道 |
 | （无直接 CLI） | `tunnels[].name` / `tunnels[].cf_tunnel` | 多隧道 |
@@ -507,7 +525,19 @@ dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
 
 ### 端到端脚本（可选）
 
-仓库含对真实 Quick Tunnel 的吞吐 A/B 脚本（需本地 `sing-box`）：
+回源 Host / 转发头烟测（真实 Quick Tunnel，无需 `sing-box`）：
+
+```bash
+./scripts/e2e/run_pass_host_header_smoke.sh
+```
+
+配置文件单/多隧道冒烟：
+
+```bash
+./scripts/e2e/run_configfile_smoke.sh
+```
+
+吞吐 A/B（需本地 `sing-box`）：
 
 ```bash
 ./scripts/e2e/run_trycloudflare_ab.sh http2 1
@@ -516,7 +546,7 @@ dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
 ```
 
 - `sing-box`：`SING_BOX_BIN` 或 `/root/.local/bin/sing-box`
-- 临时目录：`${TMPDIR:-/tmp}/cfqt-e2e/`
+- 临时目录：`${TMPDIR:-/tmp}/cfqt-e2e/`（Host 烟测用 `/tmp/cfqt-pass-host-smoke`）
 
 ### 版本与说明
 

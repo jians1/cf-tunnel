@@ -15,5 +15,6 @@ func (s Session) OriginTarget() (origin.Target, error) {
 		s.Origin.URL,
 		s.Origin.ServerName,
 		s.Origin.InsecureSkipVerify,
+		s.Origin.PassHostHeader,
 	)
 }
