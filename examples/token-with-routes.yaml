@@ -1,0 +1,54 @@
+# 正式 Tunnel Token + 按公网 hostname / 路径拆分后端
+#
+# 前提：
+#   1. 在 Cloudflare Zero Trust 创建 remote-managed tunnel，拿到 token
+#   2. 把公网 hostname 指到该 tunnel
+#   3. 本地 target / routes 决定转发（不会下载远端 ingress）
+#
+# 运行：
+#   chmod 600 ./examples/token-with-routes.yaml   # token 在文件中时建议收紧权限
+#   ./cf-tunnel --config=./examples/token-with-routes.yaml
+#
+# 也可改用环境变量，省略 tunnel_token 字段：
+#   export CF_TUNNEL_TOKEN='...'
+#   （注意：使用 --config 且文件内有 cf_tunnel 时，会整块替换 CLI 单隧道字段；
+#    此时请把 token 写在本文件的 tunnel_token，或自行调整配置结构。）
+
+log_level: info
+log_format: text
+health_listen: ":9090"
+shutdown_timeout: 10s
+
+cf_tunnel:
+  # 替换为你的 Cloudflare tunnel token
+  tunnel_token: "REPLACE_WITH_YOUR_TUNNEL_TOKEN"
+  edge_protocol: quic
+  ha_connections: 4
+
+  # 未匹配任何 route 时的默认源站
+  target: http://127.0.0.1:8080
+  # origin_server_name: origin.internal
+  # origin_insecure_skip_verify: false
+
+  routes:
+    # 精确路径
+    - path: /health
+      target: http://127.0.0.1:8080
+
+    # 前缀路径 + 去掉前缀后再转发
+    - host: api.example.com
+      path: /api/*
+      target: http://127.0.0.1:9001
+      strip_path_prefix: true
+
+    # WebSocket 源站
+    - host: ws.example.com
+      path: /ws/*
+      target: ws://127.0.0.1:10000
+
+    # HTTPS 源站 + 独立 TLS 选项
+    - host: secure.example.com
+      path: /secure/*
+      target: https://127.0.0.1:9443
+      origin_server_name: secure.internal
+      # origin_insecure_skip_verify: true

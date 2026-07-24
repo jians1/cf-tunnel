@@ -1,156 +1,173 @@
 # cf-tunnel
 
-- [中文](#中文)
-- [English](#english)
+单二进制 Go 工具，用于把本地 HTTP/HTTPS/WebSocket 源站暴露到 Cloudflare：
 
-## 中文
+- **Quick Tunnel**（`trycloudflare.com`，无需账号）
+- **正式 Tunnel Token**（Cloudflare Zero Trust 里已创建的 remote-managed tunnel）
 
-`cf-tunnel` 是一个单二进制 Go 项目，聚焦 Cloudflare `TryCloudflare / Quick Tunnel` 以及轻量级 remote-managed Tunnel token 模式。
+支持 `quic` / `http2` 连接 edge，支持单隧道 CLI、YAML 配置文件，以及多隧道并行。
 
-隧道路径刻意保持精简，适合个人使用：启动时可以申请真实 Quick Tunnel，也可以使用 Cloudflare remote-managed tunnel token，通过 `quic` 或 `http2` 连接 Cloudflare edge，并把流量转发到配置的本地源站。
+当前版本：`0.1.0`（见 [VERSION](VERSION)）
 
-### 状态
+---
 
-#### 当前可用
+## 目录
 
-- 统一 CLI 和配置校验
-- Quick Tunnel 申请客户端
-- 本地源站目标解析
-- 支持 HTTP/HTTPS 与 WebSocket upgrade 的本地反向代理
-- 基于 `quic` 或 `http2` 的完整 Quick Tunnel 主路径
-- 使用本地路由的 remote-managed Cloudflare Tunnel token 模式
-- 通过 WebSocket 代理路径兼容 VLESS over WebSocket 源站
+- [快速开始](#快速开始)
+- [示例配置](#示例配置)
+- [怎么选启动方式](#怎么选启动方式)
+- [CLI 参数](#cli-参数)
+- [YAML 配置参考](#yaml-配置参考)
+- [常见场景示例](#常见场景示例)
+- [CLI 与 YAML 对照](#cli-与-yaml-对照)
+- [覆盖规则](#覆盖规则)
+- [健康检查与状态接口](#健康检查与状态接口)
+- [客户端 IP 透传](#客户端-ip-透传)
+- [构建与发布](#构建与发布)
+- [已知限制](#已知限制)
 
-#### 外部验证
+---
 
-- 显式 `http2`：公网 `trycloudflare.com` URL 可返回本地源站响应
-- 显式 `quic`：公网 `trycloudflare.com` URL 可返回本地源站响应
-- remote-managed token tunnel：公网 hostname `test.910666.xyz` 可返回本地源站响应
-- `http2` 和 `quic`：通过 VLESS-over-WebSocket 源站完成 `1GiB` 下载且 SHA256 匹配
-- `quic`：Quick Tunnel 与 remote-managed token tunnel 均完成 `256MiB` 下载且 SHA256 匹配
-- 大文件下载时 RSS 保持在几十 MiB 范围内，不随响应体大小线性增长
+## 快速开始
 
-`linux/amd64` release build 上最新 `256MiB` RSS 冒烟结果：
-
-| 模式 | Ready RSS | Warm RSS | Peak Download RSS | Final RSS |
-|---|---:|---:|---:|---:|
-| Remote-managed token tunnel, `quic` | `18,744 KB` | `19,132 KB` | `21,484 KB` | `21,356 KB` |
-| Quick Tunnel, `quic` | `16,052 KB` | `16,056 KB` | `22,676 KB` | `22,032 KB` |
-
-构建基线：
-
-- Go 工具链基线：`1.26.3`
-
-#### 已知限制
-
-- Quick Tunnel 创建可能受到 `api.trycloudflare.com` 限流。
-- 新创建的 `trycloudflare.com` hostname 可能存在短暂 DNS 或 edge 收敛窗口；大流量传输前建议先用小请求预热。
-- 本项目不实现账号登录流程，支持单隧道 CLI 和可选的多隧道配置文件模式。
-- Remote-managed token 模式不会下载 Cloudflare 远端 ingress 规则；本地 `target` 和 `routes` 仍是转发事实来源。
-- Quick Tunnel 和 remote-managed token 模式默认使用 4 个 HA connections。
-- 每个 HA connection 独立维护到 edge 的连接：瞬时故障（如 `EDUPCONN`、edge 主动断开）会自动换用不同的 edge 地址并退避重连，进程不会退出，Quick Tunnel 域名也不会因此变化；只有当单个连接连续重连超过上限（默认 5 次）仍失败时，进程才会退出并交由外部（如 systemd）重启。
-
-### 构建
+### 1. 构建
 
 ```bash
-go build -buildvcs=false ./cmd/app
+go build -buildvcs=false -o cf-tunnel ./cmd/app
 ```
 
-当前版本：
+### 2. 最简 CLI（Quick Tunnel）
 
-```text
-0.1.0
-```
-
-### 发布构建
+把本机 `8080` 暴露出去：
 
 ```bash
-./scripts/build-release.sh
+./cf-tunnel --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
-发布构建使用已验证的精简参数：
-
-```text
-CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w"
-```
-
-默认输出：
-
-```text
-dist/cf-tunnel-0.1.0-linux-amd64
-dist/cf-tunnel-0.1.0-linux-amd64.sha256
-dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
-```
-
-### CI 与本地验收
-
-运行本地流水线：
+默认使用 `http2`。想用 `quic`：
 
 ```bash
-./scripts/ci.sh
-```
-
-当前会执行：
-
-1. `go test ./...`
-2. 将精简 release 二进制构建到 `dist/`
-
-项目当前不提供 Docker 镜像构建或容器交付链路。
-
-### 端到端 A/B 测试
-
-仓库包含真实端到端 Quick Tunnel 吞吐测试脚本，可使用 `http2` 和 `quic` 对本地 `sing-box` VLESS-over-WebSocket 源站进行 A/B 测试。
-
-单轮测试：
-
-```bash
-./scripts/e2e/run_trycloudflare_ab.sh http2 1
-./scripts/e2e/run_trycloudflare_ab.sh quic 1
-```
-
-三轮 A/B 测试：
-
-```bash
-./scripts/e2e/run_trycloudflare_ab_3rounds.sh
-```
-
-环境说明：
-
-- 需要通过 `SING_BOX_BIN` 指定 `sing-box`，或使用 `/root/.local/bin/sing-box`
-- 使用 `${TMPDIR:-/tmp}/cfqt-e2e/` 存放临时文件和日志
-- 每轮使用独立端口，并在退出时清理子进程
-- 脚本在开始 `1GiB` 下载前包含 Quick Tunnel DNS/edge 预热重试
-
-### Quick Tunnel
-
-通过 Quick Tunnel 暴露本地 HTTP 源站：
-
-```bash
-go run ./cmd/app \
+./cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
-强制指定 Cloudflare edge 传输协议：
+启动后日志里会出现 `*.trycloudflare.com` 公网 URL。
+
+### 3. 最简配置文件
+
+可直接使用仓库示例：
 
 ```bash
-go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080
+./cf-tunnel --config=./examples/quick-tunnel.yaml
 ```
 
-用于 WebSocket 源站，例如 VLESS over WS：
+或自建 `config.yaml`：
 
-```bash
-go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=ws://127.0.0.1:10000
+```yaml
+cf_tunnel:
+  edge_protocol: quic
+  target: http://127.0.0.1:8080
 ```
 
-基于路径拆分后端，可重复使用 `--cf-route`：
+```bash
+./cf-tunnel --config=./config.yaml
+```
+
+---
+
+## 示例配置
+
+仓库 [`examples/`](examples/) 目录提供可直接改的模板：
+
+| 文件 | 场景 |
+|------|------|
+| [examples/quick-tunnel.yaml](examples/quick-tunnel.yaml) | 单隧道 Quick Tunnel（最常用） |
+| [examples/token-with-routes.yaml](examples/token-with-routes.yaml) | 正式 token + 多 hostname / 路径路由 |
+| [examples/multi-tunnel.yaml](examples/multi-tunnel.yaml) | 进程内并行多条隧道 |
 
 ```bash
-go run ./cmd/app \
+# Quick Tunnel
+./cf-tunnel --config=./examples/quick-tunnel.yaml
+
+# 正式 token（先改文件里的 tunnel_token，并建议 chmod 600）
+chmod 600 ./examples/token-with-routes.yaml
+./cf-tunnel --config=./examples/token-with-routes.yaml
+
+# 多隧道
+./cf-tunnel --config=./examples/multi-tunnel.yaml
+```
+
+完整字段说明见下方 [YAML 配置参考](#yaml-配置参考)。
+
+---
+
+## 怎么选启动方式
+
+| 场景 | 推荐方式 |
+|------|----------|
+| 临时暴露一个本地端口 | CLI：`--cf-tunnel-target` |
+| 长期跑、参数较多 | 配置文件：根级 `cf_tunnel` |
+| 已有 Cloudflare 正式隧道 | `tunnel_token` + 本地 `target`/`routes` |
+| 一台机器跑多条隧道 | 配置文件：`tunnels` 列表 |
+| 一个 token 上多个公网域名 | 一条隧道 + 带 `host` 的 `routes` |
+
+要点：
+
+- **没有 token** → 走 Quick Tunnel API 申请临时域名
+- **有 token** → 跳过 Quick Tunnel，使用 Zero Trust 里的正式隧道
+- **Token 模式不会下载 Cloudflare 远端 ingress**；本地转发只认本项目的 `target` 和 `routes`
+
+---
+
+## CLI 参数
+
+### 用法
+
+```bash
+cf-tunnel --cf-tunnel-target=<url> [options]
+cf-tunnel --config=<config.yaml>
+```
+
+### 必填
+
+| 参数 | 说明 |
+|------|------|
+| `--cf-tunnel-target=<url>` | 默认源站。未使用 `--config` 时必填 |
+
+源站 URL 需带 scheme 和 host，例如：
+
+- `http://127.0.0.1:8080`
+- `https://127.0.0.1:8443`
+- `ws://127.0.0.1:10000`
+- `wss://127.0.0.1:10000`
+
+### 可选
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--config=<path>` | 空 | YAML 配置文件（`.yaml` / `.yml`） |
+| `--cf-edge-protocol=http2\|quic` | `http2` | Cloudflare edge 传输协议 |
+| `--cf-ha-connections=<n>` | `4` | HA edge 连接数，范围 `1`–`256` |
+| `--cf-tunnel-token=<token>` | 环境变量 `CF_TUNNEL_TOKEN` | 正式 remote-managed tunnel token |
+| `--cf-origin-server-name=<name>` | 空 | 默认源站 TLS SNI |
+| `--cf-origin-insecure-skip-verify` | `false` | 默认源站跳过 TLS 证书校验 |
+| `--cf-route=...` | 无 | 可重复；路径路由，见下方格式 |
+| `--log-level=debug\|info\|warn\|error` | `info` | 日志级别 |
+| `--log-format=text\|json` | `text` | 日志格式 |
+| `--health-listen=<addr>` | `:9090` | 健康检查监听；设为空可关闭 |
+| `--shutdown-timeout=<duration>` | `10s` | 优雅关闭超时 |
+
+### `--cf-route` 格式
+
+```text
+--cf-route=/path=url[,host=<hostname>][,strip_path_prefix=true|false][,origin_server_name=<name>][,origin_insecure_skip_verify=true|false]
+```
+
+示例：
+
+```bash
+./cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080 \
   --cf-route=/api/*=http://127.0.0.1:9001,strip_path_prefix=true \
@@ -160,39 +177,144 @@ go run ./cmd/app \
 
 说明：
 
-- `--cf-origin-server-name` 和 `--cf-origin-insecure-skip-verify` 只作用于默认 `--cf-tunnel-target`。
-- 每个 `--cf-route` 目标有独立 TLS 选项：需要时可在该 route 后追加尾随选项 `origin_server_name=...` 或 `origin_insecure_skip_verify=true`。当目标 URL 自身包含逗号时，保持这些 route 选项放在最后。未设置 route 选项时，URL host 会作为 TLS server name，证书校验保持启用。
-- `--cf-route` 也支持 `host=<public-hostname>`，用于一个 Cloudflare Tunnel connector 服务多个公网 hostname 的场景。
-- `strip_path_prefix=true` 会在转发给该 route 后端前去掉匹配路径前缀，例如 `/api/users?x=1` 会转发为 `/users?x=1`。默认 `false`，保持原路径不变。
+- 路径支持精确匹配（`/health`）和前缀匹配（`/api/*`）
+- `--cf-origin-server-name` / `--cf-origin-insecure-skip-verify` **只作用于默认** `--cf-tunnel-target`
+- 每个 route 可单独写 TLS 选项；目标 URL 本身含逗号时，请把选项放在最后
+- 未写 route TLS 选项时：用 URL 的 host 作 SNI，并开启证书校验
+- `strip_path_prefix=true`：转发前去掉匹配前缀，例如 `/api/users?x=1` → `/users?x=1`（默认 `false`）
+- `host=<公网 hostname>`：同一 connector 服务多个公网域名时使用
 
-命名规则：
+命名约定：
 
-- CLI flags 统一使用 `kebab-case`，例如 `--cf-origin-server-name`。
-- YAML 字段统一使用 `snake_case`，例如 `origin_server_name`、`origin_insecure_skip_verify`。
-- `--cf-route` 子选项保留完整语义前缀，统一使用 `strip_path_prefix`、`origin_server_name`、`origin_insecure_skip_verify`，不再接受旧的缩写键名。
+- CLI：`kebab-case`（如 `--cf-origin-server-name`）
+- YAML：`snake_case`（如 `origin_server_name`）
+- route 子选项使用完整键名：`strip_path_prefix`、`origin_server_name`、`origin_insecure_skip_verify`（不接受旧缩写）
 
-### 正式 Cloudflare Tunnel Token 模式
+---
 
-当隧道已在 Cloudflare Zero Trust 中创建时，可以使用 remote-managed Cloudflare Tunnel token：
+## YAML 配置参考
+
+配置文件必须是 YAML（`.yaml` / `.yml`），字段使用 `snake_case`。  
+JSON、以及 `CFTunnel` / `EdgeProtocol` 这类 Go 风格字段名会被拒绝。
+
+### 顶层字段
+
+| 字段 | 类型 | 默认值 | 必填 | 说明 |
+|------|------|--------|------|------|
+| `log_level` | string | `info` | 否 | `debug` / `info` / `warn` / `error` |
+| `log_format` | string | `text` | 否 | `text` / `json` |
+| `health_listen` | string | `:9090` | 否 | 健康检查监听地址 |
+| `shutdown_timeout` | duration | `10s` | 否 | 如 `10s`、`1m` |
+| `cf_tunnel` | object | — | 二选一* | 单隧道配置 |
+| `tunnels` | list | — | 二选一* | 多隧道列表；非空则进入多隧道模式 |
+
+\* 使用 `--config` 时，最终仍须能解析出有效隧道：根级 `cf_tunnel`，或非空 `tunnels`。每条隧道都必须有 `target`。
+
+### `cf_tunnel` / `tunnels[].cf_tunnel` 字段
+
+| 字段 | 类型 | 默认值 | 必填 | 说明 |
+|------|------|--------|------|------|
+| `target` | string | — | **是** | 默认源站 URL |
+| `edge_protocol` | string | `http2` | 否 | `http2` 或 `quic` |
+| `ha_connections` | int | `4` | 否 | `1`–`256` |
+| `tunnel_token` | string | 空 | 否 | 正式隧道 token；省略则走 Quick Tunnel |
+| `origin_server_name` | string | 空 | 否 | 默认源站 TLS SNI |
+| `origin_insecure_skip_verify` | bool | `false` | 否 | 默认源站跳过证书校验 |
+| `routes` | list | 空 | 否 | 路径/主机路由 |
+| `quick_service` | string | `https://api.trycloudflare.com` | 否 | Quick Tunnel API；一般不用改 |
+
+### `tunnels[]` 字段
+
+| 字段 | 类型 | 默认值 | 必填 | 说明 |
+|------|------|--------|------|------|
+| `name` | string | — | **是** | 隧道名称，全局唯一 |
+| `cf_tunnel` | object | — | **是** | 同上表 |
+
+### `routes[]` 字段
+
+| 字段 | 类型 | 默认值 | 必填 | 说明 |
+|------|------|--------|------|------|
+| `path` | string | — | **是** | 如 `/health` 或 `/api/*` |
+| `target` | string | — | **是** | 该路由源站 URL |
+| `host` | string | 空 | 否 | 公网 hostname；省略则任意 host 都可匹配该 path |
+| `strip_path_prefix` | bool | `false` | 否 | 转发前去掉路径前缀 |
+| `origin_server_name` | string | 空 | 否 | 该路由 TLS SNI |
+| `origin_insecure_skip_verify` | bool | 未设置 | 否 | 该路由是否跳过证书校验 |
+
+路由匹配注意：
+
+- 未设置 `host` 的 route 是任意 hostname 上的路径 fallback
+- 同一 `host + path` 不可重复
+- 前缀通配只允许尾部 `/*` 形式
+
+### Token 安全
+
+若把 `tunnel_token` 写进 YAML，请限制文件权限，例如：
 
 ```bash
-CF_TUNNEL_TOKEN='...' go run ./cmd/app \
+chmod 600 config.yaml
+```
+
+---
+
+## 常见场景示例
+
+### Quick Tunnel（CLI）
+
+```bash
+./cf-tunnel \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
-也可以显式传入 token：
+WebSocket 源站（如 VLESS over WS）：
 
 ```bash
-go run ./cmd/app \
+./cf-tunnel \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=ws://127.0.0.1:10000
+```
+
+### 正式 Tunnel Token（CLI）
+
+```bash
+export CF_TUNNEL_TOKEN='...'
+./cf-tunnel \
+  --cf-edge-protocol=quic \
+  --cf-tunnel-target=http://127.0.0.1:8080
+```
+
+或：
+
+```bash
+./cf-tunnel \
   --cf-tunnel-token='...' \
   --cf-edge-protocol=quic \
   --cf-tunnel-target=http://127.0.0.1:8080
 ```
 
-第一阶段 token 模式不会导入 Cloudflare 远端 ingress 管理规则。Cloudflare 公网 hostname 会把流量路由到这个 connector；本地转发仍由本项目的 `target` 和 `routes` 配置控制。
+### 单隧道配置文件
 
-一个 Cloudflare Tunnel 上的多个公网 hostname 应表示为一个 tunnel token 加多条带 host 匹配的本地 route：
+完整模板见 [examples/quick-tunnel.yaml](examples/quick-tunnel.yaml)。
+
+```yaml
+log_level: info
+health_listen: ":9090"
+shutdown_timeout: 10s
+
+cf_tunnel:
+  edge_protocol: quic
+  ha_connections: 4
+  target: http://127.0.0.1:8080
+```
+
+```bash
+./cf-tunnel --config=./examples/quick-tunnel.yaml
+```
+
+### Token + 多 hostname 路由
+
+一个 Cloudflare Tunnel token，本地按公网域名拆到不同后端。完整模板见 [examples/token-with-routes.yaml](examples/token-with-routes.yaml)。
 
 ```yaml
 cf_tunnel:
@@ -210,13 +332,11 @@ cf_tunnel:
       target: ws://127.0.0.1:10000
 ```
 
-如果 route 未设置 `host`，它会作为任意 hostname 的纯路径 fallback。
+Cloudflare 侧把各 hostname 指到该 tunnel connector；本进程只按本地 `routes` 转发。
 
-### 可选配置文件（多隧道）
+### 多隧道配置文件
 
-使用 `--config=<path>` 加载 YAML 配置文件。该功能是可选的，主要用于多隧道场景。
-
-示例：
+完整模板见 [examples/multi-tunnel.yaml](examples/multi-tunnel.yaml)。
 
 ```yaml
 health_listen: ":9090"
@@ -236,84 +356,67 @@ tunnels:
       ha_connections: 4
       target: ws://127.0.0.1:10000
       routes:
-        - host: test.910666.xyz
+        - host: test.example.com
           path: /ws/*
           target: ws://127.0.0.1:10000
 ```
 
-运行：
-
 ```bash
-go run ./cmd/app --config=./config.yaml
+./cf-tunnel --config=./examples/multi-tunnel.yaml
 ```
 
-兼容规则：
+---
 
-- 不使用 `--config` 时，当前单隧道 CLI 行为不变。
-- 使用 `--config` 时，配置文件值会在 CLI flags 之后应用。
-- 如果 `tunnels` 存在且非空，运行时进入多隧道模式。
-- 配置文件必须是 YAML（`.yaml` 或 `.yml`），并使用 `snake_case` 字段。JSON 文件以及 `CFTunnel`、`EdgeProtocol` 这类 Go 风格字段会被拒绝。
-- 如果把 `tunnel_token` 存在 YAML 中，请保护该文件，例如执行 `chmod 600 config.yaml`。
+## CLI 与 YAML 对照
 
-### 参数
+| CLI | YAML | 作用域 |
+|-----|------|--------|
+| `--log-level` | `log_level` | 全局 |
+| `--log-format` | `log_format` | 全局 |
+| `--health-listen` | `health_listen` | 全局 |
+| `--shutdown-timeout` | `shutdown_timeout` | 全局 |
+| `--cf-tunnel-target` | `cf_tunnel.target` | 单隧道 |
+| `--cf-edge-protocol` | `cf_tunnel.edge_protocol` | 单隧道 |
+| `--cf-ha-connections` | `cf_tunnel.ha_connections` | 单隧道 |
+| `--cf-tunnel-token` / `CF_TUNNEL_TOKEN` | `cf_tunnel.tunnel_token` | 单隧道 |
+| `--cf-origin-server-name` | `cf_tunnel.origin_server_name` | 单隧道 |
+| `--cf-origin-insecure-skip-verify` | `cf_tunnel.origin_insecure_skip_verify` | 单隧道 |
+| `--cf-route=...` | `cf_tunnel.routes[]` | 单隧道 |
+| （无直接 CLI） | `cf_tunnel.quick_service` | 单隧道 |
+| （无直接 CLI） | `tunnels[].name` / `tunnels[].cf_tunnel` | 多隧道 |
 
-用法：
+多隧道只能通过配置文件的 `tunnels` 列表启用。
 
-```bash
-cf-tunnel --cf-tunnel-target=<url> [options]
-cf-tunnel --config=<config.yaml>
-```
+---
 
-必填：
+## 覆盖规则
 
-- `--cf-tunnel-target=<url>`：未使用 `--config` 时必填
+1. 解析顺序：**先 CLI，再 `--config`**。
+2. 配置文件含 `cf_tunnel` 时：**整块替换**单隧道相关 CLI 字段（不是逐字段 merge）。
+3. 配置文件含**非空** `tunnels` 时：进入多隧道模式，单隧道 CLI 的 `--cf-*` **不再使用**。
+4. 全局项（`log_level`、`log_format`、`health_listen`、`shutdown_timeout`）在配置文件写了对应字段时会被覆盖。
+5. 不使用 `--config` 时，行为与纯 CLI 一致。
 
-可选：
+---
 
-- `--config=<path>`：YAML 配置文件（`.yaml` / `.yml`）
-- `--cf-edge-protocol=http2|quic`：Cloudflare edge 传输协议，默认 `http2`
-- `--cf-ha-connections=<n>`：Cloudflare HA edge 连接数，默认 `4`
-- `--cf-tunnel-token=...` 或 `CF_TUNNEL_TOKEN=...`：remote-managed 正式 tunnel 模式使用的 token
-- `--cf-origin-server-name=...`：默认源站 TLS server name
-- `--cf-origin-insecure-skip-verify`：默认源站 TLS 跳过证书校验
-- `--cf-route=/path=url[,host=...][,strip_path_prefix=true|false][,origin_server_name=...][,origin_insecure_skip_verify=true|false]`：可重复设置的路由，支持精确路径 `/health` 和前缀路径 `/api/*`
-- `--log-level=debug|info|warn|error`：日志级别
-- `--log-format=text|json`：日志格式
-- `--health-listen=:9090`：健康检查监听地址
-- `--shutdown-timeout=10s`：优雅关闭超时时间
+## 健康检查与状态接口
 
-优先级和覆盖规则：
+当 `health_listen` / `--health-listen` 非空时提供：
 
-- 解析顺序是先 CLI，再 `--config`。
-- 如果配置文件包含 `cf_tunnel`，它会作为一个整体替换单隧道 CLI 字段。
-- 如果配置文件包含非空 `tunnels`，运行时进入多隧道模式，单隧道 CLI 字段（单隧道 `--cf-*`）不会被使用。
-- 全局控制项（`log-level`、`log-format`、`health-listen`、`shutdown-timeout`）在配置文件设置对应字段时也会被覆盖。
+| 路径 | 含义 |
+|------|------|
+| `GET /live` | 进程存活；服务在跑即 `200` |
+| `GET /ready` | 隧道就绪；**所有**已配置隧道完成 edge registration 才 `200`，否则 `503` |
+| `GET /status` | 结构化 JSON 状态（含 Quick Tunnel URL 等） |
 
-### 当前运行行为
-
-- 没有 tunnel token 时，正常启动会通过 `api.trycloudflare.com` 创建真实 Quick Tunnel。
-- 使用 `--cf-tunnel-token` 或 `CF_TUNNEL_TOKEN` 时，启动会跳过 Quick Tunnel API，改用 token 中的 remote-managed tunnel 凭据。
-- 运行时 edge 地址发现是内部自动完成的。
-
-如果 `api.trycloudflare.com` 返回 Cloudflare 限流，例如 `429` / `1015`，请稍后重试。该失败发生在 Quick Tunnel API 创建阶段，不一定代表本地源站代理路径有问题。
-
-### 健康检查接口
-
-当 `--health-listen` 非空时，应用会暴露：
-
-- `/live`：进程存活检查。健康检查服务运行时返回 `200 OK`。
-- `/ready`：隧道就绪检查。只有所有已配置隧道完成 edge registration 后才返回 `200 OK`；隧道处于 pending、starting、failed、stopped 或 exited 时返回 `503 Service Unavailable`。
-- `/status`：运行态结构化状态，返回 JSON，适合 shell 脚本或外部编排读取当前 tunnel 状态与 Quick Tunnel URL。
-- 如果运行时没有接入 readiness provider，`/ready` 默认返回 `503 Service Unavailable` 和 `not ready`，避免误报健康状态。
-
-`/ready` 响应体是简短文本摘要：
+`/ready` 文本摘要示例：
 
 ```text
 mode=single total=1 ready=0 failed=0 details=[cftunnel:starting]
 mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
 ```
 
-`/status` 响应体是结构化 JSON。单隧道示例：
+`/status` 单隧道示例：
 
 ```json
 {
@@ -332,103 +435,56 @@ mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
 }
 ```
 
-shell 示例：
-
 ```bash
 curl -fsS http://127.0.0.1:9090/status
 curl -fsS http://127.0.0.1:9090/status | jq -r '.tunnel.quick_tunnel_url'
 ```
 
-HTTP 回源客户端 IP 语义：
+隧道状态包括：`pending`、`starting`、`ready`、`failed`、`stopped`、`exited` 等。若运行时未接入 readiness provider，`/ready` 会返回 `503`，避免误报健康。
 
-- 后端应用读取真实客户端 IP，应优先信任头而不是 socket `remote_addr`。
-- 当前代理会向 HTTP/HTTPS/WebSocket 源站透传并规范化：
-  - `CF-Connecting-IP`
-  - `X-Real-IP`
-  - `X-Forwarded-For`
-- 优先级是：
-  - `CF-Connecting-IP`
-  - `X-Forwarded-For` 的第一个有效客户端 IP
-  - `X-Real-IP`
-- 当前实现不会把本地代理连接地址伪造成真实客户端 IP，也不会把 backend `remote_addr` 重写为终端用户地址。
+---
 
-### 发布
+## 客户端 IP 透传
 
-- 版本文件：[VERSION](VERSION)
-- 发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md)
+后端若要读真实客户端 IP，应信任转发头，而不是 socket `remote_addr`。
 
-## English
+代理会向 HTTP/HTTPS/WebSocket 源站透传并规范化：
 
-Single-binary Go project focused on Cloudflare `TryCloudflare / Quick Tunnel` and lightweight remote-managed Tunnel token mode.
+- `CF-Connecting-IP`
+- `X-Real-IP`
+- `X-Forwarded-For`
 
-The tunnel path is intentionally kept small for personal use: startup can request a real Quick Tunnel or use a Cloudflare remote-managed tunnel token, connects to Cloudflare edge with `quic` or `http2`, and proxies traffic to the configured local origin.
+取值优先级：
 
-### Status
+1. `CF-Connecting-IP`
+2. `X-Forwarded-For` 中第一个有效客户端 IP
+3. `X-Real-IP`
 
-#### Working Today
+不会把本地代理地址伪造成客户端 IP，也不会改写 backend 的 `remote_addr`。
 
-- unified CLI and config validation
-- Quick Tunnel request client
-- local origin target parsing
-- local reverse proxy for HTTP/HTTPS and WebSocket upgrade
-- full Quick Tunnel main path using `quic` or `http2`
-- remote-managed Cloudflare Tunnel token mode using local routing
-- VLESS over WebSocket origin compatibility through the WebSocket proxy path
+---
 
-#### Verified Externally
+## 构建与发布
 
-- explicit `http2`: public `trycloudflare.com` URL returned the local origin response
-- explicit `quic`: public `trycloudflare.com` URL returned the local origin response
-- remote-managed token tunnel: public hostname `test.910666.xyz` returned the local origin response
-- `http2` and `quic`: `1GiB` downloads through a VLESS-over-WebSocket origin completed with matching SHA256
-- `quic`: `256MiB` downloads through both Quick Tunnel and remote-managed token tunnel completed with matching SHA256
-- large download RSS stayed in the tens of MiB range and did not grow with response size
-
-Latest `256MiB` RSS smoke results on `linux/amd64` release build:
-
-| Mode | Ready RSS | Warm RSS | Peak Download RSS | Final RSS |
-|---|---:|---:|---:|---:|
-| Remote-managed token tunnel, `quic` | `18,744 KB` | `19,132 KB` | `21,484 KB` | `21,356 KB` |
-| Quick Tunnel, `quic` | `16,052 KB` | `16,056 KB` | `22,676 KB` | `22,032 KB` |
-
-Build baseline:
-
-- Go toolchain baseline: `1.26.3`
-
-#### Known Limits
-
-- Quick Tunnel creation can be rate-limited by `api.trycloudflare.com`.
-- Newly-created `trycloudflare.com` hostnames can have a short DNS or edge convergence window; warm up with small requests before large transfers.
-- This project does not implement account login flows (supports single-tunnel CLI and optional multi-tunnel config mode).
-- Remote-managed token mode does not download Cloudflare remote ingress rules; local `target` and `routes` remain the source of truth.
-- Quick Tunnel and remote-managed token mode use 4 HA connections by default.
-- Each HA connection reconnects on its own after a transient edge failure (EDUPCONN, edge-closed, dial errors): it rotates to a different edge address and backs off, so a single blip no longer tears down the process or (for Quick Tunnels) changes the public hostname. Only after repeated consecutive failures on a connection does the process exit and rely on the service manager to restart.
-
-### Build
+### 本地构建
 
 ```bash
-go build -buildvcs=false ./cmd/app
+go build -buildvcs=false -o cf-tunnel ./cmd/app
 ```
 
-Current version:
-
-```text
-0.1.0
-```
-
-### Release Build
+### 发布构建
 
 ```bash
 ./scripts/build-release.sh
 ```
 
-Release builds use the tested compact settings:
+等价于精简参数：
 
 ```text
 CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w"
 ```
 
-Default output:
+默认产物：
 
 ```text
 dist/cf-tunnel-0.1.0-linux-amd64
@@ -436,277 +492,47 @@ dist/cf-tunnel-0.1.0-linux-amd64.sha256
 dist/cf-tunnel-0.1.0-linux-amd64.manifest.txt
 ```
 
-### CI / Local Acceptance
-
-Run the local pipeline:
+### 本地验收
 
 ```bash
 ./scripts/ci.sh
 ```
 
-This currently performs:
+会执行：
 
 1. `go test ./...`
-2. compact release binary build into `dist/`
+2. 精简 release 二进制输出到 `dist/`
 
-The project does not currently provide a Docker image or container delivery path.
+项目当前不提供 Docker 镜像。
 
-### E2E A/B Test
+### 端到端脚本（可选）
 
-The repository includes real end-to-end Quick Tunnel throughput scripts for `http2` and `quic` against a local `sing-box` VLESS-over-WebSocket origin.
-
-Single round:
+仓库含对真实 Quick Tunnel 的吞吐 A/B 脚本（需本地 `sing-box`）：
 
 ```bash
 ./scripts/e2e/run_trycloudflare_ab.sh http2 1
 ./scripts/e2e/run_trycloudflare_ab.sh quic 1
-```
-
-Three-round A/B run:
-
-```bash
 ./scripts/e2e/run_trycloudflare_ab_3rounds.sh
 ```
 
-Environment notes:
+- `sing-box`：`SING_BOX_BIN` 或 `/root/.local/bin/sing-box`
+- 临时目录：`${TMPDIR:-/tmp}/cfqt-e2e/`
 
-- requires `sing-box` in `SING_BOX_BIN` or `/root/.local/bin/sing-box`
-- uses `${TMPDIR:-/tmp}/cfqt-e2e/` for temporary files and logs
-- each round uses dedicated ports and cleans child processes on exit
-- the script includes Quick Tunnel DNS/edge warmup retries before the `1GiB` download starts
+### 版本与说明
 
-### Quick Tunnel
+- 版本：[VERSION](VERSION)
+- 发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md)
 
-Run a local HTTP origin through Quick Tunnel:
+工具链基线：Go `1.26.3`
 
-```bash
-go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080
-```
+---
 
-Force a specific Cloudflare edge transport:
+## 已知限制
 
-```bash
-go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080
-```
-
-For a WebSocket origin such as VLESS over WS:
-
-```bash
-go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=ws://127.0.0.1:10000
-```
-
-Path-based backend split (repeat `--cf-route`):
-
-```bash
-go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080 \
-  --cf-route=/api/*=http://127.0.0.1:9001,strip_path_prefix=true \
-  --cf-route=/ws/*=ws://127.0.0.1:10000 \
-  --cf-route=/secure/*=https://127.0.0.1:9443,origin_server_name=secure.internal
-```
-
-Notes:
-
-- `--cf-origin-server-name` and `--cf-origin-insecure-skip-verify` apply to the default `--cf-tunnel-target` only.
-- Each `--cf-route` target has independent TLS options: append trailing route options such as `origin_server_name=...` or `origin_insecure_skip_verify=true` when needed. If the target URL itself contains commas, keep route options at the end. Without route options, URL host is the TLS server name and certificate verification stays enabled.
-- `--cf-route` also supports `host=<public-hostname>` to match one Cloudflare Tunnel connector serving multiple public hostnames.
-- `strip_path_prefix=true` removes the matched route prefix before forwarding to that backend. For example, `/api/users?x=1` is forwarded as `/users?x=1`. The default is `false`, preserving the original path.
-
-Naming rules:
-
-- CLI flags use `kebab-case`, for example `--cf-origin-server-name`.
-- YAML fields use `snake_case`, for example `origin_server_name` and `origin_insecure_skip_verify`.
-- `--cf-route` option keys keep the full semantic prefixes and use `strip_path_prefix`, `origin_server_name`, and `origin_insecure_skip_verify`. Legacy shortened keys are not accepted.
-
-### Formal Cloudflare Tunnel Token Mode
-
-Use a remote-managed Cloudflare Tunnel token when the tunnel is created in Cloudflare Zero Trust:
-
-```bash
-CF_TUNNEL_TOKEN='...' go run ./cmd/app \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080
-```
-
-Or pass the token explicitly:
-
-```bash
-go run ./cmd/app \
-  --cf-tunnel-token='...' \
-  --cf-edge-protocol=quic \
-  --cf-tunnel-target=http://127.0.0.1:8080
-```
-
-Phase-one token mode does not import Cloudflare remote ingress management. Cloudflare public hostnames route traffic to this connector; local forwarding is still controlled by this project's `target` and `routes` configuration.
-
-Multiple public hostnames on one Cloudflare Tunnel should be represented as one tunnel token plus host-aware local routes:
-
-```yaml
-cf_tunnel:
-  tunnel_token: "..."
-  edge_protocol: quic
-  ha_connections: 4
-  target: http://127.0.0.1:8080
-  routes:
-    - host: api.example.com
-      path: /api/*
-      target: http://127.0.0.1:9001
-      strip_path_prefix: true
-    - host: ws.example.com
-      path: /ws/*
-      target: ws://127.0.0.1:10000
-```
-
-If no `host` is set on a route, it remains a path-only fallback for any hostname.
-
-### Optional Config File (Multi-Tunnel)
-
-Use `--config=<path>` to load a YAML config file. This is optional and primarily for multi-tunnel setups.
-
-Example:
-
-```yaml
-health_listen: ":9090"
-shutdown_timeout: 10s
-
-tunnels:
-  - name: alpha
-    cf_tunnel:
-      edge_protocol: quic
-      ha_connections: 4
-      target: http://127.0.0.1:8081
-
-  - name: beta
-    cf_tunnel:
-      tunnel_token: "..."
-      edge_protocol: http2
-      ha_connections: 4
-      target: ws://127.0.0.1:10000
-      routes:
-        - host: test.910666.xyz
-          path: /ws/*
-          target: ws://127.0.0.1:10000
-```
-
-Run:
-
-```bash
-go run ./cmd/app --config=./config.yaml
-```
-
-Compatibility rules:
-
-- Without `--config`, current single-tunnel CLI behavior is unchanged.
-- With `--config`, file values are applied after CLI flags.
-- If `tunnels` is present and non-empty, runtime starts in multi-tunnel mode.
-- Config files must be YAML (`.yaml` or `.yml`) and use `snake_case` fields. JSON files and Go-style fields such as `CFTunnel` or `EdgeProtocol` are rejected.
-- If `tunnel_token` is stored in YAML, keep the file private, for example `chmod 600 config.yaml`.
-
-### Parameters
-
-Usage:
-
-```bash
-cf-tunnel --cf-tunnel-target=<url> [options]
-cf-tunnel --config=<config.yaml>
-```
-
-Required:
-
-- `--cf-tunnel-target=<url>` (required when `--config` is not used)
-
-Optional:
-
-- `--config=<path>`: YAML config file (`.yaml` / `.yml`)
-- `--cf-edge-protocol=http2|quic` (default: `http2`)
-- `--cf-ha-connections=<n>`: Cloudflare HA edge connections, default `4`
-- `--cf-tunnel-token=...` or `CF_TUNNEL_TOKEN=...` for remote-managed formal tunnel mode
-- `--cf-origin-server-name=...`
-- `--cf-origin-insecure-skip-verify`
-- `--cf-route=/path=url[,host=...][,strip_path_prefix=true|false][,origin_server_name=...][,origin_insecure_skip_verify=true|false]` (repeatable, supports exact `/health` and prefix `/api/*`)
-- `--log-level=debug|info|warn|error`
-- `--log-format=text|json`
-- `--health-listen=:9090`
-- `--shutdown-timeout=10s`
-
-Precedence and override rules:
-
-- Parse order is CLI first, then `--config`.
-- If config file contains `cf_tunnel`, it replaces single-tunnel CLI fields as one block.
-- If config file contains non-empty `tunnels`, runtime enters multi-tunnel mode and single-tunnel CLI fields (`--cf-*` for single tunnel) are not used.
-- Global controls (`log-level`, `log-format`, `health-listen`, `shutdown-timeout`) are also overridden by config file when the corresponding fields are set.
-
-### Current Runtime Behavior
-
-- Without a tunnel token, normal startup creates a real Quick Tunnel through `api.trycloudflare.com`.
-- With `--cf-tunnel-token` or `CF_TUNNEL_TOKEN`, startup skips the Quick Tunnel API and uses the remote-managed tunnel credentials from the token.
-- Runtime edge address discovery is internal and automatic.
-
-If `api.trycloudflare.com` returns Cloudflare rate limiting such as `429` / `1015`, retry later. That failure is at Quick Tunnel API creation time, not necessarily at the local origin proxy path.
-
-### Health Endpoints
-
-When `--health-listen` is non-empty, the app exposes:
-
-- `/live`: process liveness. Returns `200 OK` while the health server is running.
-- `/ready`: tunnel readiness. Returns `200 OK` only when every configured tunnel has completed edge registration. Returns `503 Service Unavailable` while tunnels are pending, starting, failed, stopped, or exited.
-- `/status`: structured runtime status in JSON for shell scripts and external automation to read current tunnel state and Quick Tunnel URLs.
-- If no readiness provider is wired, `/ready` returns `503 Service Unavailable` with `not ready` to avoid false-positive health reporting.
-
-Readiness response bodies are concise text summaries:
-
-```text
-mode=single total=1 ready=0 failed=0 details=[cftunnel:starting]
-mode=multi total=2 ready=2 failed=0 details=[alpha:ready,beta:ready]
-```
-
-`/status` returns structured JSON. Single-tunnel example:
-
-```json
-{
-  "mode": "single",
-  "ready": true,
-  "summary": "mode=single total=1 ready=1 failed=0 details=[cftunnel:ready]",
-  "tunnel": {
-    "name": "cftunnel",
-    "status": "ready",
-    "quick_tunnel": true,
-    "quick_tunnel_url": "https://demo.trycloudflare.com",
-    "hostname": "demo.trycloudflare.com",
-    "protocol": "quic",
-    "origin_url": "http://127.0.0.1:8080"
-  }
-}
-```
-
-Shell examples:
-
-```bash
-curl -fsS http://127.0.0.1:9090/status
-curl -fsS http://127.0.0.1:9090/status | jq -r '.tunnel.quick_tunnel_url'
-```
-
-HTTP origin client IP semantics:
-
-- Backend applications should trust forwarded headers for real client IP, not socket `remote_addr`.
-- The proxy forwards and normalizes these headers for HTTP/HTTPS/WebSocket origins:
-  - `CF-Connecting-IP`
-  - `X-Real-IP`
-  - `X-Forwarded-For`
-- Priority order is:
-  - `CF-Connecting-IP`
-  - the first valid client IP in `X-Forwarded-For`
-  - `X-Real-IP`
-- The current implementation does not fabricate a real client IP from the local proxy hop and does not rewrite backend `remote_addr` to the end-user address.
-
-### Release
-
-- Version file: [VERSION](VERSION)
-- Release notes: [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- Quick Tunnel 创建可能被 `api.trycloudflare.com` 限流（如 `429` / `1015`），请稍后重试。
+- 新 `trycloudflare.com` hostname 可能有短暂 DNS / edge 收敛窗口；大流量前建议先用小请求预热。
+- 不实现 Cloudflare 账号登录；只用 CLI 或配置文件。
+- Token 模式**不**拉取远端 ingress；本地 `target` / `routes` 才是转发真相。
+- 默认 `4` 条 HA connection；每条独立连 edge。瞬时故障（如 `EDUPCONN`、edge 断开）会换 edge 并退避重连，进程一般不退出，Quick Tunnel 域名也不会因此更换。
+- 仅当单条连接**连续**重连超过上限（默认 5 次）仍失败时，进程才退出，交给 systemd 等外部管理重启。
+- Edge 地址发现在运行时内部自动完成，无需手动配置。

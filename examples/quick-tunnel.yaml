@@ -1,0 +1,19 @@
+# 最简 Quick Tunnel：无需 Cloudflare 账号，启动后获得 *.trycloudflare.com
+#
+# 运行：
+#   ./cf-tunnel --config=./examples/quick-tunnel.yaml
+#
+# 把 target 改成你的本地源站。
+
+log_level: info
+log_format: text
+health_listen: ":9090"
+shutdown_timeout: 10s
+
+cf_tunnel:
+  # http2 | quic（配置文件里建议显式写出）
+  edge_protocol: quic
+  # HA edge 连接数，默认 4，范围 1–256
+  ha_connections: 4
+  # 默认源站（必填）
+  target: http://127.0.0.1:8080

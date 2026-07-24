@@ -1,0 +1,32 @@
+# 多隧道并行：一台进程同时跑多条独立隧道
+#
+# - 每条隧道必须有唯一 name
+# - 进入 tunnels 列表后，单隧道 CLI 的 --cf-* 不会被使用
+# - alpha：Quick Tunnel；beta：正式 token（按需改）
+#
+# 运行：
+#   ./cf-tunnel --config=./examples/multi-tunnel.yaml
+
+log_level: info
+log_format: text
+health_listen: ":9090"
+shutdown_timeout: 10s
+
+tunnels:
+  - name: alpha
+    cf_tunnel:
+      edge_protocol: quic
+      ha_connections: 4
+      target: http://127.0.0.1:8081
+
+  - name: beta
+    cf_tunnel:
+      # 无 token 时 beta 也会走 Quick Tunnel；正式隧道请填 token
+      # tunnel_token: "REPLACE_WITH_YOUR_TUNNEL_TOKEN"
+      edge_protocol: http2
+      ha_connections: 4
+      target: ws://127.0.0.1:10000
+      routes:
+        - host: test.example.com
+          path: /ws/*
+          target: ws://127.0.0.1:10000
