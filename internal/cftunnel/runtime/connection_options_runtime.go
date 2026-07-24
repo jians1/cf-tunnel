@@ -8,7 +8,9 @@ import (
 )
 
 // Cloudflare compares this connector version against cloudflared releases.
-const runtimeClientVersion = "2026.6.0"
+// Keep in step with the latest cloudflared tag so Zero Trust does not nag
+// "update cloudflared" for this lightweight connector.
+const runtimeClientVersion = "2026.7.3"
 const runtimeConnectorIDLength = 16
 
 type runtimeConnectionOptionsSnapshot struct {

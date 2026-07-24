@@ -20,8 +20,11 @@ func TestNewRuntimeConnectionOptionsIncludesConnectorClientID(t *testing.T) {
 	if options.Client.Version == "" {
 		t.Fatal("expected client version")
 	}
-	if options.Client.Version != "2026.6.0" {
+	if options.Client.Version != "2026.7.3" {
 		t.Fatalf("unexpected client version: %s", options.Client.Version)
+	}
+	if options.Client.Version != runtimeClientVersion {
+		t.Fatalf("client version %q diverged from runtimeClientVersion %q", options.Client.Version, runtimeClientVersion)
 	}
 	if options.Client.Arch == "" {
 		t.Fatal("expected client arch")
